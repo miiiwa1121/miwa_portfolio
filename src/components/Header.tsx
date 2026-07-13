@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { Terminal } from "lucide-react";
+import { useTerminal } from "./TerminalContext";
 
 const GithubIcon = ({ size = 24 }: { size?: number }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
@@ -13,13 +15,15 @@ const TwitterIcon = ({ size = 24 }: { size?: number }) => (
 
 const navItems = [
   { name: "About", href: "#about" },
+  { name: "Products", href: "#products" },
   { name: "Skills", href: "#skills" },
   { name: "Experience", href: "#experience" },
-  { name: "Works", href: "#works" },
   { name: "Contact", href: "#contact" },
 ];
 
 export default function Header() {
+  const { openTerminal } = useTerminal();
+
   return (
     <motion.header
       initial={{ y: -100 }}
@@ -45,6 +49,14 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-4">
+          <button 
+            onClick={openTerminal}
+            className="text-green-500 hover:text-green-400 bg-green-500/10 hover:bg-green-500/20 p-2 rounded-md transition-colors border border-green-500/30 flex items-center gap-2"
+            title="Open Terminal Mode"
+          >
+            <Terminal size={18} />
+            <span className="text-xs font-mono hidden sm:inline">TERMINAL</span>
+          </button>
           <Link href="https://x.com/miiiwa3330" target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-white transition-colors">
             <TwitterIcon size={20} />
           </Link>

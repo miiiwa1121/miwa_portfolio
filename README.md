@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Miiiwa Portfolio
 
-## Getting Started
+駆け出し学生エンジニア（27卒）「Miiiwa」のポートフォリオサイトです。
+「面白いを最優先！」をモットーに、技術力とデザイン性、そして遊び心を詰め込んだWebアプリケーションです。
 
-First, run the development server:
+## 🌐 サイトの特長
+- **モダンな技術スタック**: Next.js (App Router), Tailwind CSS, Framer Motion を活用した最先端のフロントエンド。
+- **ダークモード & グラスモーフィズム**: 洗練された黒ベースのデザインに、Framer Motionを使ったリッチなスクロールアニメーション。
+- **インタラクティブなパーティクル**: 背景にはマウスを避けるように動く無数の光の球体をHTML5 Canvasで実装。
+- **静的エクスポート対応**: `output: 'export'` による完全な静的サイトとしてビルドされ、Cloudflare Pagesなどへ高速デプロイが可能。
+
+## 💻 ターミナルモード (Easter Egg)
+本ポートフォリオには、遊び心として**インタラクティブなターミナルモード**が隠されています。
+
+### 起動方法
+画面ヘッダー右上（モバイルの場合はメニュー内）にある `[>_ TERMINAL]` アイコンをクリックしてください。
+ハッカー風の起動シークエンスの後、本物のコマンドラインのように操作できる画面が開きます。
+
+### 使えるコマンド一覧
+ターミナル内では以下のUNIX風コマンドが使用可能です。
+
+- `ls` : 現在のディレクトリにあるファイル一覧を表示 (`README.md`, `about.txt` など)
+- `cd <dir>` : ディレクトリを移動 (例: `cd products`)
+- `pwd` : 現在のディレクトリパスを表示
+- `cat <file>` : ファイルの中身をアスキーアートと共に表示 (例: `cat about.txt`)
+- `date` : 現在のシステム時刻を表示
+- `whoami` : 現在のログインユーザーを表示
+- `clear` : 画面のログを消去
+- `exit` : ターミナルモードを終了し、通常の画面に戻る
+
+**ショートカットコマンド**
+ファイル名を指定せずに、単に `about`, `skills`, `experience`, `products` と入力するだけでも情報が閲覧できます。
+もちろん `help` コマンドでいつでも使い方を確認できます。
+
+---
+
+## 🚀 開発環境の立ち上げ
+
+1. パッケージのインストール:
+   ```bash
+   npm install
+   ```
+2. 開発用サーバーの起動:
+   ```bash
+   npm run dev
+   ```
+3. ブラウザで [http://localhost:3000](http://localhost:3000) にアクセスして確認してください。
+
+## 📦 ビルドとデプロイ
+
+Cloudflare Pages や Vercel などに静的デプロイを行う場合:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+ビルドが成功すると、ルートディレクトリに `out/` フォルダが生成されます。このフォルダの静的ファイルをホスティングサービスにアップロードしてください。

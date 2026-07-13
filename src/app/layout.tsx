@@ -4,6 +4,10 @@ import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import AnimatedBackground from "@/components/AnimatedBackground";
+import InteractiveParticles from "@/components/InteractiveParticles";
+import { TerminalProvider } from "@/components/TerminalContext";
+import TerminalOverlay from "@/components/TerminalOverlay";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -30,12 +34,16 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
     >
       <body className="min-h-full flex flex-col relative">
-        <AnimatedBackground />
-        <Header />
-        <main className="flex-1 relative z-10 pt-16">
-          {children}
-        </main>
-        <Footer />
+        <TerminalProvider>
+          <AnimatedBackground />
+          <InteractiveParticles />
+          <Header />
+          <main className="flex-1 relative z-10 pt-16">
+            {children}
+          </main>
+          <Footer />
+          <TerminalOverlay />
+        </TerminalProvider>
       </body>
     </html>
   );
