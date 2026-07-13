@@ -1,8 +1,15 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useLanguage } from "../LanguageContext";
 
 export default function Hero() {
+  const { language } = useLanguage();
+  
+  const t = {
+    catchphrase: language === "ja" ? "面白いを最優先！" : "Fun First!",
+    role: language === "ja" ? "駆け出し学生エンジニア・27卒" : "Junior Student Engineer / Class of '27"
+  };
   return (
     <section id="hero" className="min-h-[90vh] flex items-center justify-center relative">
       <div className="max-w-6xl mx-auto px-4 text-center mt-[-10vh]">
@@ -17,7 +24,7 @@ export default function Hero() {
             animate={{ y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            面白いを最優先！
+            {t.catchphrase}
           </motion.h1>
           <motion.p 
             className="text-xl md:text-2xl text-gray-300 font-medium tracking-wider mb-16"
@@ -25,7 +32,7 @@ export default function Hero() {
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.4 }}
           >
-            Miiiwa <span className="text-[var(--primary)] mx-3">/</span> 駆け出しエンジニア・27卒
+            Miiiwa <span className="text-[var(--primary)] mx-3">/</span> {t.role}
           </motion.p>
           
           <motion.div

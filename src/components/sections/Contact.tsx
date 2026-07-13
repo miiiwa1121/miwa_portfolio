@@ -4,8 +4,10 @@ import Section from "@/components/Section";
 import { motion } from "framer-motion";
 import { Mail, MessageSquare } from "lucide-react";
 import Link from "next/link";
+import { useLanguage } from "../LanguageContext";
 
 export default function Contact() {
+  const { language } = useLanguage();
   return (
     <Section id="contact" title="Contact" className="mb-20">
       <div className="max-w-3xl mx-auto text-center">
@@ -20,7 +22,9 @@ export default function Contact() {
           
           <h3 className="text-2xl md:text-4xl font-bold text-white mb-6">Let's build something <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)]">amazing</span></h3>
           <p className="text-gray-400 mb-10 text-lg">
-            プロダクト開発、ポートフォリオへのフィードバック、またはただの雑談でも大歓迎です！お気軽にご連絡ください。
+            {language === "ja" 
+              ? "プロダクト開発、ポートフォリオへのフィードバック、またはただの雑談でも大歓迎です！お気軽にご連絡ください。" 
+              : "I'm always open to discussing product development, feedback on my portfolio, or just having a chat! Feel free to reach out."}
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6">

@@ -2,8 +2,9 @@
 
 import Section from "@/components/Section";
 import { motion } from "framer-motion";
+import { useLanguage } from "../LanguageContext";
 
-const experiences = [
+const experiencesJP = [
   {
     year: "2023",
     title: "プログラミング学習を開始",
@@ -21,7 +22,28 @@ const experiences = [
   }
 ];
 
+const experiencesEN = [
+  {
+    year: "2023",
+    title: "Started Programming",
+    description: "Got interested in Web development and started learning HTML/CSS/JavaScript self-taught.",
+  },
+  {
+    year: "2024",
+    title: "Learning React / Next.js",
+    description: "Experienced modern frontend technologies and created several personal products.",
+  },
+  {
+    year: "2025 - Present",
+    title: "Portfolio Creation & Job Hunting",
+    description: "Created this portfolio site to showcase my skills. Currently preparing to start my career as an engineer (Class of '27).",
+  }
+];
+
 export default function Experience() {
+  const { language } = useLanguage();
+  const experiences = language === "ja" ? experiencesJP : experiencesEN;
+  
   return (
     <Section id="experience" title="Experience">
       <div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-[var(--primary)] before:via-[var(--secondary)] before:to-transparent">

@@ -7,37 +7,11 @@ import Image from "next/image";
 import { ExternalLink, X } from "lucide-react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
+import { useLanguage } from "../LanguageContext";
 
 const GithubIcon = ({ size = 24 }: { size?: number }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
 );
-
-const DynamicGridIcon = ({ cols, size = 24, className = "" }: { cols: number, size?: number, className?: string }) => {
-  const gap = 2;
-  const padding = 2;
-  const availableSpace = 24 - padding * 2 - gap * (cols - 1);
-  const rectSize = availableSpace / cols;
-  
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
-      {Array.from({ length: cols * cols }).map((_, i) => {
-        const row = Math.floor(i / cols);
-        const col = i % cols;
-        return (
-          <rect
-            key={i}
-            x={padding + col * (rectSize + gap)}
-            y={padding + row * (rectSize + gap)}
-            width={rectSize}
-            height={rectSize}
-            fill="currentColor"
-            rx={cols > 4 ? 0 : 1}
-          />
-        );
-      })}
-    </svg>
-  );
-};
 
 type Project = {
   id: number;
@@ -46,40 +20,52 @@ type Project = {
   image: string;
   tags: string[];
   category: string;
+  status: "Public" | "dev";
   githubUrl: string;
   demoUrl: string;
 };
 
-// 9x9のレイアウトも見れるようにプロジェクト数を増やす
-const dummyProjects: Project[] = Array.from({ length: 18 }).map((_, i) => ({
+const dummyProjectsJP: Project[] = Array.from({ length: 6 }).map((_, i) => ({
   id: i + 1,
   title: `Product Name ${i + 1}`,
   description: "ダミーのプロダクト概要です。実際の実績詳細が決まり次第、ここに内容を反映します。このプロジェクトでは、最新のモダンな技術を活用し、高いパフォーマンスと優れたUXを実現することを目指しました。",
   image: "/images/project_placeholder.png",
   tags: ["Next.js", "Tailwind CSS", "TypeScript"],
   category: i % 2 === 0 ? "WEB" : "APP",
+  status: i % 3 === 0 ? "dev" : "Public",
+  githubUrl: "#",
+  demoUrl: "https://example.com"
+}));
+
+const dummyProjectsEN: Project[] = Array.from({ length: 6 }).map((_, i) => ({
+  id: i + 1,
+  title: `Product Name ${i + 1}`,
+  description: "This is a dummy product overview. Actual details will be reflected here once decided. In this project, we utilized modern technologies to achieve high performance and excellent UX.",
+  image: "/images/project_placeholder.png",
+  tags: ["Next.js", "Tailwind CSS", "TypeScript"],
+  category: i % 2 === 0 ? "WEB" : "APP",
+  status: i % 3 === 0 ? "dev" : "Public",
   githubUrl: "#",
   demoUrl: "https://example.com"
 }));
 
 const tabs = ["All", "WEB", "APP"];
-
-const layoutClassMap: Record<number, string> = {
-  2: "grid-cols-1 sm:grid-cols-2",
-  3: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-3",
-  4: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4",
-};
+const statuses = ["All", "Public", "dev"];
 
 export default function Products() {
+  const { language } = useLanguage();
   const [activeTab, setActiveTab] = useState("All");
+  const [activeStatus, setActiveStatus] = useState("All");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [layoutCols, setLayoutCols] = useState<2 | 3 | 4>(3);
 
   const [mounted, setMounted] = useState(false);
 
+  const dummyProjects = language === "ja" ? dummyProjectsJP : dummyProjectsEN;
+
   const filteredProjects = dummyProjects.filter(
-    project => activeTab === "All" || project.category === activeTab
+    project => (activeTab === "All" || project.category === activeTab) && 
+               (activeStatus === "All" || project.status === activeStatus)
   );
 
   useEffect(() => {
@@ -101,7 +87,7 @@ export default function Products() {
     e.stopPropagation(); 
     if (url === "#" || !url) {
       e.preventDefault(); 
-      setToastMessage("これは秘密だぜ🤫");
+      setToastMessage(language === "ja" ? "これは秘密だぜ🤫" : "This is a secret🤫");
       setTimeout(() => setToastMessage(null), 3000); 
     }
   };
@@ -110,11 +96,21 @@ export default function Products() {
     e.stopPropagation(); 
   };
 
+  const getStatusLabel = (status: string) => {
+    if (language === 'en') return status;
+    switch (status) {
+      case "All": return "すべて";
+      case "Public": return "公開済み";
+      case "dev": return "開発中";
+      default: return status;
+    }
+  };
+
   return (
     <Section id="products" title="Products">
       {/* Header controls */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-6">
-        {/* Tabs */}
+        {/* Category Tabs */}
         <div className="flex gap-4 justify-center md:justify-start w-full md:w-auto">
           {tabs.map((tab) => (
             <button
@@ -131,41 +127,34 @@ export default function Products() {
           ))}
         </div>
 
-        {/* Layout Toggles */}
-        <div className="flex gap-3 p-1.5 bg-white/5 rounded-xl border border-white/10 ml-auto mr-auto md:mr-0">
-          {([2, 3, 4] as const).map(cols => (
+        {/* Status Tabs */}
+        <div className="flex gap-2 p-1.5 bg-white/5 rounded-full border border-white/10 ml-auto mr-auto md:mr-0 w-full md:w-auto overflow-x-auto custom-scrollbar">
+          {statuses.map(status => (
             <button
-              key={cols}
-              onClick={() => setLayoutCols(cols)}
-              className={`p-2 rounded-lg transition-all duration-300 ${
-                layoutCols === cols 
+              key={status}
+              onClick={() => setActiveStatus(status)}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 ${
+                activeStatus === status 
                   ? "bg-[var(--primary)] text-[#050505] shadow-[0_0_10px_var(--primary)]" 
                   : "text-gray-400 hover:text-white hover:bg-white/10"
               }`}
-              title={`${cols}x${cols} Layout`}
             >
-              <DynamicGridIcon cols={cols} size={20} />
+              {getStatusLabel(status)}
             </button>
           ))}
         </div>
       </div>
 
       {/* Grid */}
-      <motion.div layout className={`grid gap-4 md:gap-8 transition-all duration-500 ${layoutClassMap[layoutCols]}`}>
-        <AnimatePresence mode="popLayout">
-          {filteredProjects.map((project) => (
-            <motion.div
-              layout
-              key={project.id}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.3 }}
-              whileHover={{ y: -5 }}
-              onClick={() => setSelectedProject(project)}
-              className="group rounded-2xl bg-white/5 border border-white/10 overflow-hidden flex flex-col backdrop-blur-sm hover:border-[var(--primary)]/50 transition-all duration-300 cursor-pointer"
-            >
-              <div className={`relative w-full overflow-hidden ${layoutCols === 4 ? 'h-32' : 'h-48'}`}>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 transition-all duration-500">
+        {filteredProjects.map((project) => (
+          <motion.div
+            key={project.id}
+            whileHover={{ y: -5 }}
+            onClick={() => setSelectedProject(project)}
+            className="group rounded-2xl bg-white/5 border border-white/10 overflow-hidden flex flex-col backdrop-blur-sm hover:border-[var(--primary)]/50 transition-all duration-300 cursor-pointer"
+          >
+              <div className="relative w-full overflow-hidden h-48">
                 <div className="absolute inset-0 bg-[var(--primary)]/20 group-hover:opacity-0 transition-opacity z-10 mix-blend-overlay"></div>
                 <Image 
                   src={project.image} 
@@ -173,35 +162,46 @@ export default function Products() {
                   fill
                   className="object-cover group-hover:scale-110 transition-transform duration-500"
                 />
+                <div className="absolute top-3 right-3 z-20">
+                  <span className={`text-xs font-bold px-3 py-1 rounded-full border backdrop-blur-md ${
+                    project.status === "Public" 
+                      ? "bg-green-500/20 text-green-400 border-green-500/30" 
+                      : "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                  }`}>
+                    {getStatusLabel(project.status)}
+                  </span>
+                </div>
+                <div className="absolute bottom-2 left-2 z-20 bg-black/50 px-2 py-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">{language === 'ja' ? 'クリックで詳細' : 'Click to view'}</span>
+                </div>
               </div>
-              <div className={`flex-1 flex flex-col p-6`}>
+              <div className="flex-1 flex flex-col p-6">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className={`text-xl font-bold text-white group-hover:text-[var(--primary)] transition-colors line-clamp-1`}>{project.title}</h3>
-                  <span className="text-xs px-2 py-1 bg-white/10 rounded-full text-[var(--primary)] font-bold">{project.category}</span>
+                  <h3 className="text-xl font-bold text-white group-hover:text-[var(--primary)] transition-colors line-clamp-1">{project.title}</h3>
+                  <span className="text-xs px-2 py-1 bg-white/10 rounded-full text-[var(--primary)] font-bold shrink-0">{project.category}</span>
                 </div>
                 
-                <p className={`text-sm text-gray-400 mb-4 flex-1 ${layoutCols === 4 ? 'line-clamp-1' : 'line-clamp-2'}`}>
+                <p className="text-sm text-gray-400 mb-4 flex-1 line-clamp-2">
                   {project.description}
                 </p>
                 
-                {layoutCols === 2 && (
-                  <div className="flex flex-wrap gap-2 mb-6">
-                    {project.tags.map(tag => (
-                      <span key={tag} className="text-xs px-2 py-1 bg-white/10 rounded text-gray-300">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {project.tags.slice(0, 3).map(tag => (
+                    <span key={tag} className="text-xs px-2 py-1 bg-white/10 rounded text-gray-300">
+                      {tag}
+                    </span>
+                  ))}
+                  {project.tags.length > 3 && <span className="text-xs px-2 py-1 bg-white/10 rounded text-gray-300">+{project.tags.length - 3}</span>}
+                </div>
                 
-                <div className={`flex items-center gap-2 pt-3 border-t border-white/10 mt-auto justify-between`}>
+                <div className="flex items-center gap-2 pt-3 border-t border-white/10 mt-auto justify-between">
                   <Link 
                     href={project.githubUrl} 
                     onClick={(e) => handleCodeClick(e, project.githubUrl)}
                     target={project.githubUrl !== "#" ? "_blank" : undefined}
                     className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors z-20 relative"
                   >
-                    <GithubIcon size={16} /> <span className={layoutCols === 4 ? 'hidden lg:inline' : ''}>Code</span>
+                    <GithubIcon size={16} /> <span>Code</span>
                   </Link>
                   <Link 
                     href={project.demoUrl} 
@@ -209,14 +209,13 @@ export default function Products() {
                     target="_blank"
                     className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[var(--primary)] transition-colors z-20 relative"
                   >
-                    <ExternalLink size={16} /> <span className={layoutCols === 4 ? 'hidden lg:inline' : ''}>Play</span>
+                    <ExternalLink size={16} /> <span>Play</span>
                   </Link>
                 </div>
               </div>
             </motion.div>
-          ))}
-        </AnimatePresence>
-      </motion.div>
+        ))}
+      </div>
 
       {/* Secret Toast Message */}
       {mounted && createPortal(
@@ -268,6 +267,15 @@ export default function Products() {
                     className="object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/50 to-transparent"></div>
+                  <div className="absolute top-6 left-6 z-20">
+                    <span className={`text-sm font-bold px-4 py-1.5 rounded-full border backdrop-blur-md ${
+                      selectedProject.status === "Public" 
+                        ? "bg-green-500/20 text-green-400 border-green-500/30" 
+                        : "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                    }`}>
+                      {getStatusLabel(selectedProject.status)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="p-6 md:p-10 overflow-y-auto custom-scrollbar">
