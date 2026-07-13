@@ -139,7 +139,14 @@ export default function Products() {
                   : "text-gray-400 hover:text-white hover:bg-white/10"
               }`}
             >
-              {getStatusLabel(status)}
+              <div className="flex items-center gap-2">
+                {status !== "All" && (
+                  <div className={`w-2 h-2 rounded-full ${
+                    status === "Public" ? "bg-green-500 shadow-[0_0_8px_#22c55e]" : "bg-orange-500 shadow-[0_0_8px_#f97316]"
+                  }`} />
+                )}
+                <span>{getStatusLabel(status)}</span>
+              </div>
             </button>
           ))}
         </div>
@@ -162,14 +169,12 @@ export default function Products() {
                   fill
                   className="object-cover group-hover:scale-110 transition-transform duration-500"
                 />
-                <div className="absolute top-3 right-3 z-20">
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full border backdrop-blur-md ${
+                <div className="absolute top-4 right-4 z-20">
+                  <div className={`w-3 h-3 rounded-full ${
                     project.status === "Public" 
-                      ? "bg-green-500/20 text-green-400 border-green-500/30" 
-                      : "bg-orange-500/20 text-orange-400 border-orange-500/30"
-                  }`}>
-                    {getStatusLabel(project.status)}
-                  </span>
+                      ? "bg-green-500 shadow-[0_0_10px_#22c55e]" 
+                      : "bg-orange-500 shadow-[0_0_10px_#f97316]"
+                  }`} title={getStatusLabel(project.status)} />
                 </div>
                 <div className="absolute bottom-2 left-2 z-20 bg-black/50 px-2 py-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
                   <span className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">{language === 'ja' ? 'クリックで詳細' : 'Click to view'}</span>
@@ -268,11 +273,14 @@ export default function Products() {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/50 to-transparent"></div>
                   <div className="absolute top-6 left-6 z-20">
-                    <span className={`text-sm font-bold px-4 py-1.5 rounded-full border backdrop-blur-md ${
+                    <span className={`flex items-center gap-2 text-sm font-bold px-4 py-1.5 rounded-full border backdrop-blur-md ${
                       selectedProject.status === "Public" 
-                        ? "bg-green-500/20 text-green-400 border-green-500/30" 
-                        : "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                        ? "bg-green-500/10 text-green-400 border-green-500/30" 
+                        : "bg-orange-500/10 text-orange-400 border-orange-500/30"
                     }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        selectedProject.status === "Public" ? "bg-green-500 shadow-[0_0_8px_#22c55e]" : "bg-orange-500 shadow-[0_0_8px_#f97316]"
+                      }`} />
                       {getStatusLabel(selectedProject.status)}
                     </span>
                   </div>
