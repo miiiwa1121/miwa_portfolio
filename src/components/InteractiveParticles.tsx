@@ -19,7 +19,8 @@ export default function InteractiveParticles() {
     let mouse = {
       x: -1000,
       y: -1000,
-      radius: 90 // 120の0.75倍に変更
+      radius: 90, // 120の0.75倍に変更
+      isPressed: false
     };
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -30,6 +31,15 @@ export default function InteractiveParticles() {
     const handleMouseOut = () => {
       mouse.x = -1000;
       mouse.y = -1000;
+      mouse.isPressed = false;
+    };
+
+    const handleMouseDown = () => {
+      mouse.isPressed = true;
+    };
+
+    const handleMouseUp = () => {
+      mouse.isPressed = false;
     };
 
     const handleClick = (e: MouseEvent) => {
@@ -52,6 +62,8 @@ export default function InteractiveParticles() {
 
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseout", handleMouseOut);
+    window.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("mouseup", handleMouseUp);
     window.addEventListener("click", handleClick);
 
     const resize = () => {
@@ -100,26 +112,40 @@ export default function InteractiveParticles() {
         const forceDirectionX = dx / distance;
         const forceDirectionY = dy / distance;
         
-        const maxDistance = mouse.radius;
+        const maxDistance = mouse.isPressed ? mouse.radius * 3 : mouse.radius;
         let force = (maxDistance - distance) / maxDistance;
         if (force < 0) force = 0;
 
         const directionX = forceDirectionX * force * this.density;
         const directionY = forceDirectionY * force * this.density;
 
-        if (distance < maxDistance) {
-          // カーソルから逃げるように動く
-          this.x -= directionX * 2; 
-          this.y -= directionY * 2;
-        } else {
-          // 元の場所へ戻る
-          if (this.x !== this.baseX) {
-            const dx = this.x - this.baseX;
-            this.x -= dx / 20; // 戻るスピード
+        const dxBase = this.x - this.baseX;
+        const dyBase = this.y - this.baseY;
+        const distFromBase = Math.sqrt(dxBase * dxBase + dyBase * dyBase);
+
+        if (mouse.isPressed) {
+          if (distance < maxDistance) {
+            // 長押し：カーソルに集まる（吸い寄せ効果）
+            if (distance > 2) {
+              this.x += directionX * 0.8;
+              this.y += directionY * 0.8;
+            }
+          } else {
+            // 範囲外のものは元の場所へ戻る
+            this.x -= dxBase / 20;
+            this.y -= dyBase / 20;
           }
-          if (this.y !== this.baseY) {
-            const dy = this.y - this.baseY;
-            this.y -= dy / 20;
+        } else {
+          // 常に元の場所へ戻る力を適用
+          this.x -= dxBase / 20;
+          this.y -= dyBase / 20;
+
+          if (distance < maxDistance) {
+            // 通常時：カーソルから逃げるように動く
+            // 定位置から大きく離れている場合（長押し解除直後など）は逃げる力を弱め、確実に帰還させる
+            const evadeFactor = Math.max(0, 1 - (distFromBase / 100));
+            this.x -= directionX * 2 * evadeFactor; 
+            this.y -= directionY * 2 * evadeFactor;
           }
         }
 
@@ -168,6 +194,8 @@ export default function InteractiveParticles() {
       window.removeEventListener("resize", resize);
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseout", handleMouseOut);
+      window.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mouseup", handleMouseUp);
       window.removeEventListener("click", handleClick);
       cancelAnimationFrame(animationFrameId);
     };
