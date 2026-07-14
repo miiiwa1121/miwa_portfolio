@@ -13,41 +13,7 @@ const GithubIcon = ({ size = 24 }: { size?: number }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
 );
 
-type Project = {
-  id: number;
-  title: string;
-  description: string;
-  image: string;
-  tags: string[];
-  category: string;
-  status: "Public" | "dev";
-  githubUrl: string;
-  demoUrl: string;
-};
-
-const dummyProjectsJP: Project[] = Array.from({ length: 6 }).map((_, i) => ({
-  id: i + 1,
-  title: `Product Name ${i + 1}`,
-  description: "ダミーのプロダクト概要です。実際の実績詳細が決まり次第、ここに内容を反映します。このプロジェクトでは、最新のモダンな技術を活用し、高いパフォーマンスと優れたUXを実現することを目指しました。",
-  image: "/images/project_placeholder.png",
-  tags: ["Next.js", "Tailwind CSS", "TypeScript"],
-  category: i % 2 === 0 ? "WEB" : "APP",
-  status: i % 3 === 0 ? "dev" : "Public",
-  githubUrl: "#",
-  demoUrl: "https://example.com"
-}));
-
-const dummyProjectsEN: Project[] = Array.from({ length: 6 }).map((_, i) => ({
-  id: i + 1,
-  title: `Product Name ${i + 1}`,
-  description: "This is a dummy product overview. Actual details will be reflected here once decided. In this project, we utilized modern technologies to achieve high performance and excellent UX.",
-  image: "/images/project_placeholder.png",
-  tags: ["Next.js", "Tailwind CSS", "TypeScript"],
-  category: i % 2 === 0 ? "WEB" : "APP",
-  status: i % 3 === 0 ? "dev" : "Public",
-  githubUrl: "#",
-  demoUrl: "https://example.com"
-}));
+import { projectsJP, projectsEN, type Project } from "@/data";
 
 const tabs = ["All", "WEB", "APP"];
 const statuses = ["All", "Public", "dev"];
@@ -61,9 +27,9 @@ export default function Products() {
 
   const [mounted, setMounted] = useState(false);
 
-  const dummyProjects = language === "ja" ? dummyProjectsJP : dummyProjectsEN;
+  const projects = language === "ja" ? projectsJP : projectsEN;
 
-  const filteredProjects = dummyProjects.filter(
+  const filteredProjects = projects.filter(
     project => (activeTab === "All" || project.category === activeTab) && 
                (activeStatus === "All" || project.status === activeStatus)
   );
@@ -92,15 +58,20 @@ export default function Products() {
     }
   };
 
-  const handlePlayClick = (e: React.MouseEvent) => {
+  const handlePlayClick = (e: React.MouseEvent, url: string) => {
     e.stopPropagation(); 
+    if (url === "#" || !url) {
+      e.preventDefault(); 
+      setToastMessage("Coming soon ...");
+      setTimeout(() => setToastMessage(null), 3000); 
+    }
   };
 
   const getStatusLabel = (status: string) => {
     if (language === 'en') return status;
     switch (status) {
       case "All": return "すべて";
-      case "Public": return "公開済み";
+      case "Public": return "公開中";
       case "dev": return "開発中";
       default: return status;
     }
@@ -183,7 +154,11 @@ export default function Products() {
               <div className="flex-1 flex flex-col p-6">
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="text-xl font-bold text-white group-hover:text-[var(--primary)] transition-colors line-clamp-1">{project.title}</h3>
-                  <span className="text-xs px-2 py-1 bg-white/10 rounded-full text-[var(--primary)] font-bold shrink-0">{project.category}</span>
+                  <span className={`text-xs px-2 py-1 rounded-full font-bold shrink-0 ${
+                    project.category === "WEB" 
+                      ? "bg-green-500/20 text-green-400" 
+                      : "bg-red-500/20 text-red-400"
+                  }`}>{project.category}</span>
                 </div>
                 
                 <p className="text-sm text-gray-400 mb-4 flex-1 line-clamp-2">
@@ -210,8 +185,8 @@ export default function Products() {
                   </Link>
                   <Link 
                     href={project.demoUrl} 
-                    onClick={handlePlayClick}
-                    target="_blank"
+                    onClick={(e) => handlePlayClick(e, project.demoUrl)}
+                    target={project.demoUrl !== "#" ? "_blank" : undefined}
                     className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[var(--primary)] transition-colors z-20 relative"
                   >
                     <ExternalLink size={16} /> <span>Play</span>
@@ -289,7 +264,11 @@ export default function Products() {
                 <div className="p-6 md:p-10 overflow-y-auto custom-scrollbar">
                   <div className="flex items-center gap-4 mb-6">
                     <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter">{selectedProject.title}</h2>
-                    <span className="px-3 py-1 bg-[var(--primary)]/10 text-[var(--primary)] rounded-full text-xs font-bold border border-[var(--primary)]/30">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                      selectedProject.category === "WEB" 
+                        ? "bg-green-500/10 text-green-400 border-green-500/30" 
+                        : "bg-red-500/10 text-red-400 border-red-500/30"
+                    }`}>
                       {selectedProject.category}
                     </span>
                   </div>
@@ -325,8 +304,8 @@ export default function Products() {
                     </Link>
                     <Link 
                       href={selectedProject.demoUrl} 
-                      onClick={handlePlayClick}
-                      target="_blank"
+                      onClick={(e) => handlePlayClick(e, selectedProject.demoUrl)}
+                      target={selectedProject.demoUrl !== "#" ? "_blank" : undefined}
                       className="flex-1 py-4 flex items-center justify-center gap-2 rounded-xl bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20 border border-[var(--primary)]/50 text-[var(--primary)] font-bold transition-all hover:scale-[1.02] shadow-[0_0_15px_rgba(0,240,255,0.1)] hover:shadow-[0_0_20px_rgba(0,240,255,0.3)]"
                     >
                       <ExternalLink size={20} /> Play Now
