@@ -1,7 +1,7 @@
 "use client";
 
 import Section from "@/components/Section";
-import { Terminal, Code, Cpu } from "lucide-react";
+import Image from "next/image";
 import { useLanguage } from "../LanguageContext";
 
 export default function About() {
@@ -18,9 +18,6 @@ export default function About() {
     p3: language === "ja"
       ? "とにかく新規性重視で、まだこの世にないものを探し求めて、日々を過ごしています！"
       : "I strongly focus on novelty, always searching for things that don't exist in this world yet!",
-    frontendDesc: language === "ja" ? "React, Next.js を用いたモダンなUI構築" : "Modern UI development using React, Next.js",
-    designDesc: language === "ja" ? "Tailwind CSS, Framer Motion によるリッチな表現" : "Rich visual expressions with Tailwind CSS & Framer Motion",
-    challengeDesc: language === "ja" ? "常に新しい技術や「面白い」アイデアに挑戦" : "Constantly challenging new tech and 'fun' ideas"
   };
   return (
     <Section id="about" title={t.title}>
@@ -31,34 +28,14 @@ export default function About() {
           <p>{t.p3}</p>
         </div>
         
-        <div className="grid grid-cols-1 gap-4">
-          <div className="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm flex items-start gap-4 hover:border-[var(--primary)]/50 transition-colors">
-            <div className="p-3 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)]">
-              <Terminal size={24} />
-            </div>
-            <div>
-              <h3 className="text-white font-bold text-xl mb-2">Frontend</h3>
-              <p className="text-gray-400 text-sm">{t.frontendDesc}</p>
-            </div>
-          </div>
-          <div className="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm flex items-start gap-4 hover:border-[var(--secondary)]/50 transition-colors">
-            <div className="p-3 rounded-lg bg-[var(--secondary)]/10 text-[var(--secondary)]">
-              <Code size={24} />
-            </div>
-            <div>
-              <h3 className="text-white font-bold text-xl mb-2">Design</h3>
-              <p className="text-gray-400 text-sm">{t.designDesc}</p>
-            </div>
-          </div>
-          <div className="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm flex items-start gap-4 hover:border-[var(--accent)]/50 transition-colors">
-            <div className="p-3 rounded-lg bg-[var(--accent)]/10 text-[var(--accent)]">
-              <Cpu size={24} />
-            </div>
-            <div>
-              <h3 className="text-white font-bold text-xl mb-2">Challenge</h3>
-              <p className="text-gray-400 text-sm">{t.challengeDesc}</p>
-            </div>
-          </div>
+        <div className="relative w-full aspect-square max-w-md mx-auto md:max-w-none rounded-2xl overflow-hidden border border-white/10 bg-white/5 backdrop-blur-sm group">
+          <div className="absolute inset-0 bg-gradient-to-tr from-[var(--primary)]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10 mix-blend-overlay"></div>
+          <Image 
+            src="/images/me1.png"
+            alt="Miiiwa"
+            fill
+            className="object-cover transition-transform duration-700 group-hover:scale-105 grayscale group-hover:grayscale-0"
+          />
         </div>
       </div>
     </Section>
