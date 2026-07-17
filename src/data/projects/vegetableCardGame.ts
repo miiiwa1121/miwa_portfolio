@@ -3,7 +3,7 @@ import { Project } from "../types";
 export const vegetableCardGame: { ja: Project; en: Project } = {
   ja: {
     id: 8,
-    title: "野菜メモリーカードゲーム",
+    title: "野菜神経衰弱",
     description: "野菜画像を使ったメモリーカードゲーム（神経衰弱）です。",
     image: "/images/野菜神経衰弱.png",
     tags: ["Next.js", "React", "CSS Modules"],
