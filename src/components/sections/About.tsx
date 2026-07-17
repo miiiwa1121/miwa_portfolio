@@ -28,13 +28,13 @@ export default function About() {
           <p>{t.p3}</p>
         </div>
         
-        <div className="relative w-full aspect-square max-w-md mx-auto md:max-w-none rounded-2xl overflow-hidden border border-white/10 bg-white/5 backdrop-blur-sm group">
+        <div className="relative w-full aspect-square max-w-md mx-auto md:max-w-none rounded-2xl overflow-hidden border border-black/10 bg-black/5 shadow-sm backdrop-blur-sm group">
           <div className="absolute inset-0 bg-gradient-to-tr from-[var(--primary)]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10 mix-blend-overlay"></div>
           <Image 
             src="/images/me1.png"
             alt="Miiiwa"
             fill
-            className="object-cover transition-transform duration-700 group-hover:scale-105 grayscale group-hover:grayscale-0"
+            className="object-cover transition-transform duration-700 group-hover:scale-105"
           />
         </div>
       </div>
