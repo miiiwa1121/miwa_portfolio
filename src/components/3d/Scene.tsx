@@ -93,22 +93,23 @@ function CameraController() {
 export default function Scene() {
   return (
     <Canvas shadows>
-      <color attach="background" args={["#0a0a0a"]} />
-      <fog attach="fog" args={["#0a0a0a", 15, 45]} />
+      <color attach="background" args={["#fffdf0"]} />
+      <fog attach="fog" args={["#fffdf0", 25, 60]} />
 
-      {/* Lighting */}
-      <ambientLight intensity={0.5} />
+      {/* Lighting - Warm Sunlight */}
+      <ambientLight intensity={0.8} />
       <directionalLight 
-        position={[10, 20, 10]} 
-        intensity={1.5} 
+        position={[20, 40, 20]} 
+        intensity={1.2} 
+        color="#fffaeb"
         castShadow 
         shadow-mapSize={[2048, 2048]}
       />
-      <pointLight position={[-10, 10, -10]} intensity={1.5} color="#00f0ff" />
-      <pointLight position={[10, 5, -10]} intensity={1.5} color="#bd00ff" />
-
-      <Environment preset="city" />
-      <Stars radius={50} depth={50} count={3000} factor={4} saturation={0} fade speed={1} />
+      <directionalLight 
+        position={[-20, 20, -20]} 
+        intensity={0.5} 
+        color="#e0f2fe"
+      />
 
       <Diorama />
 
