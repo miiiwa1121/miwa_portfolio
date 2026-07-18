@@ -20,7 +20,7 @@ export default function Contact() {
         >
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)]"></div>
           
-          <h3 className="text-2xl md:text-4xl font-bold text-white mb-6">Let's build something <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)]">amazing</span></h3>
+          <h3 className="text-2xl md:text-4xl font-bold text-white mb-6">Let&apos;s build something <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)]">amazing</span></h3>
           <p className="text-gray-400 mb-10 text-lg">
             {language === "ja" 
               ? "プロダクト開発、ポートフォリオへのフィードバック、またはただの雑談でも大歓迎です！お気軽にご連絡ください。" 

@@ -97,10 +97,12 @@ export default function TerminalOverlay() {
 
   useEffect(() => {
     if (isOpen) {
-      setPhase("downloading");
-      setDownloadLines([]);
-      setHistory([]);
-      setCurrentDir("~");
+      setTimeout(() => {
+        setPhase("downloading");
+        setDownloadLines([]);
+        setHistory([]);
+        setCurrentDir("~");
+      }, 0);
       
       const sequence = [
         "Establishing secure connection to miiiwa.dev...",
@@ -138,7 +140,9 @@ export default function TerminalOverlay() {
 
       return () => timeouts.forEach(clearTimeout);
     } else {
-      setPhase("hidden");
+      setTimeout(() => {
+        setPhase("hidden");
+      }, 0);
     }
   }, [isOpen]);
 

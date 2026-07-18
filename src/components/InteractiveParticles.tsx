@@ -16,7 +16,7 @@ export default function InteractiveParticles() {
     let particles: Particle[] = [];
     
     // マウスの座標と反応する半径
-    let mouse = {
+    const mouse = {
       x: -1000,
       y: -1000,
       radius: 90, // 120の0.75倍に変更

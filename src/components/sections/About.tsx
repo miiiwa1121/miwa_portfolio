@@ -11,7 +11,7 @@ export default function About() {
     title: language === "ja" ? "About" : "About Me",
     p1: language === "ja" 
       ? <>初めまして、<span className="text-white font-bold">Miiiwa</span>です。<br className="hidden md:block" />「面白いを最優先！」をモットーに、日々新しい技術に触れながらプロダクト開発に挑戦している駆け出し学生エンジニア（27卒）です。</>
-      : <>Hello, I'm <span className="text-white font-bold">Miiiwa</span>.<br className="hidden md:block" />A junior student engineer (Class of '27) challenging product development every day with the motto "Fun First!".</>,
+      : <>Hello, I&apos;m <span className="text-white font-bold">Miiiwa</span>.<br className="hidden md:block" />A junior student engineer (Class of &apos;27) challenging product development every day with the motto &quot;Fun First!&quot;.</>,
     p2: language === "ja"
       ? "ただ動くものを作るだけでなく、ユーザーにとって「使ってて楽しい」「デザインがカッコいい」と思えるような体験（UX）を提供することを大切にしています。"
       : "I don't just build things that work. I value providing an experience (UX) that makes users feel 'this is fun to use' and 'the design is cool'.",

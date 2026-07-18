@@ -1,13 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import AnimatedBackground from "@/components/AnimatedBackground";
-import InteractiveParticles from "@/components/InteractiveParticles";
-import { TerminalProvider } from "@/components/TerminalContext";
-import TerminalOverlay from "@/components/TerminalOverlay";
 import { LanguageProvider } from "@/components/LanguageContext";
+import { AppStateProvider } from "@/components/AppStateContext";
+import { TerminalProvider } from "@/components/TerminalContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,23 +26,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="ja"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark overscroll-none`}
-    >
-      <body className="min-h-full flex flex-col relative overscroll-none">
-        <LanguageProvider>
-          <TerminalProvider>
-            <AnimatedBackground />
-            <InteractiveParticles />
-            <Header />
-            <main className="flex-1 relative z-10 pt-16">
+    <html lang="ja" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className="bg-black text-white antialiased m-0 p-0">
+        <AppStateProvider>
+          <LanguageProvider>
+            <TerminalProvider>
               {children}
-            </main>
-            <Footer />
-            <TerminalOverlay />
-          </TerminalProvider>
-        </LanguageProvider>
+            </TerminalProvider>
+          </LanguageProvider>
+        </AppStateProvider>
       </body>
     </html>
   );
