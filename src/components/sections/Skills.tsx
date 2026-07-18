@@ -71,13 +71,12 @@ export default function Skills() {
                 <img
                   src={skill.imageSrc}
                   alt={skill.name}
-                  className="w-12 h-12 mb-4 transition-transform duration-300 group-hover:scale-110"
+                  className="w-12 h-12 mb-4 transition-all duration-300 group-hover:scale-110 grayscale group-hover:grayscale-0 opacity-70 group-hover:opacity-100"
                 />
               ) : (
                 <Icon
                   size={48}
-                  className="mb-4 transition-transform duration-300 group-hover:scale-110"
-                  style={{ color: skill.color }}
+                  className="mb-4 transition-all duration-300 group-hover:scale-110 text-gray-400 group-hover:text-[var(--hover-color)]"
                 />
               )}
               <span className="text-sm font-bold text-gray-300 group-hover:text-white transition-colors">
