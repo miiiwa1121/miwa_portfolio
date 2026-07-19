@@ -139,23 +139,23 @@ export default function Home() {
       {/* --- PERSISTENT CHROME (always visible in both modes) --- */}
       <div className="fixed inset-0 pointer-events-none z-40 flex flex-col justify-between p-5 sm:p-6">
         {/* Top bar */}
-        <header className="flex justify-between items-start w-full gap-4">
+        <header className="flex justify-between items-start w-full gap-6 pt-2 sm:pt-3">
           {/* Logo → full reset. Text only, no frame/icon. */}
           <button
             onClick={goHome}
-            className="pointer-events-auto font-black text-gray-900 text-3xl sm:text-4xl tracking-tight hover:scale-[1.04] transition-transform [text-shadow:0_1px_5px_rgba(255,255,255,0.7)]"
+            className="pointer-events-auto font-black text-gray-900 text-4xl sm:text-5xl tracking-tight hover:scale-[1.04] transition-transform [text-shadow:0_1px_5px_rgba(255,255,255,0.7)]"
           >
             Miiiwa<span className="text-orange-500">.</span>
           </button>
 
           {/* Nav + language */}
-          <div className="flex items-center gap-3">
-            <nav className="hidden lg:flex gap-1.5 pointer-events-auto bg-white/85 backdrop-blur-md px-2.5 py-2.5 rounded-full shadow-sm border border-black/5">
+          <div className="flex items-center gap-4">
+            <nav className="hidden lg:flex gap-2 pointer-events-auto bg-white/85 backdrop-blur-md px-3 py-3 rounded-full shadow-sm border border-black/5">
               {NAV.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => handleNav(item.id)}
-                  className={`px-4 py-2 rounded-full text-base font-bold transition-colors ${
+                  className={`px-5 py-2.5 rounded-full text-lg font-bold transition-colors ${
                     activeSection === item.id
                       ? "bg-orange-500 text-white"
                       : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
@@ -169,10 +169,10 @@ export default function Home() {
             <button
               onClick={toggleLanguage}
               title="Toggle language"
-              className="h-11 px-3 bg-white/85 backdrop-blur-md rounded-full flex items-center gap-1.5 text-gray-800 shadow-sm hover:scale-105 transition-transform border border-black/5 pointer-events-auto"
+              className="h-14 px-4 bg-white/85 backdrop-blur-md rounded-full flex items-center gap-2 text-gray-800 shadow-sm hover:scale-105 transition-transform border border-black/5 pointer-events-auto"
             >
-              <Globe size={18} className="text-orange-500" />
-              <span className="text-xs font-black w-5">{isJa ? "JP" : "EN"}</span>
+              <Globe size={22} className="text-orange-500" />
+              <span className="text-sm font-black w-6">{isJa ? "JP" : "EN"}</span>
             </button>
           </div>
         </header>
