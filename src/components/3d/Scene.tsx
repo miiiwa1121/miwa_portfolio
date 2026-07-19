@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { CameraControls } from "@react-three/drei";
 import * as THREE from "three";
 import Diorama, { BUILDING_POSITIONS } from "./Diorama";
@@ -16,105 +16,124 @@ const sectionTargets: Record<NonNullable<SectionType>, [number, number, number]>
   contact: [BUILDING_POSITIONS.contact[0], 2.5, BUILDING_POSITIONS.contact[2]],
 };
 
-// Drag/swipe sensitivity: radians of orbit per pixel of horizontal movement.
-const DRAG_SENSITIVITY = 0.006;
-// Minimum movement (px) before a touch commits to "rotate" vs "page scroll".
-const DRAG_INTENT_THRESHOLD = 6;
+const HOME_RADIUS = 24;
+const HOME_HEIGHT = 17;
+const HOME_ANGLE = Math.PI / 4;
+
+// Rotation sensitivity.
+const DRAG_SENSITIVITY = 0.006; // radians per px of pointer drag
+const WHEEL_SENSITIVITY = 0.0016; // radians per unit of wheel deltaY
+
+/** Elements whose gestures should NOT rotate the camera (real UI controls). */
+function isInteractive(target: EventTarget | null): boolean {
+  return !!(target as HTMLElement | null)?.closest?.(
+    "button, a, input, textarea, select, [data-ui]"
+  );
+}
 
 /**
- * Click+drag (mouse) / swipe (touch) support for orbiting the home view
- * left-right. Horizontal movement rotates the camera; vertical movement is
- * left alone so the page can still scroll normally on touch devices.
+ * While the detail page is closed, wheel / vertical swipe / horizontal drag all
+ * orbit the diorama (there is nothing to scroll). When the page is open we do
+ * nothing so normal page scrolling takes over. Listeners live on `window` so a
+ * gesture anywhere over the canvas works, even though the canvas sits behind the
+ * (mostly pointer-events-none) UI overlay.
  */
-function useDragOrbit(angleRef: React.RefObject<number>, draggingRef: React.RefObject<boolean>) {
-  const gl = useThree((state) => state.gl);
-
+function useViewInput(
+  angleRef: React.RefObject<number>,
+  draggingRef: React.RefObject<boolean>,
+  pageOpenRef: React.RefObject<boolean>
+) {
   useEffect(() => {
-    const el = gl.domElement;
-    let pointerDown = false;
-    let intent: "none" | "rotate" | "scroll" = "none";
-    let startX = 0;
-    let startY = 0;
+    let down = false;
     let lastX = 0;
+    let lastY = 0;
+    let pointerType = "mouse";
 
     const onPointerDown = (e: PointerEvent) => {
-      pointerDown = true;
-      intent = "none";
-      startX = lastX = e.clientX;
-      startY = e.clientY;
+      if (pageOpenRef.current || isInteractive(e.target)) return;
+      down = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      pointerType = e.pointerType || "mouse";
+      draggingRef.current = true;
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if (!pointerDown) return;
-      if (intent === "none") {
-        const dxTotal = e.clientX - startX;
-        const dyTotal = e.clientY - startY;
-        if (Math.abs(dxTotal) > DRAG_INTENT_THRESHOLD || Math.abs(dyTotal) > DRAG_INTENT_THRESHOLD) {
-          intent = Math.abs(dxTotal) > Math.abs(dyTotal) ? "rotate" : "scroll";
-          if (intent === "rotate") draggingRef.current = true;
-        }
-      }
-      if (intent === "rotate") {
-        e.preventDefault();
-        const dx = e.clientX - lastX;
-        angleRef.current += dx * DRAG_SENSITIVITY;
-      }
+      if (!down || pageOpenRef.current) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
       lastX = e.clientX;
+      lastY = e.clientY;
+      // Touch: a vertical swipe (scroll gesture) rotates. Mouse: horizontal drag.
+      const delta = pointerType === "touch" ? -dy : dx;
+      angleRef.current += delta * DRAG_SENSITIVITY;
     };
 
     const endDrag = () => {
-      pointerDown = false;
-      intent = "none";
+      down = false;
       draggingRef.current = false;
     };
 
-    el.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("pointermove", onPointerMove, { passive: false });
+    const onWheel = (e: WheelEvent) => {
+      if (pageOpenRef.current) return;
+      e.preventDefault(); // stop any rubber-band scroll; there's no page yet
+      angleRef.current += e.deltaY * WHEEL_SENSITIVITY;
+    };
+
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", endDrag);
     window.addEventListener("pointercancel", endDrag);
+    window.addEventListener("wheel", onWheel, { passive: false });
     return () => {
-      el.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", endDrag);
       window.removeEventListener("pointercancel", endDrag);
+      window.removeEventListener("wheel", onWheel);
     };
-  }, [gl, angleRef, draggingRef]);
+  }, [angleRef, draggingRef, pageOpenRef]);
 }
 
 function CameraController() {
   const controlsRef = useRef<CameraControls>(null);
-  const { activeSection } = useAppState();
-  const angleRef = useRef(Math.PI / 4);
+  const { activeSection, pageOpen, homeNonce } = useAppState();
+  const angleRef = useRef(HOME_ANGLE);
   const draggingRef = useRef(false);
 
-  useDragOrbit(angleRef, draggingRef);
+  // Keep a ref of pageOpen so the input listeners don't need to re-bind.
+  const pageOpenRef = useRef(pageOpen);
+  pageOpenRef.current = pageOpen;
 
+  useViewInput(angleRef, draggingRef, pageOpenRef);
+
+  // Zoom to a building when one is focused.
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls || !activeSection || !sectionTargets[activeSection]) return;
+    const [tx, ty, tz] = sectionTargets[activeSection];
+    const dir = new THREE.Vector2(tx, tz);
+    if (dir.length() < 0.001) dir.set(0, 1);
+    dir.normalize();
+    const dist = 13;
+    controls.setLookAt(tx + dir.x * dist, ty + 6, tz + dir.y * dist, tx, ty, tz, true);
+  }, [activeSection]);
+
+  // Full reset (logo / HOME / scrolled to bottom): restore orbit angle + home view.
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
-
-    if (activeSection && sectionTargets[activeSection]) {
-      const [tx, ty, tz] = sectionTargets[activeSection];
-      // Place the camera outward from the island centre, slightly above.
-      const dir = new THREE.Vector2(tx, tz);
-      if (dir.length() < 0.001) dir.set(0, 1);
-      dir.normalize();
-      const dist = 13;
-      controls.setLookAt(
-        tx + dir.x * dist,
-        ty + 6,
-        tz + dir.y * dist,
-        tx,
-        ty,
-        tz,
-        true
-      );
-    } else {
-      const a = angleRef.current;
-      const radius = 24;
-      controls.setLookAt(Math.cos(a) * radius, 17, Math.sin(a) * radius, 0, 1, 0, true);
-    }
-  }, [activeSection]);
+    angleRef.current = HOME_ANGLE;
+    controls.setLookAt(
+      Math.cos(HOME_ANGLE) * HOME_RADIUS,
+      HOME_HEIGHT,
+      Math.sin(HOME_ANGLE) * HOME_RADIUS,
+      0,
+      1,
+      0,
+      true
+    );
+  }, [homeNonce]);
 
   useFrame((_, delta) => {
     const controls = controlsRef.current;
@@ -124,11 +143,10 @@ function CameraController() {
       if (!draggingRef.current) {
         angleRef.current -= delta * 0.08; // gentle auto-orbit when idle
       }
-      const radius = 24;
-      const camX = Math.cos(angleRef.current) * radius;
-      const camZ = Math.sin(angleRef.current) * radius;
+      const camX = Math.cos(angleRef.current) * HOME_RADIUS;
+      const camZ = Math.sin(angleRef.current) * HOME_RADIUS;
       if (!controls.active) {
-        controls.setPosition(camX, 17, camZ, false);
+        controls.setPosition(camX, HOME_HEIGHT, camZ, false);
       }
     } else {
       const pos = controls.camera.position;
