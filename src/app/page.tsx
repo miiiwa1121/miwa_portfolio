@@ -143,19 +143,19 @@ export default function Home() {
           {/* Logo → full reset. Text only, no frame/icon. */}
           <button
             onClick={goHome}
-            className="pointer-events-auto font-black text-gray-900 text-2xl sm:text-3xl tracking-tight hover:scale-[1.04] transition-transform [text-shadow:0_1px_5px_rgba(255,255,255,0.7)]"
+            className="pointer-events-auto font-black text-gray-900 text-3xl sm:text-4xl tracking-tight hover:scale-[1.04] transition-transform [text-shadow:0_1px_5px_rgba(255,255,255,0.7)]"
           >
             Miiiwa<span className="text-orange-500">.</span>
           </button>
 
           {/* Nav + language */}
           <div className="flex items-center gap-3">
-            <nav className="hidden lg:flex gap-1 pointer-events-auto bg-white/85 backdrop-blur-md px-2 py-2 rounded-full shadow-sm border border-black/5">
+            <nav className="hidden lg:flex gap-1.5 pointer-events-auto bg-white/85 backdrop-blur-md px-2.5 py-2.5 rounded-full shadow-sm border border-black/5">
               {NAV.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => handleNav(item.id)}
-                  className={`px-3.5 py-1.5 rounded-full text-sm font-bold transition-colors ${
+                  className={`px-4 py-2 rounded-full text-base font-bold transition-colors ${
                     activeSection === item.id
                       ? "bg-orange-500 text-white"
                       : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
@@ -245,13 +245,6 @@ export default function Home() {
               </div>
             )}
           </div>
-
-          {/* Hint (pure home only) */}
-          {!activeSection && !pageOpen && (
-            <div className="hidden sm:block pointer-events-none text-center text-gray-500 text-xs font-bold bg-white/60 backdrop-blur-sm px-4 py-2 rounded-full">
-              {isJa ? "建物をクリックして探索 ・ スクロールで回転" : "Click a building to explore · scroll to rotate"}
-            </div>
-          )}
 
           {/* spacer to balance flex */}
           <div className="w-[104px]" />
