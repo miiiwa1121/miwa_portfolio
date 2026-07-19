@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppState, SectionType } from "@/components/AppStateContext";
 import { useLanguage } from "@/components/LanguageContext";
 import { useTerminal } from "@/components/TerminalContext";
@@ -12,14 +12,15 @@ import Skills from "@/components/sections/Skills";
 import Experience from "@/components/sections/Experience";
 import Contact from "@/components/sections/Contact";
 import Footer from "@/components/Footer";
-import { Globe, ChevronRight, Terminal, X } from "lucide-react";
+import { Globe, ChevronRight, Terminal, X, Monitor } from "lucide-react";
 
 // lucide-react (v1) dropped brand glyphs, so GitHub / X use inline SVGs.
 const GithubIcon = ({ size = 20 }: { size?: number }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" /><path d="M9 18c-4.51 2-5-2-7-2" /></svg>
 );
-const TwitterIcon = ({ size = 20 }: { size?: number }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" /></svg>
+// The X (formerly Twitter) logo.
+const XIcon = ({ size = 18 }: { size?: number }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
 );
 
 type NavItem = { id: NonNullable<SectionType>; ja: string; en: string };
@@ -89,6 +90,7 @@ export default function Home() {
 
   const card = CARD[activeSection ?? "home"];
   const openedAt = useRef(0);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   const scrollToSection = (id: NonNullable<SectionType>, smooth = true) => {
     document.getElementById(id)?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
@@ -197,33 +199,51 @@ export default function Home() {
 
         {/* Bottom bar */}
         <div className="flex justify-between items-end w-full gap-4">
-          {/* Social + terminal */}
-          <div className="flex items-center gap-2 pointer-events-auto">
-            <a
-              href="https://github.com/miiiwa1121"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="GitHub"
-              className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-800 shadow-sm hover:scale-110 transition-transform border border-black/5"
-            >
-              <GithubIcon size={20} />
-            </a>
-            <a
-              href="https://x.com/miiiwa3330"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="X"
-              className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-800 shadow-sm hover:scale-110 transition-transform border border-black/5"
-            >
-              <TwitterIcon size={20} />
-            </a>
+          {/* Links tucked behind a PC icon — revealed on hover (or tap) */}
+          <div
+            className="flex items-center pointer-events-auto"
+            onMouseEnter={() => setToolsOpen(true)}
+            onMouseLeave={() => setToolsOpen(false)}
+          >
             <button
-              onClick={openTerminal}
-              title="Terminal mode"
-              className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-green-600 shadow-sm hover:scale-110 transition-transform border border-black/5"
+              onClick={() => setToolsOpen((o) => !o)}
+              title={isJa ? "リンク" : "Links"}
+              aria-expanded={toolsOpen}
+              className={`w-11 h-11 rounded-full flex items-center justify-center shadow-sm hover:scale-110 transition-all border border-black/5 ${
+                toolsOpen ? "bg-orange-500 text-white" : "bg-white/85 backdrop-blur-md text-gray-800"
+              }`}
             >
-              <Terminal size={20} />
+              <Monitor size={20} />
             </button>
+            {toolsOpen && (
+              <div className="flex items-center gap-2 ml-2 animate-[fadeIn_0.25s_ease]">
+                <a
+                  href="https://github.com/miiiwa1121"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="GitHub"
+                  className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-800 shadow-sm hover:scale-110 transition-transform border border-black/5 shrink-0"
+                >
+                  <GithubIcon size={20} />
+                </a>
+                <a
+                  href="https://x.com/miiiwa3330"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="X"
+                  className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-900 shadow-sm hover:scale-110 transition-transform border border-black/5 shrink-0"
+                >
+                  <XIcon size={18} />
+                </a>
+                <button
+                  onClick={openTerminal}
+                  title="Terminal mode"
+                  className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-green-600 shadow-sm hover:scale-110 transition-transform border border-black/5 shrink-0"
+                >
+                  <Terminal size={20} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Hint (pure home only) */}
