@@ -137,9 +137,9 @@ export default function Home() {
       </div>
 
       {/* --- PERSISTENT CHROME (always visible in both modes) --- */}
-      <div className="fixed inset-0 pointer-events-none z-40 flex flex-col justify-between p-5 sm:p-6">
+      <div className="fixed inset-0 pointer-events-none z-40 flex flex-col justify-between p-7 sm:p-9">
         {/* Top bar */}
-        <header className="flex justify-between items-start w-full gap-6 pt-2 sm:pt-3">
+        <header className="flex justify-between items-start w-full gap-6">
           {/* Logo → full reset. Text only, no frame/icon. */}
           <button
             onClick={goHome}
