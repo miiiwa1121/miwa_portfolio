@@ -94,6 +94,16 @@ export default function Home() {
     document.getElementById(id)?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
   };
 
+  // Nav tabs: open the page (orbit mode) or jump between sections (page mode).
+  const handleNav = (id: NonNullable<SectionType>) => {
+    if (pageOpen) {
+      setActiveSection(id);
+      scrollToSection(id, true);
+    } else {
+      openPage(id);
+    }
+  };
+
   // When the page opens, jump to the focused section. When it closes, we're back
   // in orbit mode. Also arm the "scrolled to the bottom → return home" watcher.
   useEffect(() => {
@@ -124,55 +134,50 @@ export default function Home() {
         <Scene />
       </div>
 
-      {/* --- HERO OVERLAY (orbit mode) --- */}
-      {!pageOpen && (
-        <div className="fixed inset-0 pointer-events-none z-10 flex flex-col justify-between p-5 sm:p-6">
-          {/* Top bar */}
-          <header className="flex justify-between items-start w-full gap-4">
-            {/* Logo → full reset */}
+      {/* --- PERSISTENT CHROME (always visible in both modes) --- */}
+      <div className="fixed inset-0 pointer-events-none z-40 flex flex-col justify-between p-5 sm:p-6">
+        {/* Top bar */}
+        <header className="flex justify-between items-start w-full gap-4">
+          {/* Logo → full reset. Text only, no frame/icon. */}
+          <button
+            onClick={goHome}
+            className="pointer-events-auto font-black text-gray-900 text-2xl sm:text-3xl tracking-tight hover:scale-[1.04] transition-transform [text-shadow:0_1px_5px_rgba(255,255,255,0.7)]"
+          >
+            Miiiwa<span className="text-orange-500">.</span>
+          </button>
+
+          {/* Nav + language */}
+          <div className="flex items-center gap-3">
+            <nav className="hidden lg:flex gap-1 pointer-events-auto bg-white/85 backdrop-blur-md px-2 py-2 rounded-full shadow-sm border border-black/5">
+              {NAV.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleNav(item.id)}
+                  className={`px-3.5 py-1.5 rounded-full text-sm font-bold transition-colors ${
+                    activeSection === item.id
+                      ? "bg-orange-500 text-white"
+                      : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
+                  }`}
+                >
+                  {isJa ? item.ja : item.en}
+                </button>
+              ))}
+            </nav>
+
             <button
-              onClick={goHome}
-              className="flex items-center gap-2.5 bg-white/85 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-sm border border-black/5 hover:scale-[1.03] transition-transform pointer-events-auto"
+              onClick={toggleLanguage}
+              title="Toggle language"
+              className="h-11 px-3 bg-white/85 backdrop-blur-md rounded-full flex items-center gap-1.5 text-gray-800 shadow-sm hover:scale-105 transition-transform border border-black/5 pointer-events-auto"
             >
-              <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-pink-400 flex items-center justify-center font-black text-white shadow-inner">
-                M
-              </span>
-              <span className="font-black text-gray-800 text-lg tracking-tight">
-                Miiiwa<span className="text-orange-500">.</span>
-              </span>
+              <Globe size={18} className="text-orange-500" />
+              <span className="text-xs font-black w-5">{isJa ? "JP" : "EN"}</span>
             </button>
+          </div>
+        </header>
 
-            {/* Top-right nav + language */}
-            <div className="flex items-center gap-3">
-              <nav className="hidden lg:flex gap-1 pointer-events-auto bg-white/85 backdrop-blur-md px-2 py-2 rounded-full shadow-sm border border-black/5">
-                {NAV.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => openPage(item.id)}
-                    className={`px-3.5 py-1.5 rounded-full text-sm font-bold transition-colors ${
-                      activeSection === item.id
-                        ? "bg-orange-500 text-white"
-                        : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
-                    }`}
-                  >
-                    {isJa ? item.ja : item.en}
-                  </button>
-                ))}
-              </nav>
-
-              <button
-                onClick={toggleLanguage}
-                title="Toggle language"
-                className="h-11 px-3 bg-white/85 backdrop-blur-md rounded-full flex items-center gap-1.5 text-gray-800 shadow-sm hover:scale-105 transition-transform border border-black/5 pointer-events-auto"
-              >
-                <Globe size={18} className="text-orange-500" />
-                <span className="text-xs font-black w-5">{isJa ? "JP" : "EN"}</span>
-              </button>
-            </div>
-          </header>
-
-          {/* Middle: contextual card */}
-          <div className="flex-1 flex items-center w-full">
+        {/* Middle: contextual card (orbit mode only) */}
+        <div className="flex-1 flex items-center w-full">
+          {!pageOpen && (
             <div
               key={activeSection ?? "home"}
               className="pointer-events-auto bg-white/95 backdrop-blur-sm rounded-3xl p-6 sm:p-8 shadow-xl max-w-xs sm:max-w-sm border border-black/5 animate-[fadeIn_0.4s_ease]"
@@ -187,49 +192,51 @@ export default function Home() {
                 {isJa ? "詳しく見る" : "More"} <ChevronRight size={18} />
               </button>
             </div>
+          )}
+        </div>
+
+        {/* Bottom bar */}
+        <div className="flex justify-between items-end w-full gap-4">
+          {/* Social + terminal */}
+          <div className="flex items-center gap-2 pointer-events-auto">
+            <a
+              href="https://github.com/miiiwa1121"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="GitHub"
+              className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-800 shadow-sm hover:scale-110 transition-transform border border-black/5"
+            >
+              <GithubIcon size={20} />
+            </a>
+            <a
+              href="https://x.com/miiiwa3330"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="X"
+              className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-800 shadow-sm hover:scale-110 transition-transform border border-black/5"
+            >
+              <TwitterIcon size={20} />
+            </a>
+            <button
+              onClick={openTerminal}
+              title="Terminal mode"
+              className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-green-600 shadow-sm hover:scale-110 transition-transform border border-black/5"
+            >
+              <Terminal size={20} />
+            </button>
           </div>
 
-          {/* Bottom bar */}
-          <div className="flex justify-between items-end w-full gap-4">
-            {/* Social + terminal */}
-            <div className="flex items-center gap-2 pointer-events-auto">
-              <a
-                href="https://github.com/miiiwa1121"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="GitHub"
-                className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-800 shadow-sm hover:scale-110 transition-transform border border-black/5"
-              >
-                <GithubIcon size={20} />
-              </a>
-              <a
-                href="https://x.com/miiiwa3330"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="X"
-                className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-800 shadow-sm hover:scale-110 transition-transform border border-black/5"
-              >
-                <TwitterIcon size={20} />
-              </a>
-              <button
-                onClick={openTerminal}
-                title="Terminal mode"
-                className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-green-600 shadow-sm hover:scale-110 transition-transform border border-black/5"
-              >
-                <Terminal size={20} />
-              </button>
-            </div>
-
-            {/* Hint */}
+          {/* Hint (pure home only) */}
+          {!activeSection && !pageOpen && (
             <div className="hidden sm:block pointer-events-none text-center text-gray-500 text-xs font-bold bg-white/60 backdrop-blur-sm px-4 py-2 rounded-full">
               {isJa ? "建物をクリックして探索 ・ スクロールで回転" : "Click a building to explore · scroll to rotate"}
             </div>
+          )}
 
-            {/* spacer to balance flex */}
-            <div className="w-[104px]" />
-          </div>
+          {/* spacer to balance flex */}
+          <div className="w-[104px]" />
         </div>
-      )}
+      </div>
 
       {/* HOME button — zoomed into a building, page not yet open */}
       {activeSection && !pageOpen && (
@@ -241,61 +248,19 @@ export default function Home() {
         </button>
       )}
 
-      {/* --- PAGE MODE (detail reading) --- */}
+      {/* --- PAGE CONTENT (detail reading) --- */}
       {pageOpen && (
-        <>
-          {/* Slim top bar: logo returns home, nav jumps between sections */}
-          <div className="fixed top-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-md border-b border-black/5 shadow-sm">
-            <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-              <button onClick={goHome} className="flex items-center gap-2 hover:scale-[1.03] transition-transform">
-                <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-orange-400 to-pink-400 flex items-center justify-center font-black text-white text-sm">
-                  M
-                </span>
-                <span className="font-black text-gray-800 tracking-tight">
-                  Miiiwa<span className="text-orange-500">.</span>
-                </span>
-              </button>
-              <nav className="hidden md:flex gap-1">
-                {NAV.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setActiveSection(item.id);
-                      scrollToSection(item.id);
-                    }}
-                    className={`px-3 py-1.5 rounded-full text-sm font-bold transition-colors ${
-                      activeSection === item.id
-                        ? "bg-orange-500 text-white"
-                        : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
-                    }`}
-                  >
-                    {isJa ? item.ja : item.en}
-                  </button>
-                ))}
-              </nav>
-              <button
-                onClick={goHome}
-                title={isJa ? "3Dビューに戻る" : "Back to 3D view"}
-                className="flex items-center gap-1.5 text-sm font-bold text-gray-700 hover:text-orange-500 transition-colors"
-              >
-                <X size={16} /> {isJa ? "とじる" : "Close"}
-              </button>
-            </div>
-          </div>
-
-          {/* Scrolling content */}
-          <div className="relative z-20 bg-white pt-14 pb-24">
-            <About />
-            <Products />
-            <Skills />
-            <Experience />
-            <Contact />
-            <Footer />
-            <p className="text-center text-gray-400 text-sm pt-10 pb-4">
-              {isJa ? "▲ ここまで。スクロールで3Dの街へ戻ります" : "▲ The end — scroll to return to the 3D town"}
-            </p>
-          </div>
-        </>
+        <div className="relative z-20 bg-white pt-24 pb-24">
+          <About />
+          <Products />
+          <Skills />
+          <Experience />
+          <Contact />
+          <Footer />
+          <p className="text-center text-gray-400 text-sm pt-10 pb-4">
+            {isJa ? "▲ ここまで。スクロールで3Dの街へ戻ります" : "▲ The end — scroll to return to the 3D town"}
+          </p>
+        </div>
       )}
 
       {/* Terminal easter egg */}

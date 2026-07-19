@@ -20,9 +20,10 @@ const HOME_RADIUS = 24;
 const HOME_HEIGHT = 17;
 const HOME_ANGLE = Math.PI / 4;
 
-// Rotation sensitivity.
-const DRAG_SENSITIVITY = 0.006; // radians per px of pointer drag
-const WHEEL_SENSITIVITY = 0.0016; // radians per unit of wheel deltaY
+// Rotation sensitivity (kept gentle).
+const DRAG_SENSITIVITY = 0.004; // radians per px of pointer drag
+const WHEEL_SENSITIVITY = 0.0008; // radians per unit of wheel deltaY
+const AUTO_ORBIT_SPEED = 0.045; // radians per second of idle drift
 
 /** Elements whose gestures should NOT rotate the camera (real UI controls). */
 function isInteractive(target: EventTarget | null): boolean {
@@ -141,7 +142,7 @@ function CameraController() {
 
     if (!activeSection) {
       if (!draggingRef.current) {
-        angleRef.current -= delta * 0.08; // gentle auto-orbit when idle
+        angleRef.current -= delta * AUTO_ORBIT_SPEED; // gentle auto-orbit when idle
       }
       const camX = Math.cos(angleRef.current) * HOME_RADIUS;
       const camZ = Math.sin(angleRef.current) * HOME_RADIUS;
