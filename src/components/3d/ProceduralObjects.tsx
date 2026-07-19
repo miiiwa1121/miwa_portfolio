@@ -1,218 +1,237 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Float, Text, useCursor } from "@react-three/drei";
-import { useAppState, SectionType } from "../AppStateContext";
+import { useCursor } from "@react-three/drei";
 import * as THREE from "three";
+import { useAppState, SectionType } from "../AppStateContext";
+import VoxelModel, { Voxel } from "./voxel/VoxelModel";
+import VoxelText from "./voxel/VoxelText";
+import { fillBox, shellBox, put } from "./voxel/builders";
+import { PALETTE } from "./voxel/palette";
+
+// World size of one building voxel.
+const VS = 0.42;
 
 // ------------------------------------------------------------------
-// 1. Common Wrapper for Interaction and Label
+// Interaction wrapper: hover lift + click-to-zoom
 // ------------------------------------------------------------------
 interface ObjectProps {
   position: [number, number, number];
   sectionId: SectionType;
-  label: string;
 }
 
-function ProceduralWrapper({
-  position,
-  sectionId,
-  label,
-  children,
-  floatSpeed = 2,
-  floatIntensity = 0.5,
-  labelYOffset = 3.5,
-}: ObjectProps & { children: React.ReactNode; floatSpeed?: number; floatIntensity?: number; labelYOffset?: number }) {
-  const { setActiveSection } = useAppState();
+function Anchor({ position, sectionId, children }: ObjectProps & { children: React.ReactNode }) {
+  const { setActiveSection, activeSection } = useAppState();
   const [hovered, setHovered] = useState(false);
   const groupRef = useRef<THREE.Group>(null);
-  
+  const isActive = activeSection === sectionId;
+
   useCursor(hovered);
 
   useFrame(() => {
-    if (groupRef.current) {
-      groupRef.current.position.y = THREE.MathUtils.lerp(
-        groupRef.current.position.y,
-        hovered ? position[1] + 0.5 : position[1],
-        0.1
-      );
-    }
+    if (!groupRef.current) return;
+    const target = hovered && !isActive ? 0.45 : 0;
+    groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, target, 0.12);
   });
 
   return (
-    <group position={position} ref={groupRef}>
-      <Float speed={floatSpeed} rotationIntensity={0.1} floatIntensity={floatIntensity}>
-        <group
-          onClick={(e) => {
-            e.stopPropagation();
-            setActiveSection(sectionId);
-          }}
-          onPointerOver={(e) => {
-            e.stopPropagation();
-            setHovered(true);
-          }}
-          onPointerOut={() => setHovered(false)}
-        >
-          {children}
-          
-          {/* A cute rounded label background */}
-          <group position={[0, labelYOffset, 0]}>
-             <mesh position={[0, 0, -0.1]}>
-               <planeGeometry args={[label.length * 0.4 + 1, 1]} />
-               <meshBasicMaterial color={hovered ? "#f97316" : "#ffffff"} />
-             </mesh>
-            <Text
-              fontSize={0.5}
-              color={hovered ? "#ffffff" : "#333333"}
-              anchorX="center"
-              anchorY="middle"
-              fontWeight="bold"
-            >
-              {label}
-            </Text>
-          </group>
-        </group>
-      </Float>
+    <group position={position}>
+      <group
+        ref={groupRef}
+        onClick={(e) => {
+          e.stopPropagation();
+          setActiveSection(sectionId);
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setHovered(true);
+        }}
+        onPointerOut={() => setHovered(false)}
+      >
+        {children}
+      </group>
     </group>
   );
 }
 
 // ------------------------------------------------------------------
-// 2. Pastel Voxel Prototype Objects
+// Building voxel generators
 // ------------------------------------------------------------------
+function windowize(
+  out: Voxel[],
+  w: number,
+  h: number,
+  d: number,
+  glass: string,
+  stepX = 2,
+  stepY = 3,
+  marginY = 2
+) {
+  const ox = -Math.floor(w / 2);
+  const oz = -Math.floor(d / 2);
+  for (const v of out) {
+    const lx = v.x - ox;
+    const ly = v.y;
+    const lz = v.z - oz;
+    const onFrontBack = lz === 0 || lz === d - 1;
+    const onSides = lx === 0 || lx === w - 1;
+    if ((ly - marginY) % stepY !== 0 || ly < marginY || ly >= h - 1) continue;
+    if (onFrontBack && lx > 0 && lx < w - 1 && lx % stepX === 0) v.color = glass;
+    if (onSides && lz > 0 && lz < d - 1 && lz % stepX === 0) v.color = glass;
+  }
+}
 
-export function FerrisWheel(props: ObjectProps) {
-  const wheelRef = useRef<THREE.Group>(null);
-  useFrame(() => {
-    if (wheelRef.current) wheelRef.current.rotation.z += 0.01;
-  });
+function slabRoof(out: Voxel[], w: number, h: number, d: number, color: string, overhang = 1, thick = 1) {
+  const ox = -Math.floor((w + overhang * 2) / 2);
+  const oz = -Math.floor((d + overhang * 2) / 2);
+  fillBox(out, ox, h, oz, w + overhang * 2, thick, d + overhang * 2, color);
+}
 
+// ABOUT — cozy little house
+function useHouse() {
+  return useMemo<Voxel[]>(() => {
+    const out: Voxel[] = [];
+    const w = 11, h = 6, d = 9;
+    const ox = -Math.floor(w / 2), oz = -Math.floor(d / 2);
+    shellBox(out, ox, 0, oz, w, h, d, PALETTE.cream);
+    fillBox(out, ox, 0, oz, w, 1, d, PALETTE.wood); // floor
+    windowize(out, w, h, d, PALETTE.glassWarm, 3, 2, 2);
+    slabRoof(out, w, h, d, PALETTE.roofRed, 1, 2);
+    // door
+    fillBox(out, -1, 0, oz, 2, 3, 1, PALETTE.wood);
+    // chimney
+    fillBox(out, ox + 2, h + 2, oz + 2, 1, 3, 1, PALETTE.roofRed);
+    return out;
+  }, []);
+}
+
+// PRODUCTS — big pink landmark tower with a setback + antenna
+function usePinkTower() {
+  return useMemo<Voxel[]>(() => {
+    const out: Voxel[] = [];
+    const w = 12, h = 18, d = 12;
+    const ox = -Math.floor(w / 2), oz = -Math.floor(d / 2);
+    shellBox(out, ox, 0, oz, w, h, d, PALETTE.pink);
+    windowize(out, w, h, d, PALETTE.glass, 2, 3, 3);
+    slabRoof(out, w, h, d, PALETTE.pinkDark, 1, 1);
+    // setback penthouse
+    const w2 = 7, h2 = 4, d2 = 7;
+    const ox2 = -Math.floor(w2 / 2), oz2 = -Math.floor(d2 / 2);
+    shellBox(out, ox2, h + 1, oz2, w2, h2, d2, PALETTE.pink);
+    slabRoof(out, w2, h + 1 + h2, d2, PALETTE.pinkDark, 1, 1);
+    // antenna
+    fillBox(out, 0, h + h2 + 2, 0, 1, 4, 1, PALETTE.stone[0]);
+    put(out, 0, h + h2 + 6, 0, PALETTE.yellow[0]);
+    // sign board on the front face
+    fillBox(out, -4, h - 6, oz + d - 1, 8, 3, 1, PALETTE.white);
+    return out;
+  }, []);
+}
+
+// SKILLS — slim blue office tower
+function useBlueTower() {
+  return useMemo<Voxel[]>(() => {
+    const out: Voxel[] = [];
+    const w = 9, h = 15, d = 9;
+    const ox = -Math.floor(w / 2), oz = -Math.floor(d / 2);
+    shellBox(out, ox, 0, oz, w, h, d, PALETTE.blue);
+    windowize(out, w, h, d, PALETTE.glass, 2, 2, 2);
+    slabRoof(out, w, h, d, PALETTE.roofBlue, 1, 1);
+    // rooftop unit
+    fillBox(out, -1, h + 1, -1, 3, 2, 3, PALETTE.stone[0]);
+    // sign board
+    fillBox(out, -3, h - 5, oz + d - 1, 6, 2, 1, PALETTE.white);
+    return out;
+  }, []);
+}
+
+// EXPERIENCE — wide cream library with a green roof + awning
+function useLibrary() {
+  return useMemo<Voxel[]>(() => {
+    const out: Voxel[] = [];
+    const w = 15, h = 7, d = 10;
+    const ox = -Math.floor(w / 2), oz = -Math.floor(d / 2);
+    shellBox(out, ox, 0, oz, w, h, d, PALETTE.cream);
+    fillBox(out, ox, 0, oz, w, 1, d, PALETTE.wood);
+    windowize(out, w, h, d, PALETTE.glassWarm, 2, 3, 2);
+    slabRoof(out, w, h, d, PALETTE.green[0], 2, 2);
+    // striped awning over the storefront (front = +z)
+    for (let x = 0; x < w - 2; x++) {
+      out.push({ x: ox + 1 + x, y: 2, z: oz + d, color: x % 2 === 0 ? PALETTE.roofRed : PALETTE.white });
+    }
+    // sign board
+    fillBox(out, -5, 3, oz + d - 1, 10, 2, 1, PALETTE.white);
+    return out;
+  }, []);
+}
+
+// CONTACT — billboard + mailbox
+function useBillboard() {
+  return useMemo<Voxel[]>(() => {
+    const out: Voxel[] = [];
+    // posts
+    fillBox(out, -4, 0, 0, 1, 8, 1, PALETTE.stone[1]);
+    fillBox(out, 3, 0, 0, 1, 8, 1, PALETTE.stone[1]);
+    // board
+    fillBox(out, -5, 6, 0, 11, 5, 1, PALETTE.yellow[0]);
+    fillBox(out, -5, 6, -1, 11, 5, 1, PALETTE.yellow[1]); // back
+    // mailbox
+    fillBox(out, 5, 0, 3, 1, 2, 1, PALETTE.stone[1]);
+    fillBox(out, 4, 2, 2, 3, 2, 3, PALETTE.orange);
+    return out;
+  }, []);
+}
+
+// ------------------------------------------------------------------
+// Exported building components
+// ------------------------------------------------------------------
+export function AboutBuilding(props: ObjectProps) {
+  const voxels = useHouse();
   return (
-    <ProceduralWrapper {...props} labelYOffset={6}>
-      {/* Base */}
-      <mesh position={[0, 0.5, 0]} castShadow>
-        <boxGeometry args={[2, 1, 2]} />
-        <meshStandardMaterial color="#94a3b8" />
-      </mesh>
-      {/* Supports */}
-      <mesh position={[-0.5, 2, 0]} rotation={[0, 0, 0.2]} castShadow>
-        <boxGeometry args={[0.2, 4, 0.2]} />
-        <meshStandardMaterial color="#fcd34d" />
-      </mesh>
-      <mesh position={[0.5, 2, 0]} rotation={[0, 0, -0.2]} castShadow>
-        <boxGeometry args={[0.2, 4, 0.2]} />
-        <meshStandardMaterial color="#fcd34d" />
-      </mesh>
-      {/* The Wheel */}
-      <group ref={wheelRef} position={[0, 3.5, 0]}>
-        <mesh castShadow>
-          <torusGeometry args={[2, 0.2, 16, 32]} />
-          <meshStandardMaterial color="#fbbf24" />
-        </mesh>
-        {/* Spokes */}
-        {[0, 1, 2, 3].map((i) => (
-          <mesh key={i} rotation={[0, 0, (Math.PI / 4) * i]}>
-            <cylinderGeometry args={[0.05, 0.05, 4]} />
-            <meshStandardMaterial color="#f59e0b" />
-          </mesh>
-        ))}
-      </group>
-    </ProceduralWrapper>
+    <Anchor {...props}>
+      <VoxelModel voxels={voxels} voxelSize={VS} gap={0.05} />
+    </Anchor>
   );
 }
 
-export function PinkBuilding(props: ObjectProps) {
+export function ProductsBuilding(props: ObjectProps) {
+  const voxels = usePinkTower();
   return (
-    <ProceduralWrapper {...props} labelYOffset={5}>
-      {/* Main Building */}
-      <mesh position={[0, 1.5, 0]} castShadow>
-        <boxGeometry args={[3, 3, 3]} />
-        <meshStandardMaterial color="#f472b6" />
-      </mesh>
-      {/* Windows */}
-      {[[-0.8, 2], [0, 2], [0.8, 2], [-0.8, 1], [0, 1], [0.8, 1]].map((pos, i) => (
-        <mesh key={i} position={[pos[0], pos[1], 1.51]}>
-          <planeGeometry args={[0.5, 0.5]} />
-          <meshStandardMaterial color="#bae6fd" />
-        </mesh>
-      ))}
-      {/* Voxel Sign "GAME DEVELOP" on top */}
-      <mesh position={[0, 3.5, 0]} castShadow>
-        <boxGeometry args={[3.5, 1, 1]} />
-        <meshStandardMaterial color="#fb7185" />
-      </mesh>
-      <Text position={[0, 3.5, 0.51]} fontSize={0.4} color="#ffffff" fontWeight="bold">
-        GAME DEVELOP
-      </Text>
-    </ProceduralWrapper>
+    <Anchor {...props}>
+      <VoxelModel voxels={voxels} voxelSize={VS} gap={0.05} />
+      <VoxelText text="GAME" color="#8a2f52" voxelSize={0.075} fontSize={16} position={[0, 5.4, 2.65]} />
+      <VoxelText text="PRODUCTS" color={PALETTE.pinkDark} voxelSize={0.05} fontSize={14} position={[0, 4.6, 2.65]} />
+    </Anchor>
   );
 }
 
-export function GreenBuilding(props: ObjectProps) {
+export function SkillsBuilding(props: ObjectProps) {
+  const voxels = useBlueTower();
   return (
-    <ProceduralWrapper {...props} labelYOffset={4}>
-      {/* Main Building */}
-      <mesh position={[0, 1, 0]} castShadow>
-        <boxGeometry args={[4, 2, 3]} />
-        <meshStandardMaterial color="#fef3c7" />
-      </mesh>
-      {/* Green Roof */}
-      <mesh position={[0, 2.5, 0]} castShadow>
-        <boxGeometry args={[4.2, 1, 3.2]} />
-        <meshStandardMaterial color="#4ade80" />
-      </mesh>
-      {/* Storefront Sign */}
-      <mesh position={[0, 1.5, 1.55]} castShadow>
-        <boxGeometry args={[2, 0.5, 0.1]} />
-        <meshStandardMaterial color="#ffffff" />
-      </mesh>
-      <Text position={[0, 1.5, 1.61]} fontSize={0.3} color="#22c55e" fontWeight="bold">
-        IT ADVENTURE
-      </Text>
-    </ProceduralWrapper>
+    <Anchor {...props}>
+      <VoxelModel voxels={voxels} voxelSize={VS} gap={0.05} />
+      <VoxelText text="SKILLS" color={PALETTE.roofBlue} voxelSize={0.06} fontSize={14} position={[0, 4.3, 2.0]} />
+    </Anchor>
   );
 }
 
-export function CompanyGate(props: ObjectProps) {
+export function ExperienceBuilding(props: ObjectProps) {
+  const voxels = useLibrary();
   return (
-    <ProceduralWrapper {...props} labelYOffset={3}>
-      {/* Left Pillar */}
-      <mesh position={[-2, 1.5, 0]} castShadow>
-        <boxGeometry args={[1, 3, 1]} />
-        <meshStandardMaterial color="#e2e8f0" />
-      </mesh>
-      {/* Right Pillar */}
-      <mesh position={[2, 1.5, 0]} castShadow>
-        <boxGeometry args={[1, 3, 1]} />
-        <meshStandardMaterial color="#e2e8f0" />
-      </mesh>
-      {/* Top Arch */}
-      <mesh position={[0, 3, 0]} castShadow>
-        <boxGeometry args={[5, 1, 1]} />
-        <meshStandardMaterial color="#f8fafc" />
-      </mesh>
-      <Text position={[0, 3, 0.51]} fontSize={0.4} color="#334155" fontWeight="bold">
-        VOXEL INC.
-      </Text>
-    </ProceduralWrapper>
+    <Anchor {...props}>
+      <VoxelModel voxels={voxels} voxelSize={VS} gap={0.05} />
+      <VoxelText text="LIBRARY" color="#3f8f2f" voxelSize={0.06} fontSize={14} position={[0, 1.5, 2.2]} />
+    </Anchor>
   );
 }
 
 export function ContactBillboard(props: ObjectProps) {
+  const voxels = useBillboard();
   return (
-    <ProceduralWrapper {...props} labelYOffset={4}>
-      <mesh position={[0, 2, 0]} castShadow>
-        <boxGeometry args={[0.2, 4, 0.2]} />
-        <meshStandardMaterial color="#94a3b8" />
-      </mesh>
-      <mesh position={[0, 3, 0.1]} castShadow>
-        <boxGeometry args={[3, 2, 0.2]} />
-        <meshStandardMaterial color="#fcd34d" />
-      </mesh>
-      <Text position={[0, 3, 0.21]} fontSize={0.6} color="#b45309" fontWeight="bold">
-        CONTACT
-      </Text>
-    </ProceduralWrapper>
+    <Anchor {...props}>
+      <VoxelModel voxels={voxels} voxelSize={VS} gap={0.05} />
+      <VoxelText text="CONTACT" color="#b45309" voxelSize={0.06} fontSize={14} position={[-0.2, 3.4, 0.5]} />
+    </Anchor>
   );
 }

@@ -1,49 +1,47 @@
 "use client";
 
-import { useRef } from "react";
-import * as THREE from "three";
 import VoxelIsland from "./VoxelIsland";
-import { FerrisWheel, PinkBuilding, GreenBuilding, CompanyGate, ContactBillboard } from "./ProceduralObjects";
+import {
+  AboutBuilding,
+  ProductsBuilding,
+  SkillsBuilding,
+  ExperienceBuilding,
+  ContactBillboard,
+} from "./ProceduralObjects";
+import { FerrisWheel, Trees, StreetLamps, Clouds, Villagers, Confetti } from "./Decorations";
 import { VoxelBus } from "./VoxelBus";
 
-// Generate some random ambient particles (floating stars/cubes)
-const particleCount = 100;
-const particlePositions = new Float32Array(particleCount * 3);
-for (let i = 0; i < particleCount * 3; i++) {
-  particlePositions[i] = (Math.random() - 0.5) * 40;
-}
+// World positions of each section building. Kept in sync with
+// `sectionTargets` in Scene.tsx so the camera zooms to the right spot.
+export const BUILDING_POSITIONS = {
+  products: [1, 0.2, -2] as [number, number, number],
+  skills: [7, 0.2, -3.5] as [number, number, number],
+  experience: [6, 0.2, 5] as [number, number, number],
+  about: [-6.5, 0.2, 4] as [number, number, number],
+  contact: [-7, 0.2, -3] as [number, number, number],
+};
 
 export default function Diorama() {
-  const groupRef = useRef<THREE.Group>(null);
-
   return (
-    <group ref={groupRef}>
-      {/* City Ground */}
-      <VoxelIsland radius={14} />
+    <group>
+      {/* Floating pastel island */}
+      <VoxelIsland radius={15} />
 
-      {/* Pastel Prototype Buildings */}
-      <FerrisWheel position={[-8, 0, -8]} label="ABOUT" sectionId="about" />
-      <PinkBuilding position={[2, 0, -6]} label="PRODUCTS" sectionId="products" />
-      <GreenBuilding position={[-2, 0, 0]} label="SKILLS" sectionId="skills" />
-      <CompanyGate position={[0, 0, 8]} label="EXPERIENCE" sectionId="experience" />
-      <ContactBillboard position={[8, 0, 4]} label="CONTACT" sectionId="contact" />
+      {/* Section anchors */}
+      <ProductsBuilding position={BUILDING_POSITIONS.products} sectionId="products" />
+      <SkillsBuilding position={BUILDING_POSITIONS.skills} sectionId="skills" />
+      <ExperienceBuilding position={BUILDING_POSITIONS.experience} sectionId="experience" />
+      <AboutBuilding position={BUILDING_POSITIONS.about} sectionId="about" />
+      <ContactBillboard position={BUILDING_POSITIONS.contact} sectionId="contact" />
 
-      {/* Animated Vehicles */}
+      {/* Decorations */}
+      <FerrisWheel position={[-2, 0.2, -8]} />
+      <Trees />
+      <StreetLamps />
+      <Clouds />
+      <Villagers />
+      <Confetti />
       <VoxelBus />
-
-      {/* Cute Floating Particles */}
-      <points>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={particleCount}
-            array={particlePositions}
-            itemSize={3}
-            args={[particlePositions, 3]}
-          />
-        </bufferGeometry>
-        <pointsMaterial size={0.3} color="#fcd34d" transparent opacity={0.8} sizeAttenuation />
-      </points>
     </group>
   );
 }

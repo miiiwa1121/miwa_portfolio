@@ -1,68 +1,62 @@
-import { useRef } from "react";
+"use client";
+
+import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import VoxelModel, { Voxel } from "./voxel/VoxelModel";
+import { fillBox, put } from "./voxel/builders";
+import { PALETTE } from "./voxel/palette";
+
+const VS = 0.34;
+
+function tramVoxels(): Voxel[] {
+  const out: Voxel[] = [];
+  const w = 4, h = 4, len = 9;
+  // body
+  fillBox(out, 0, 1, 0, w, h, len, PALETTE.pink[1]);
+  // roof band
+  fillBox(out, 0, h, 0, w, 1, len, PALETTE.white);
+  // windows (both sides)
+  for (let z = 1; z < len - 1; z += 2) {
+    for (let y = 2; y < 4; y++) {
+      out.push({ x: 0, y, z, color: PALETTE.glass });
+      out.push({ x: w - 1, y, z, color: PALETTE.glass });
+    }
+  }
+  // front & back windshields
+  for (let x = 1; x < w - 1; x++) {
+    out.push({ x, y: 3, z: 0, color: PALETTE.glass });
+    out.push({ x, y: 3, z: len - 1, color: PALETTE.glass });
+  }
+  // wheels
+  for (const z of [1, len - 2]) {
+    put(out, 0, 0, z, PALETTE.stone[1]);
+    put(out, w - 1, 0, z, PALETTE.stone[1]);
+  }
+  // headlight
+  put(out, 1, 1, len - 1, PALETTE.glassWarm);
+  put(out, w - 2, 1, len - 1, PALETTE.glassWarm);
+  return out;
+}
 
 export function VoxelBus() {
-  const busRef = useRef<THREE.Group>(null);
-  const pathSize = 12; // Size of the square path
-  const speed = 4; // Driving speed
+  const groupRef = useRef<THREE.Group>(null);
+  const voxels = useMemo(tramVoxels, []);
+  const radius = 6.6; // matches the island ring road
+  const speed = 0.22;
 
   useFrame((state) => {
-    if (!busRef.current) return;
-
-    // A simple logic to drive in a square looping path
-    const perimeter = pathSize * 4;
-    const t = (state.clock.getElapsedTime() * speed) % perimeter;
-
-    if (t < pathSize) {
-      // Top Edge: left to right
-      busRef.current.position.set(-pathSize/2 + t, 0, -pathSize/2);
-      busRef.current.rotation.y = Math.PI / 2; // Facing right
-    } else if (t < pathSize * 2) {
-      // Right Edge: top to bottom
-      busRef.current.position.set(pathSize/2, 0, -pathSize/2 + (t - pathSize));
-      busRef.current.rotation.y = 0; // Facing forward (towards camera)
-    } else if (t < pathSize * 3) {
-      // Bottom Edge: right to left
-      busRef.current.position.set(pathSize/2 - (t - pathSize * 2), 0, pathSize/2);
-      busRef.current.rotation.y = -Math.PI / 2; // Facing left
-    } else {
-      // Left Edge: bottom to top
-      busRef.current.position.set(-pathSize/2, 0, pathSize/2 - (t - pathSize * 3));
-      busRef.current.rotation.y = Math.PI; // Facing back
-    }
+    if (!groupRef.current) return;
+    const a = state.clock.elapsedTime * speed;
+    groupRef.current.position.set(Math.cos(a) * radius, 0.35, Math.sin(a) * radius);
+    // orient along the tangent of the circle
+    groupRef.current.rotation.y = -a + Math.PI / 2;
   });
 
   return (
-    <group ref={busRef}>
-      {/* Bus Body */}
-      <mesh position={[0, 0.6, 0]} castShadow>
-        <boxGeometry args={[1.2, 1.2, 2.5]} />
-        <meshStandardMaterial color="#60a5fa" /> {/* Light blue bus */}
-      </mesh>
-      
-      {/* Bus Windows */}
-      <mesh position={[0.61, 0.8, 0]} castShadow>
-        <boxGeometry args={[0.05, 0.5, 1.8]} />
-        <meshStandardMaterial color="#e0f2fe" />
-      </mesh>
-      <mesh position={[-0.61, 0.8, 0]} castShadow>
-        <boxGeometry args={[0.05, 0.5, 1.8]} />
-        <meshStandardMaterial color="#e0f2fe" />
-      </mesh>
-      {/* Front Windshield */}
-      <mesh position={[0, 0.8, 1.26]} castShadow>
-        <boxGeometry args={[1, 0.5, 0.05]} />
-        <meshStandardMaterial color="#e0f2fe" />
-      </mesh>
-
-      {/* Wheels */}
-      {[[-0.6, 0.2, 0.8], [0.6, 0.2, 0.8], [-0.6, 0.2, -0.8], [0.6, 0.2, -0.8]].map((pos, i) => (
-        <mesh key={i} position={pos as [number, number, number]} rotation={[0, 0, Math.PI / 2]} castShadow>
-          <cylinderGeometry args={[0.2, 0.2, 0.2, 16]} />
-          <meshStandardMaterial color="#334155" />
-        </mesh>
-      ))}
+    <group ref={groupRef}>
+      {/* recenter the tram model on its own origin */}
+      <VoxelModel voxels={voxels} voxelSize={VS} gap={0.05} position={[-1.5 * VS, 0, -4.5 * VS]} />
     </group>
   );
 }
