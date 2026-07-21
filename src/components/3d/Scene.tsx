@@ -25,6 +25,22 @@ const DRAG_SENSITIVITY = 0.004; // radians per px of pointer drag
 const WHEEL_SENSITIVITY = 0.0008; // radians per unit of wheel deltaY
 const AUTO_ORBIT_SPEED = 0.045; // radians per second of idle drift
 
+/**
+ * CameraControls follows three.js's `Spherical` convention, where the
+ * azimuth is measured as `atan2(x, z)` (not the more familiar `atan2(z, x)`)
+ * — i.e. `x = radius * sin(azimuth)`, `z = radius * cos(azimuth)`. Any XZ
+ * position built from an `azimuthAngle` value has to use this convention or
+ * it silently points somewhere else entirely.
+ */
+function azimuthToXZ(azimuth: number, radius: number): [number, number] {
+  return [Math.sin(azimuth) * radius, Math.cos(azimuth) * radius];
+}
+
+/** Wraps an angle (in radians) into (-π, π]. */
+function wrapAngle(angle: number): number {
+  return THREE.MathUtils.euclideanModulo(angle + Math.PI, Math.PI * 2) - Math.PI;
+}
+
 /** Elements whose gestures should NOT rotate the camera (real UI controls). */
 function isInteractive(target: EventTarget | null): boolean {
   return !!(target as HTMLElement | null)?.closest?.(
@@ -68,8 +84,13 @@ function useViewInput(
       lastX = e.clientX;
       lastY = e.clientY;
       // Touch: a vertical swipe (scroll gesture) rotates. Mouse: horizontal drag.
+      // Subtracted (not added): CameraControls' azimuth increases clockwise
+      // when viewed from above (three.js's `atan2(x, z)` convention, see
+      // azimuthToXZ below), which is the opposite handedness of the drag
+      // gesture's natural "grab and pull" direction — so the delta is negated
+      // here to keep dragging right feel like rotating the diorama rightward.
       const delta = pointerType === "touch" ? -dy : dx;
-      targetAngleRef.current += delta * DRAG_SENSITIVITY;
+      targetAngleRef.current -= delta * DRAG_SENSITIVITY;
     };
 
     const endDrag = () => {
@@ -80,7 +101,7 @@ function useViewInput(
     const onWheel = (e: WheelEvent) => {
       if (orbitLockedRef.current) return;
       e.preventDefault(); // stop any rubber-band scroll; there's no page yet
-      targetAngleRef.current += e.deltaY * WHEEL_SENSITIVITY;
+      targetAngleRef.current -= e.deltaY * WHEEL_SENSITIVITY;
     };
 
     window.addEventListener("pointerdown", onPointerDown);
@@ -101,24 +122,33 @@ function useViewInput(
 function CameraController() {
   const controlsRef = useRef<CameraControls>(null);
   const { activeSection, pageOpen, homeNonce, scrollProgressRef } = useAppState();
-  
-  const angleRef = useRef(HOME_ANGLE);
-  const targetAngleRef = useRef(HOME_ANGLE);
+
+  // The orbit's azimuth is tracked entirely through CameraControls' own
+  // `.azimuthAngle` (an accumulative, wraparound-safe property backed by its
+  // internal spherical state) rather than a hand-rolled ref recovered via
+  // atan2(camera.position). Re-deriving an angle from a transient world-space
+  // position was the root cause of the drift/snap bugs here: intermediate
+  // points along a flight path don't sit on the orbit circle, so atan2'ing
+  // them produced angles that didn't mean anything. `azimuthAngle` never has
+  // that problem because it's the authoritative source, not a recomputation.
+  const azimuthTargetRef = useRef(HOME_ANGLE);
+  const homeAzimuthRef = useRef(HOME_ANGLE);
   const draggingRef = useRef(false);
   const isTransitioningRef = useRef(false);
 
   // Orbiting only makes sense in the free home view — lock out drag/wheel input
   // whenever a section is focused (card or full page) so stray gestures can't
-  // silently accumulate into targetAngleRef and cause a spin once we get home.
+  // silently accumulate into azimuthTargetRef and cause a spin once we get home.
   const orbitLockedRef = useRef(pageOpen || !!activeSection);
   orbitLockedRef.current = pageOpen || !!activeSection;
 
-  useViewInput(targetAngleRef, draggingRef, orbitLockedRef);
+  useViewInput(azimuthTargetRef, draggingRef, orbitLockedRef);
 
   // Zoom to a building when one is focused. Freeze the orbit angle we'll
-  // resume at — captured once, here, before anything else can perturb it —
-  // so the scroll-linked return lerp and the home reset both converge on the
-  // exact spot the diorama was left at, instead of drifting frame-to-frame.
+  // resume at — read once, here, straight from CameraControls before
+  // anything else can perturb it — so the scroll-linked return lerp and the
+  // home reset both converge on the exact spot the diorama was left at,
+  // instead of drifting frame-to-frame.
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls || !activeSection || !sectionTargets[activeSection]) return;
@@ -128,7 +158,8 @@ function CameraController() {
     dir.normalize();
     const dist = 13;
 
-    targetAngleRef.current = angleRef.current;
+    homeAzimuthRef.current = controls.azimuthAngle;
+    azimuthTargetRef.current = controls.azimuthAngle;
 
     isTransitioningRef.current = true;
     controls.setLookAt(tx + dir.x * dist, ty + 6, tz + dir.y * dist, tx, ty, tz, true)
@@ -140,16 +171,17 @@ function CameraController() {
     const controls = controlsRef.current;
     if (!controls) return;
 
-    // angleRef already holds the angle the diorama was left at (frozen on
-    // entry, above) — reuse it so this glides home without an extra spin.
-    const homeAngle = angleRef.current;
-    targetAngleRef.current = homeAngle;
+    // homeAzimuthRef already holds the angle the diorama was left at (frozen
+    // on entry, above) — reuse it so this glides home without an extra spin.
+    const homeAzimuth = homeAzimuthRef.current;
+    azimuthTargetRef.current = homeAzimuth;
 
+    const [homeX, homeZ] = azimuthToXZ(homeAzimuth, HOME_RADIUS);
     isTransitioningRef.current = true;
     controls.setLookAt(
-      Math.cos(homeAngle) * HOME_RADIUS,
+      homeX,
       HOME_HEIGHT,
-      Math.sin(homeAngle) * HOME_RADIUS,
+      homeZ,
       0,
       1,
       0,
@@ -163,46 +195,52 @@ function CameraController() {
 
     if (!activeSection) {
       if (!draggingRef.current && !isTransitioningRef.current) {
-        targetAngleRef.current -= delta * AUTO_ORBIT_SPEED; // gentle auto-orbit when idle
+        azimuthTargetRef.current += delta * AUTO_ORBIT_SPEED; // gentle auto-orbit when idle
       }
-      
-      // Interpolate for inertia and smooth flowing rotation
-      angleRef.current = THREE.MathUtils.damp(angleRef.current, targetAngleRef.current, 5, delta);
-      
-      const camX = Math.cos(angleRef.current) * HOME_RADIUS;
-      const camZ = Math.sin(angleRef.current) * HOME_RADIUS;
-      
+
       if (!isTransitioningRef.current) {
-        controls.setPosition(camX, HOME_HEIGHT, camZ, false);
+        // controls.azimuthAngle gets rewrapped into (-π, π] every frame (it's
+        // recovered via atan2 inside setPosition below), but azimuthTargetRef
+        // is a plain accumulator that keeps growing past ±π as drag/wheel/
+        // auto-orbit deltas pile up. Left alone, damp() would chase the raw
+        // numeric gap between a wrapped value and an unbounded one — often
+        // many multiples of 2π — instead of the short physical distance,
+        // which is what made rotation "run away" after enough spinning.
+        // Re-centering the target within one turn of the current angle first
+        // keeps every damp step on the shortest path.
+        const current = controls.azimuthAngle;
+        const target = current + wrapAngle(azimuthTargetRef.current - current);
+        azimuthTargetRef.current = target;
+
+        // Interpolate for inertia and smooth flowing rotation
+        const azimuth = THREE.MathUtils.damp(current, target, 5, delta);
+        const [x, z] = azimuthToXZ(azimuth, HOME_RADIUS);
+        controls.setPosition(x, HOME_HEIGHT, z, false);
       }
     } else {
       const progress = scrollProgressRef?.current || 0;
-      
+
       if (!isTransitioningRef.current && sectionTargets[activeSection]) {
-        // Calculate PosA (Zoomed in) and LookA
         const [tx, ty, tz] = sectionTargets[activeSection];
         const dir = new THREE.Vector2(tx, tz);
         if (dir.length() < 0.001) dir.set(0, 1);
         dir.normalize();
         const dist = 13;
-        const PosA = new THREE.Vector3(tx + dir.x * dist, ty + 6, tz + dir.y * dist);
-        const LookA = new THREE.Vector3(tx, ty, tz);
 
-        // Calculate PosB (Home view) and LookB — angleRef is frozen at the
-        // angle the diorama was left at when this section opened, so PosB
-        // stays fixed for the whole scroll instead of chasing itself.
-        const camX = Math.cos(angleRef.current) * HOME_RADIUS;
-        const camZ = Math.sin(angleRef.current) * HOME_RADIUS;
-        const PosB = new THREE.Vector3(camX, HOME_HEIGHT, camZ);
-        const LookB = new THREE.Vector3(0, 1, 0);
+        // homeAzimuthRef is frozen at the angle the diorama was left at when
+        // this section opened, so the "home" end of the lerp stays fixed for
+        // the whole scroll instead of chasing itself.
+        const homeAzimuth = homeAzimuthRef.current;
+        const [camX, camZ] = azimuthToXZ(homeAzimuth, HOME_RADIUS);
 
-        // Interpolate based on scroll progress
-        const currentPos = new THREE.Vector3().lerpVectors(PosA, PosB, progress);
-        const currentLook = new THREE.Vector3().lerpVectors(LookA, LookB, progress);
-
-        controls.setLookAt(
-          currentPos.x, currentPos.y, currentPos.z,
-          currentLook.x, currentLook.y, currentLook.z,
+        // lerpLookAt interpolates via spherical coordinates around each
+        // state's own target (not a straight Cartesian blend), so the camera
+        // sweeps a natural orbit arc between the two lookAts instead of
+        // cutting a straight line through space.
+        controls.lerpLookAt(
+          tx + dir.x * dist, ty + 6, tz + dir.y * dist, tx, ty, tz,
+          camX, HOME_HEIGHT, camZ, 0, 1, 0,
+          progress,
           false
         );
       }
