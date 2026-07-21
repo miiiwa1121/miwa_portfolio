@@ -17,7 +17,7 @@ const sectionTargets: Record<NonNullable<SectionType>, [number, number, number]>
 };
 
 const HOME_RADIUS = 24;
-const HOME_HEIGHT = 17;
+const HOME_HEIGHT = 11;
 const HOME_ANGLE = Math.PI / 4;
 
 // Rotation sensitivity (kept gentle).
@@ -33,16 +33,18 @@ function isInteractive(target: EventTarget | null): boolean {
 }
 
 /**
- * While the detail page is closed, wheel / vertical swipe / horizontal drag all
- * orbit the diorama (there is nothing to scroll). When the page is open we do
- * nothing so normal page scrolling takes over. Listeners live on `window` so a
+ * Only in the free home view do wheel / vertical swipe / horizontal drag orbit
+ * the diorama (there is nothing to scroll there). Whenever a section is
+ * focused — card or full page — orbiting is locked out, since the camera is
+ * driven by the zoom/scroll logic instead; a stray gesture is simply ignored
+ * rather than silently queued up for later. Listeners live on `window` so a
  * gesture anywhere over the canvas works, even though the canvas sits behind the
  * (mostly pointer-events-none) UI overlay.
  */
 function useViewInput(
-  angleRef: React.RefObject<number>,
+  targetAngleRef: React.RefObject<number>,
   draggingRef: React.RefObject<boolean>,
-  pageOpenRef: React.RefObject<boolean>
+  orbitLockedRef: React.RefObject<boolean>
 ) {
   useEffect(() => {
     let down = false;
@@ -51,7 +53,7 @@ function useViewInput(
     let pointerType = "mouse";
 
     const onPointerDown = (e: PointerEvent) => {
-      if (pageOpenRef.current || isInteractive(e.target)) return;
+      if (orbitLockedRef.current || isInteractive(e.target)) return;
       down = true;
       lastX = e.clientX;
       lastY = e.clientY;
@@ -60,14 +62,14 @@ function useViewInput(
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if (!down || pageOpenRef.current) return;
+      if (!down || orbitLockedRef.current) return;
       const dx = e.clientX - lastX;
       const dy = e.clientY - lastY;
       lastX = e.clientX;
       lastY = e.clientY;
       // Touch: a vertical swipe (scroll gesture) rotates. Mouse: horizontal drag.
       const delta = pointerType === "touch" ? -dy : dx;
-      angleRef.current += delta * DRAG_SENSITIVITY;
+      targetAngleRef.current += delta * DRAG_SENSITIVITY;
     };
 
     const endDrag = () => {
@@ -76,9 +78,9 @@ function useViewInput(
     };
 
     const onWheel = (e: WheelEvent) => {
-      if (pageOpenRef.current) return;
+      if (orbitLockedRef.current) return;
       e.preventDefault(); // stop any rubber-band scroll; there's no page yet
-      angleRef.current += e.deltaY * WHEEL_SENSITIVITY;
+      targetAngleRef.current += e.deltaY * WHEEL_SENSITIVITY;
     };
 
     window.addEventListener("pointerdown", onPointerDown);
@@ -93,22 +95,30 @@ function useViewInput(
       window.removeEventListener("pointercancel", endDrag);
       window.removeEventListener("wheel", onWheel);
     };
-  }, [angleRef, draggingRef, pageOpenRef]);
+  }, [targetAngleRef, draggingRef, orbitLockedRef]);
 }
 
 function CameraController() {
   const controlsRef = useRef<CameraControls>(null);
-  const { activeSection, pageOpen, homeNonce } = useAppState();
+  const { activeSection, pageOpen, homeNonce, scrollProgressRef } = useAppState();
+  
   const angleRef = useRef(HOME_ANGLE);
+  const targetAngleRef = useRef(HOME_ANGLE);
   const draggingRef = useRef(false);
+  const isTransitioningRef = useRef(false);
 
-  // Keep a ref of pageOpen so the input listeners don't need to re-bind.
-  const pageOpenRef = useRef(pageOpen);
-  pageOpenRef.current = pageOpen;
+  // Orbiting only makes sense in the free home view — lock out drag/wheel input
+  // whenever a section is focused (card or full page) so stray gestures can't
+  // silently accumulate into targetAngleRef and cause a spin once we get home.
+  const orbitLockedRef = useRef(pageOpen || !!activeSection);
+  orbitLockedRef.current = pageOpen || !!activeSection;
 
-  useViewInput(angleRef, draggingRef, pageOpenRef);
+  useViewInput(targetAngleRef, draggingRef, orbitLockedRef);
 
-  // Zoom to a building when one is focused.
+  // Zoom to a building when one is focused. Freeze the orbit angle we'll
+  // resume at — captured once, here, before anything else can perturb it —
+  // so the scroll-linked return lerp and the home reset both converge on the
+  // exact spot the diorama was left at, instead of drifting frame-to-frame.
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls || !activeSection || !sectionTargets[activeSection]) return;
@@ -117,23 +127,34 @@ function CameraController() {
     if (dir.length() < 0.001) dir.set(0, 1);
     dir.normalize();
     const dist = 13;
-    controls.setLookAt(tx + dir.x * dist, ty + 6, tz + dir.y * dist, tx, ty, tz, true);
+
+    targetAngleRef.current = angleRef.current;
+
+    isTransitioningRef.current = true;
+    controls.setLookAt(tx + dir.x * dist, ty + 6, tz + dir.y * dist, tx, ty, tz, true)
+      .then(() => { isTransitioningRef.current = false; });
   }, [activeSection]);
 
   // Full reset (logo / HOME / scrolled to bottom): restore orbit angle + home view.
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
-    angleRef.current = HOME_ANGLE;
+
+    // angleRef already holds the angle the diorama was left at (frozen on
+    // entry, above) — reuse it so this glides home without an extra spin.
+    const homeAngle = angleRef.current;
+    targetAngleRef.current = homeAngle;
+
+    isTransitioningRef.current = true;
     controls.setLookAt(
-      Math.cos(HOME_ANGLE) * HOME_RADIUS,
+      Math.cos(homeAngle) * HOME_RADIUS,
       HOME_HEIGHT,
-      Math.sin(HOME_ANGLE) * HOME_RADIUS,
+      Math.sin(homeAngle) * HOME_RADIUS,
       0,
       1,
       0,
       true
-    );
+    ).then(() => { isTransitioningRef.current = false; });
   }, [homeNonce]);
 
   useFrame((_, delta) => {
@@ -141,17 +162,50 @@ function CameraController() {
     if (!controls) return;
 
     if (!activeSection) {
-      if (!draggingRef.current) {
-        angleRef.current -= delta * AUTO_ORBIT_SPEED; // gentle auto-orbit when idle
+      if (!draggingRef.current && !isTransitioningRef.current) {
+        targetAngleRef.current -= delta * AUTO_ORBIT_SPEED; // gentle auto-orbit when idle
       }
+      
+      // Interpolate for inertia and smooth flowing rotation
+      angleRef.current = THREE.MathUtils.damp(angleRef.current, targetAngleRef.current, 5, delta);
+      
       const camX = Math.cos(angleRef.current) * HOME_RADIUS;
       const camZ = Math.sin(angleRef.current) * HOME_RADIUS;
-      if (!controls.active) {
+      
+      if (!isTransitioningRef.current) {
         controls.setPosition(camX, HOME_HEIGHT, camZ, false);
       }
     } else {
-      const pos = controls.camera.position;
-      angleRef.current = Math.atan2(pos.z, pos.x);
+      const progress = scrollProgressRef?.current || 0;
+      
+      if (!isTransitioningRef.current && sectionTargets[activeSection]) {
+        // Calculate PosA (Zoomed in) and LookA
+        const [tx, ty, tz] = sectionTargets[activeSection];
+        const dir = new THREE.Vector2(tx, tz);
+        if (dir.length() < 0.001) dir.set(0, 1);
+        dir.normalize();
+        const dist = 13;
+        const PosA = new THREE.Vector3(tx + dir.x * dist, ty + 6, tz + dir.y * dist);
+        const LookA = new THREE.Vector3(tx, ty, tz);
+
+        // Calculate PosB (Home view) and LookB — angleRef is frozen at the
+        // angle the diorama was left at when this section opened, so PosB
+        // stays fixed for the whole scroll instead of chasing itself.
+        const camX = Math.cos(angleRef.current) * HOME_RADIUS;
+        const camZ = Math.sin(angleRef.current) * HOME_RADIUS;
+        const PosB = new THREE.Vector3(camX, HOME_HEIGHT, camZ);
+        const LookB = new THREE.Vector3(0, 1, 0);
+
+        // Interpolate based on scroll progress
+        const currentPos = new THREE.Vector3().lerpVectors(PosA, PosB, progress);
+        const currentLook = new THREE.Vector3().lerpVectors(LookA, LookB, progress);
+
+        controls.setLookAt(
+          currentPos.x, currentPos.y, currentPos.z,
+          currentLook.x, currentLook.y, currentLook.z,
+          false
+        );
+      }
     }
   });
 
@@ -173,7 +227,7 @@ function CameraController() {
 
 export default function Scene() {
   return (
-    <Canvas shadows camera={{ position: [16, 14, 16], fov: 45 }} dpr={[1, 2]}>
+    <Canvas shadows camera={{ position: [16, 11, 16], fov: 45 }} dpr={[1, 2]}>
       <color attach="background" args={["#fff3d1"]} />
       <fog attach="fog" args={["#fff3d1", 30, 70]} />
 

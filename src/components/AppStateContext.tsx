@@ -17,6 +17,8 @@ interface AppStateContextType {
   goHome: () => void;
   /** Bumps every time goHome() runs; the camera watches it to reset its orbit. */
   homeNonce: number;
+  /** Tracks the scroll progress (0.0 to 1.0) for scroll-linked camera animation. */
+  scrollProgressRef: React.MutableRefObject<number>;
 }
 
 const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
@@ -25,22 +27,28 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [activeSection, setActiveSection] = useState<SectionType>(null);
   const [pageOpen, setPageOpen] = useState(false);
   const [homeNonce, setHomeNonce] = useState(0);
+  const scrollProgressRef = React.useRef(0);
 
   const openPage = useCallback((section: NonNullable<SectionType>) => {
     setActiveSection(section);
-    setPageOpen(true);
+    if (section !== "about") {
+      setPageOpen(true);
+    } else {
+      setPageOpen(false);
+    }
   }, []);
 
   const goHome = useCallback(() => {
     setActiveSection(null);
     setPageOpen(false);
     setHomeNonce((n) => n + 1);
+    scrollProgressRef.current = 0;
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
 
   return (
     <AppStateContext.Provider
-      value={{ activeSection, setActiveSection, pageOpen, setPageOpen, openPage, goHome, homeNonce }}
+      value={{ activeSection, setActiveSection, pageOpen, setPageOpen, openPage, goHome, homeNonce, scrollProgressRef }}
     >
       {children}
     </AppStateContext.Provider>

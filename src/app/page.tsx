@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAppState, SectionType } from "@/components/AppStateContext";
 import { useLanguage } from "@/components/LanguageContext";
 import { useTerminal } from "@/components/TerminalContext";
@@ -83,7 +84,7 @@ const CARD: Record<
 };
 
 export default function Home() {
-  const { activeSection, setActiveSection, pageOpen, openPage, goHome } = useAppState();
+  const { activeSection, setActiveSection, pageOpen, openPage, goHome, scrollProgressRef } = useAppState();
   const { language, toggleLanguage } = useLanguage();
   const { openTerminal } = useTerminal();
   const isJa = language === "ja";
@@ -92,45 +93,44 @@ export default function Home() {
   const openedAt = useRef(0);
   const [toolsOpen, setToolsOpen] = useState(false);
 
-  const scrollToSection = (id: NonNullable<SectionType>, smooth = true) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
-  };
-
-  // Nav tabs: open the page (orbit mode) or jump between sections (page mode).
   const handleNav = (id: NonNullable<SectionType>) => {
-    if (pageOpen) {
+    if (id === "about") {
+      openPage(id);
+    } else if (pageOpen) {
       setActiveSection(id);
-      scrollToSection(id, true);
+      scrollProgressRef.current = 0; // Reset progress when switching tabs
     } else {
       openPage(id);
     }
   };
 
-  // When the page opens, jump to the focused section. When it closes, we're back
-  // in orbit mode. Also arm the "scrolled to the bottom → return home" watcher.
   useEffect(() => {
-    if (!pageOpen) return;
-    openedAt.current = Date.now();
-    const target = activeSection ?? "about";
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => scrollToSection(target, false))
-    );
-  }, [pageOpen, activeSection]);
+    if (pageOpen) {
+      openedAt.current = Date.now();
+      scrollProgressRef.current = 0;
+    }
+  }, [pageOpen, activeSection, scrollProgressRef]);
 
-  // Reaching the very bottom of the page returns to the diorama.
-  useEffect(() => {
-    if (!pageOpen) return;
-    const onScroll = () => {
-      if (Date.now() - openedAt.current < 1200) return; // ignore the open jump
-      const atBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 4;
-      if (atBottom) goHome();
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [pageOpen, goHome]);
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    
+    // 150vh spacer at the bottom
+    const spacerHeight = window.innerHeight * 1.5;
+    const distanceFromBottom = maxScroll - el.scrollTop;
+    
+    let progress = 1 - (distanceFromBottom / spacerHeight);
+    progress = Math.max(0, Math.min(1, progress));
+    
+    scrollProgressRef.current = progress;
+    
+    if (progress >= 1 && Date.now() - openedAt.current > 1200) {
+      goHome();
+    }
+  };
 
   return (
-    <main className="w-full relative min-h-screen font-sans" style={{ touchAction: pageOpen ? "auto" : "none" }}>
+    <main className="w-full h-screen overflow-hidden relative font-sans">
       {/* 3D scene fixed in the background */}
       <div className="fixed inset-0 w-full h-full -z-10 bg-[#fff3d1]">
         <Scene />
@@ -246,8 +246,17 @@ export default function Home() {
             )}
           </div>
 
-          {/* spacer to balance flex */}
-          <div className="w-[104px]" />
+          {/* Floating About section for home screen */}
+          <div className="absolute right-12 top-1/2 -translate-y-1/2 pointer-events-none z-30">
+            <AnimatePresence>
+              {!pageOpen && activeSection === "about" && <About />}
+            </AnimatePresence>
+          </div>
+
+          {/* Footer (only on Home screen, bottom right) */}
+          <div className="absolute bottom-9 right-12 pointer-events-auto">
+            {!pageOpen && <Footer />}
+          </div>
         </div>
       </div>
 
@@ -262,19 +271,49 @@ export default function Home() {
       )}
 
       {/* --- PAGE CONTENT (detail reading) --- */}
-      {pageOpen && (
-        <div className="relative z-20 bg-white pt-24 pb-24">
-          <About />
-          <Products />
-          <Skills />
-          <Experience />
-          <Contact />
-          <Footer />
-          <p className="text-center text-gray-400 text-sm pt-10 pb-4">
-            {isJa ? "▲ ここまで。スクロールで3Dの街へ戻ります" : "▲ The end — scroll to return to the 3D town"}
-          </p>
-        </div>
-      )}
+      <AnimatePresence>
+        {pageOpen && activeSection && activeSection !== "about" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            className="fixed inset-0 z-20 overflow-y-auto pointer-events-auto"
+            onScroll={handleScroll}
+          >
+            <div className="bg-white pt-24 pb-24 min-h-screen flex flex-col shadow-2xl relative z-30">
+              <div className="flex-grow">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeSection}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    {activeSection === "products" && <Products />}
+                    {activeSection === "skills" && <Skills />}
+                    {activeSection === "experience" && <Experience />}
+                    {activeSection === "contact" && <Contact />}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </div>
+            
+            {/* Transparent spacer: maps scroll progress to 3D camera zoom */}
+            <div className="h-[150vh] pointer-events-none flex flex-col items-center justify-start pt-32">
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-gray-900/40 font-bold tracking-[0.2em] text-sm animate-pulse flex flex-col items-center gap-4"
+              >
+                <div className="w-[1px] h-12 bg-gradient-to-b from-gray-900/40 to-transparent"></div>
+                {isJa ? "スクロールでホームに戻ります" : "Scroll to return home"}
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Terminal easter egg */}
       <TerminalOverlay />
