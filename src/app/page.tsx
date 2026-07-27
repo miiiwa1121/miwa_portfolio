@@ -24,6 +24,10 @@ const XIcon = ({ size = 18 }: { size?: number }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
 );
 
+// Height of each transparent spacer bracketing the detail page, in viewport
+// heights. Kept in sync with the h-[150vh] classes below.
+const SPACER_VH = 1.5;
+
 type NavItem = { id: NonNullable<SectionType>; ja: string; en: string };
 
 const NAV: NavItem[] = [
@@ -93,6 +97,11 @@ export default function Home() {
   const openedAt = useRef(0);
   const [toolsOpen, setToolsOpen] = useState(false);
 
+  // The detail page is bracketed by two transparent spacers. Scrolling off
+  // either end pulls the camera back to the diorama and then goes home.
+  const scroller = useRef<HTMLDivElement | null>(null);
+  const scrollReady = useRef(false);
+
   const handleNav = (id: NonNullable<SectionType>) => {
     if (id === "about") {
       openPage(id);
@@ -105,25 +114,42 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (pageOpen) {
-      openedAt.current = Date.now();
-      scrollProgressRef.current = 0;
+    if (!pageOpen) {
+      scrollReady.current = false;
+      return;
     }
+    openedAt.current = Date.now();
+    scrollProgressRef.current = 0;
+
+    // Park the viewport on the panel so the spacer above it is reachable by
+    // scrolling up. Runs while the sheet is still translated off-screen.
+    scrollReady.current = false;
+    if (scroller.current) {
+      scroller.current.scrollTop = window.innerHeight * SPACER_VH;
+    }
+    // Ignore the scroll event the line above emits, which would otherwise
+    // read as "scrolled all the way up" and bounce straight back home.
+    const frame = requestAnimationFrame(() => {
+      scrollReady.current = true;
+    });
+    return () => cancelAnimationFrame(frame);
   }, [pageOpen, activeSection, scrollProgressRef]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!scrollReady.current) return;
+
     const el = e.currentTarget;
+    const spacer = window.innerHeight * SPACER_VH;
     const maxScroll = el.scrollHeight - el.clientHeight;
-    
-    // 150vh spacer at the bottom
-    const spacerHeight = window.innerHeight * 1.5;
-    const distanceFromBottom = maxScroll - el.scrollTop;
-    
-    let progress = 1 - (distanceFromBottom / spacerHeight);
-    progress = Math.max(0, Math.min(1, progress));
-    
+
+    // Both directions run 0 → 1 as the panel is scrolled away from, so the
+    // camera pulls back to the diorama whichever way the user leaves.
+    const upward = 1 - el.scrollTop / spacer;
+    const downward = 1 - (maxScroll - el.scrollTop) / spacer;
+    const progress = Math.max(0, Math.min(1, Math.max(upward, downward)));
+
     scrollProgressRef.current = progress;
-    
+
     if (progress >= 1 && Date.now() - openedAt.current > 1200) {
       goHome();
     }
@@ -274,13 +300,26 @@ export default function Home() {
       <AnimatePresence>
         {pageOpen && activeSection && activeSection !== "about" && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
+            ref={scroller}
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 280, damping: 34, mass: 0.9 }}
             className="fixed inset-0 z-20 overflow-y-auto pointer-events-auto"
             onScroll={handleScroll}
           >
+            {/* Transparent spacer: scrolling up into it returns home */}
+            <div className="h-[150vh] pointer-events-none flex flex-col items-center justify-end pb-32">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-gray-900/40 font-bold tracking-[0.2em] text-sm animate-pulse flex flex-col items-center gap-4"
+              >
+                {isJa ? "スクロールでホームに戻ります" : "Scroll to return home"}
+                <div className="w-[1px] h-12 bg-gradient-to-b from-transparent to-gray-900/40"></div>
+              </motion.div>
+            </div>
+
             <div className="bg-white pt-24 pb-24 min-h-screen flex flex-col shadow-2xl relative z-30">
               <div className="flex-grow">
                 <AnimatePresence mode="wait">
@@ -300,7 +339,7 @@ export default function Home() {
               </div>
             </div>
             
-            {/* Transparent spacer: maps scroll progress to 3D camera zoom */}
+            {/* Transparent spacer: scrolling down into it returns home */}
             <div className="h-[150vh] pointer-events-none flex flex-col items-center justify-start pt-32">
               <motion.div 
                 initial={{ opacity: 0, y: -10 }}
