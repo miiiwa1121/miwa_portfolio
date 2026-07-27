@@ -106,6 +106,28 @@ export function sectionAzimuth(section: NonNullable<SectionType>): number {
 export const SECTIONS = Object.keys(BUILDING_POSITIONS) as NonNullable<SectionType>[];
 
 /**
+ * Height of each area's marker, in world units, measured from the ground.
+ *
+ * These clear the top of each structure by roughly a marker's width, so the
+ * dot floats just above the roofline rather than embedded in it. They are
+ * hand-tuned against the current procedural buildings (chimney, antenna,
+ * rooftop unit and all) and will want re-tuning whenever those change shape.
+ */
+const MARKER_HEIGHT: Record<NonNullable<SectionType>, number> = {
+  about: 5.7, // cottage: roof 7 voxels + chimney to 11
+  products: 13.3, // pink tower: 18 + penthouse + antenna to 29
+  skills: 8.7, // blue tower: 15 + rooftop unit to 18
+  experience: 4.9, // library: 7 + thick green roof to 9
+  contact: 5.7, // billboard: posts 8, board top at 11
+};
+
+/** Where an area's marker floats: directly above its building. */
+export function markerAnchor(section: NonNullable<SectionType>): [number, number, number] {
+  const [x, , z] = BUILDING_POSITIONS[section];
+  return [x, MARKER_HEIGHT[section], z];
+}
+
+/**
  * Which area is front-and-centre at a given orbit azimuth — the one whose
  * own azimuth the camera is closest to, measured the short way round.
  *

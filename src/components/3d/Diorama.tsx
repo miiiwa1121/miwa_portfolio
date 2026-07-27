@@ -11,6 +11,7 @@ import {
 import { FerrisWheel, Trees, StreetLamps, Clouds, Villagers, Confetti } from "./Decorations";
 import { VoxelBus } from "./VoxelBus";
 import { BUILDING_POSITIONS } from "./worldLayout";
+import AreaMarkers from "./AreaMarkers";
 
 
 export default function Diorama() {
@@ -25,6 +26,8 @@ export default function Diorama() {
       <ExperienceBuilding position={BUILDING_POSITIONS.experience} sectionId="experience" />
       <AboutBuilding position={BUILDING_POSITIONS.about} sectionId="about" />
       <ContactBillboard position={BUILDING_POSITIONS.contact} sectionId="contact" />
+
+      <AreaMarkers />
 
       {/* Decorations */}
       <FerrisWheel position={[-2, 0.2, -8]} />

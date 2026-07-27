@@ -7,6 +7,7 @@ import {
   azimuthToXZ,
   facingSection,
   homePose,
+  markerAnchor,
   sectionAzimuth,
   sectionPose,
   sectionTargets,
@@ -153,6 +154,27 @@ describe("sectionAzimuth", () => {
 
   it("is pure", () => {
     expect(sectionAzimuth("contact")).toBe(sectionAzimuth("contact"));
+  });
+});
+
+describe("markerAnchor", () => {
+  it("sits directly over its building in XZ, so the dot reads as belonging to it", () => {
+    for (const s of SECTIONS) {
+      const [mx, , mz] = markerAnchor(s);
+      const [bx, , bz] = BUILDING_POSITIONS[s];
+      expect(mx, `${s} x`).toBe(bx);
+      expect(mz, `${s} z`).toBe(bz);
+    }
+  });
+
+  it("floats above the point the camera aims at, never inside the roof", () => {
+    for (const s of SECTIONS) {
+      expect(markerAnchor(s)[1], s).toBeGreaterThan(sectionTargets[s][1]);
+    }
+  });
+
+  it("gives every area an anchor", () => {
+    for (const s of SECTIONS) expect(Number.isFinite(markerAnchor(s)[1]), s).toBe(true);
   });
 });
 
