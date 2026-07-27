@@ -20,6 +20,46 @@ const HOME_RADIUS = 24;
 const HOME_HEIGHT = 11;
 const HOME_ANGLE = Math.PI / 4;
 
+/** How far back from a building the camera parks, and how far above it. */
+const SECTION_DISTANCE = 13;
+const SECTION_RISE = 6;
+
+/**
+ * A full camera placement: `[posX, posY, posZ, targetX, targetY, targetZ]`,
+ * i.e. exactly the six leading arguments of CameraControls' `setLookAt`, and
+ * one half of `lerpLookAt`. Both call sites spread the same tuple, so a
+ * framing can only ever be defined in one place.
+ */
+type Pose = [number, number, number, number, number, number];
+
+/**
+ * Where the camera sits when a building is focused: backed off along the ray
+ * from the island centre through the building, and raised above it.
+ */
+function sectionPose(section: NonNullable<SectionType>): Pose {
+  const [tx, ty, tz] = sectionTargets[section];
+  // Normalised outward direction, without allocating a Vector2 — this runs
+  // every frame while scrolling. A building sitting dead centre has no
+  // meaningful outward ray, so fall back to +Z.
+  const len = Math.hypot(tx, tz);
+  const dx = len < 0.001 ? 0 : tx / len;
+  const dz = len < 0.001 ? 1 : tz / len;
+  return [
+    tx + dx * SECTION_DISTANCE,
+    ty + SECTION_RISE,
+    tz + dz * SECTION_DISTANCE,
+    tx,
+    ty,
+    tz,
+  ];
+}
+
+/** Where the camera sits in the free diorama view, at a given orbit azimuth. */
+function homePose(azimuth: number): Pose {
+  const [x, z] = azimuthToXZ(azimuth, HOME_RADIUS);
+  return [x, HOME_HEIGHT, z, 0, 1, 0];
+}
+
 // Rotation sensitivity (kept gentle).
 const DRAG_SENSITIVITY = 0.004; // radians per px of pointer drag
 const WHEEL_SENSITIVITY = 0.0008; // radians per unit of wheel deltaY
@@ -190,16 +230,8 @@ function CameraController() {
       azimuthTargetRef.current = controls.azimuthAngle;
     }
 
-    const [tx, ty, tz] = sectionTargets[activeSection];
-    const dir = new THREE.Vector2(tx, tz);
-    if (dir.length() < 0.001) dir.set(0, 1);
-    dir.normalize();
-    const dist = 13;
-
     const id = beginFlight();
-    controls
-      .setLookAt(tx + dir.x * dist, ty + 6, tz + dir.y * dist, tx, ty, tz, true)
-      .then(() => endFlight(id));
+    controls.setLookAt(...sectionPose(activeSection), true).then(() => endFlight(id));
   }, [activeSection]);
 
   // Full reset (logo / HOME / scrolled to bottom): restore orbit angle + home view.
@@ -212,11 +244,8 @@ function CameraController() {
     const homeAzimuth = homeAzimuthRef.current;
     azimuthTargetRef.current = homeAzimuth;
 
-    const [homeX, homeZ] = azimuthToXZ(homeAzimuth, HOME_RADIUS);
     const id = beginFlight();
-    controls
-      .setLookAt(homeX, HOME_HEIGHT, homeZ, 0, 1, 0, true)
-      .then(() => endFlight(id));
+    controls.setLookAt(...homePose(homeAzimuth), true).then(() => endFlight(id));
   }, [homeNonce]);
 
   useFrame((_, delta) => {
@@ -251,25 +280,17 @@ function CameraController() {
       const progress = scrollProgressRef?.current || 0;
 
       if (!inFlight() && sectionTargets[activeSection]) {
-        const [tx, ty, tz] = sectionTargets[activeSection];
-        const dir = new THREE.Vector2(tx, tz);
-        if (dir.length() < 0.001) dir.set(0, 1);
-        dir.normalize();
-        const dist = 13;
-
         // homeAzimuthRef is frozen at the angle the diorama was left at when
         // this section opened, so the "home" end of the lerp stays fixed for
         // the whole scroll instead of chasing itself.
-        const homeAzimuth = homeAzimuthRef.current;
-        const [camX, camZ] = azimuthToXZ(homeAzimuth, HOME_RADIUS);
-
+        //
         // lerpLookAt interpolates via spherical coordinates around each
         // state's own target (not a straight Cartesian blend), so the camera
-        // sweeps a natural orbit arc between the two lookAts instead of
-        // cutting a straight line through space.
+        // sweeps a natural orbit arc between the two poses instead of cutting
+        // a straight line through space.
         controls.lerpLookAt(
-          tx + dir.x * dist, ty + 6, tz + dir.y * dist, tx, ty, tz,
-          camX, HOME_HEIGHT, camZ, 0, 1, 0,
+          ...sectionPose(activeSection),
+          ...homePose(homeAzimuthRef.current),
           progress,
           false
         );
