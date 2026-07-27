@@ -24,9 +24,21 @@ const XIcon = ({ size = 18 }: { size?: number }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
 );
 
-// Height of each transparent spacer bracketing the detail page, in viewport
-// heights. Kept in sync with the h-[150vh] classes below.
-const SPACER_VH = 1.5;
+// Each transparent spacer bracketing the detail page is exactly one viewport
+// tall, which is what makes "the panel has left the screen" and "progress has
+// reached 1" the same instant. At 1.5 there was a half-viewport dead zone where
+// the panel was already gone but scrolling further still did nothing.
+// Kept in sync with the h-screen classes on the two spacers below.
+const SPACER_VH = 1;
+
+// Fire slightly before the very end: momentum scrolling often stops a few
+// pixels short, and with no further scroll events that would strand the user
+// staring at the diorama with the panel still technically open.
+const RETURN_HOME_AT = 0.98;
+
+// Long enough to cover the open animation, short enough not to feel like the
+// page is refusing to close.
+const OPEN_SETTLE_MS = 450;
 
 type NavItem = { id: NonNullable<SectionType>; ja: string; en: string };
 
@@ -150,7 +162,7 @@ export default function Home() {
 
     scrollProgressRef.current = progress;
 
-    if (progress >= 1 && Date.now() - openedAt.current > 1200) {
+    if (progress >= RETURN_HOME_AT && Date.now() - openedAt.current > OPEN_SETTLE_MS) {
       goHome();
     }
   };
@@ -309,7 +321,7 @@ export default function Home() {
             onScroll={handleScroll}
           >
             {/* Transparent spacer: scrolling up into it returns home */}
-            <div className="h-[150vh] pointer-events-none flex flex-col items-center justify-end pb-32">
+            <div className="h-screen pointer-events-none flex flex-col items-center justify-end pb-32">
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -340,7 +352,7 @@ export default function Home() {
             </div>
             
             {/* Transparent spacer: scrolling down into it returns home */}
-            <div className="h-[150vh] pointer-events-none flex flex-col items-center justify-start pt-32">
+            <div className="h-screen pointer-events-none flex flex-col items-center justify-start pt-32">
               <motion.div 
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}

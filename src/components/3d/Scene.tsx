@@ -134,13 +134,36 @@ function CameraController() {
   const azimuthTargetRef = useRef(HOME_ANGLE);
   const homeAzimuthRef = useRef(HOME_ANGLE);
   const draggingRef = useRef(false);
-  const isTransitioningRef = useRef(false);
+  const prevSectionRef = useRef<SectionType>(null);
+
+  // A plain "is a flight in progress" boolean cannot be used here.
+  // CameraControls' `_createOnRestPromise` has no per-call identity: it
+  // resolves on the *next* `rest` event whatever caused it, and hands back an
+  // already-resolved promise when the camera happens to sit at the
+  // destination. So a stale `.then` from a superseded flight would clear the
+  // flag while a newer one is still animating, and useFrame would start
+  // writing the camera every frame on top of it — two owners, one camera.
+  // Tokens make each flight only able to retire itself.
+  const flightIdRef = useRef(0);
+  const activeFlightRef = useRef(0); // 0 = camera is ours to drive
+
+  const beginFlight = () => {
+    const id = ++flightIdRef.current;
+    activeFlightRef.current = id;
+    return id;
+  };
+  const endFlight = (id: number) => {
+    if (activeFlightRef.current === id) activeFlightRef.current = 0;
+  };
+  const inFlight = () => activeFlightRef.current !== 0;
 
   // Orbiting only makes sense in the free home view — lock out drag/wheel input
   // whenever a section is focused (card or full page) so stray gestures can't
   // silently accumulate into azimuthTargetRef and cause a spin once we get home.
   const orbitLockedRef = useRef(pageOpen || !!activeSection);
-  orbitLockedRef.current = pageOpen || !!activeSection;
+  useEffect(() => {
+    orbitLockedRef.current = pageOpen || !!activeSection;
+  }, [pageOpen, activeSection]);
 
   useViewInput(azimuthTargetRef, draggingRef, orbitLockedRef);
 
@@ -151,19 +174,32 @@ function CameraController() {
   // instead of drifting frame-to-frame.
   useEffect(() => {
     const controls = controlsRef.current;
+    const cameFrom = prevSectionRef.current;
+    prevSectionRef.current = activeSection;
+
     if (!controls || !activeSection || !sectionTargets[activeSection]) return;
+
+    // Freeze the orbit angle only when leaving the free home view. Jumping
+    // straight from one building to another must NOT re-freeze it:
+    // `azimuthAngle` is measured around whatever the current target is, so
+    // while parked at a building it describes that building's framing, not
+    // the spot the diorama was left at. Overwriting it there is what made the
+    // camera come back to an arbitrary angle after switching tabs.
+    if (cameFrom === null) {
+      homeAzimuthRef.current = controls.azimuthAngle;
+      azimuthTargetRef.current = controls.azimuthAngle;
+    }
+
     const [tx, ty, tz] = sectionTargets[activeSection];
     const dir = new THREE.Vector2(tx, tz);
     if (dir.length() < 0.001) dir.set(0, 1);
     dir.normalize();
     const dist = 13;
 
-    homeAzimuthRef.current = controls.azimuthAngle;
-    azimuthTargetRef.current = controls.azimuthAngle;
-
-    isTransitioningRef.current = true;
-    controls.setLookAt(tx + dir.x * dist, ty + 6, tz + dir.y * dist, tx, ty, tz, true)
-      .then(() => { isTransitioningRef.current = false; });
+    const id = beginFlight();
+    controls
+      .setLookAt(tx + dir.x * dist, ty + 6, tz + dir.y * dist, tx, ty, tz, true)
+      .then(() => endFlight(id));
   }, [activeSection]);
 
   // Full reset (logo / HOME / scrolled to bottom): restore orbit angle + home view.
@@ -177,16 +213,10 @@ function CameraController() {
     azimuthTargetRef.current = homeAzimuth;
 
     const [homeX, homeZ] = azimuthToXZ(homeAzimuth, HOME_RADIUS);
-    isTransitioningRef.current = true;
-    controls.setLookAt(
-      homeX,
-      HOME_HEIGHT,
-      homeZ,
-      0,
-      1,
-      0,
-      true
-    ).then(() => { isTransitioningRef.current = false; });
+    const id = beginFlight();
+    controls
+      .setLookAt(homeX, HOME_HEIGHT, homeZ, 0, 1, 0, true)
+      .then(() => endFlight(id));
   }, [homeNonce]);
 
   useFrame((_, delta) => {
@@ -194,11 +224,11 @@ function CameraController() {
     if (!controls) return;
 
     if (!activeSection) {
-      if (!draggingRef.current && !isTransitioningRef.current) {
+      if (!draggingRef.current && !inFlight()) {
         azimuthTargetRef.current += delta * AUTO_ORBIT_SPEED; // gentle auto-orbit when idle
       }
 
-      if (!isTransitioningRef.current) {
+      if (!inFlight()) {
         // controls.azimuthAngle gets rewrapped into (-π, π] every frame (it's
         // recovered via atan2 inside setPosition below), but azimuthTargetRef
         // is a plain accumulator that keeps growing past ±π as drag/wheel/
@@ -220,7 +250,7 @@ function CameraController() {
     } else {
       const progress = scrollProgressRef?.current || 0;
 
-      if (!isTransitioningRef.current && sectionTargets[activeSection]) {
+      if (!inFlight() && sectionTargets[activeSection]) {
         const [tx, ty, tz] = sectionTargets[activeSection];
         const dir = new THREE.Vector2(tx, tz);
         if (dir.length() < 0.001) dir.set(0, 1);
