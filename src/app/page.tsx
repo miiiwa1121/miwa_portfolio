@@ -15,6 +15,11 @@ import Contact from "@/components/sections/Contact";
 import Footer from "@/components/Footer";
 import { Globe, ChevronRight, Terminal, X, Monitor } from "lucide-react";
 import { GithubIcon, XIcon } from "@/components/icons";
+import {
+  SHEET_VARIANTS,
+  exitDirectionFor,
+  type ExitDirection,
+} from "@/components/detailSheet";
 
 // Each transparent spacer bracketing the detail page is exactly one viewport
 // tall, which is what makes "the panel has left the screen" and "progress has
@@ -106,6 +111,16 @@ export default function Home() {
   const scroller = useRef<HTMLDivElement | null>(null);
   const scrollReady = useRef(false);
 
+  // Read by AnimatePresence at the moment the sheet is removed, so it has to
+  // be set in the same update as goHome() — the exiting child itself is
+  // rendered from cached props and would never see a later change.
+  const [exitDirection, setExitDirection] = useState<ExitDirection>("down");
+
+  const closeToHome = (direction: ExitDirection) => {
+    setExitDirection(direction);
+    goHome();
+  };
+
   const handleNav = (id: NonNullable<SectionType>) => {
     if (id === "about") {
       openPage(id);
@@ -155,7 +170,7 @@ export default function Home() {
     scrollProgressRef.current = progress;
 
     if (progress >= RETURN_HOME_AT && Date.now() - openedAt.current > OPEN_SETTLE_MS) {
-      goHome();
+      closeToHome(exitDirectionFor(upward, downward));
     }
   };
 
@@ -172,7 +187,7 @@ export default function Home() {
         <header className="flex justify-between items-start w-full gap-6">
           {/* Logo → full reset. Text only, no frame/icon. */}
           <button
-            onClick={goHome}
+            onClick={() => closeToHome("down")}
             className="pointer-events-auto font-black text-gray-900 text-4xl sm:text-5xl tracking-tight hover:scale-[1.04] transition-transform [text-shadow:0_1px_5px_rgba(255,255,255,0.7)]"
           >
             Miiiwa<span className="text-orange-500">.</span>
@@ -293,7 +308,7 @@ export default function Home() {
       {/* HOME button — zoomed into a building, page not yet open */}
       {activeSection && !pageOpen && (
         <button
-          onClick={goHome}
+          onClick={() => closeToHome("down")}
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2 bg-white text-gray-800 font-bold py-3 px-7 rounded-full shadow-lg border border-black/5 hover:scale-105 transition-transform"
         >
           <X size={18} /> HOME
@@ -301,13 +316,15 @@ export default function Home() {
       )}
 
       {/* --- PAGE CONTENT (detail reading) --- */}
-      <AnimatePresence>
+      <AnimatePresence custom={exitDirection}>
         {pageOpen && activeSection && activeSection !== "about" && (
           <motion.div
             ref={scroller}
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
+            custom={exitDirection}
+            variants={SHEET_VARIANTS}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             transition={{ type: "spring", stiffness: 280, damping: 34, mass: 0.9 }}
             className="fixed inset-0 z-20 overflow-y-auto pointer-events-auto"
             onScroll={handleScroll}
