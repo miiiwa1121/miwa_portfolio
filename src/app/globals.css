@@ -1,12 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --background: #000000;
-  --foreground: #ffffff;
-  
-  --primary: #00f0ff; /* Neon cyan */
-  --secondary: #bd00ff; /* Neon purple */
-  --accent: #39ff14; /* Neon green */
+  --background: #fffdf7; /* Warm off-white, sits under the pastel voxel world */
+  --foreground: #1f2937; /* gray-800 */
+
+  --primary: #f97316; /* Orange — the site accent, matches the chrome in page.tsx */
+  --primary-strong: #c2410c; /* Pressed / drop-shadow orange */
+  --secondary: #e87ba3; /* Voxel-city pink (PALETTE.pinkDark) */
+  --accent: #7ecb3b; /* Voxel-city green (PALETTE.green) */
 }
 
 @theme inline {
@@ -18,6 +19,8 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
+
+/* The scroll panels sit on white, so the scrollbar is tinted, not neon. */
 
 * {
   box-sizing: border-box;
@@ -44,7 +47,7 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.04);
   border-radius: 10px;
 }
 
@@ -54,5 +57,5 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--secondary);
+  background: var(--primary-strong);
 }

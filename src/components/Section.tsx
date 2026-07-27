@@ -20,7 +20,7 @@ export default function Section({ id, title, children, className = "" }: Section
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-12 flex items-center tracking-tight">
+          <h2 className="text-3xl md:text-4xl font-black mb-12 flex items-center tracking-tight text-gray-900">
             <span className="text-[var(--primary)] mr-3 text-2xl">/</span>
             {title}
           </h2>

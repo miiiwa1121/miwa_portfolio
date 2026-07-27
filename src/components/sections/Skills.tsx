@@ -61,7 +61,7 @@ export default function Skills() {
               viewport={{ once: true }}
               transition={{ delay: (index % 6) * 0.05 }}
               whileHover={{ y: -5, scale: 1.05 }}
-              className="flex flex-col items-center justify-center p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-[var(--hover-color)] hover:shadow-[0_0_20px_var(--hover-color-alpha)] transition-all duration-300 cursor-default backdrop-blur-md group"
+              className="flex flex-col items-center justify-center p-6 rounded-2xl bg-white border border-black/5 shadow-sm hover:border-[var(--hover-color)] hover:shadow-[0_6px_20px_var(--hover-color-alpha)] transition-all duration-300 cursor-default group"
               style={{
                 '--hover-color': skill.color,
                 '--hover-color-alpha': `${skill.color}33` // 20% opacity hex
@@ -79,7 +79,7 @@ export default function Skills() {
                   className="mb-4 transition-all duration-300 group-hover:scale-110 text-gray-400 group-hover:text-[var(--hover-color)]"
                 />
               )}
-              <span className="text-sm font-bold text-gray-300 group-hover:text-white transition-colors">
+              <span className="text-sm font-bold text-gray-600 group-hover:text-gray-900 transition-colors">
                 {skill.name}
               </span>
             </motion.div>

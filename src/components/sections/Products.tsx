@@ -90,9 +90,9 @@ export default function Products() {
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-6 py-2 rounded-full font-bold transition-all duration-300 ${
-                activeTab === tab 
-                  ? "bg-[var(--primary)] text-[#050505] shadow-[0_0_15px_var(--primary)] border-transparent" 
-                  : "bg-white/5 text-gray-300 hover:bg-white/10 border border-white/10"
+                activeTab === tab
+                  ? "bg-orange-500 text-white shadow-sm border-transparent"
+                  : "bg-white text-gray-600 hover:text-orange-500 hover:bg-orange-50 border border-black/10"
               }`}
             >
               {tab}
@@ -101,15 +101,15 @@ export default function Products() {
         </div>
 
         {/* Status Tabs */}
-        <div className="flex gap-2 p-1.5 bg-white/5 rounded-full border border-white/10 ml-auto mr-auto md:mr-0 w-full md:w-auto overflow-x-auto custom-scrollbar">
+        <div className="flex gap-2 p-1.5 bg-white rounded-full border border-black/10 shadow-sm ml-auto mr-auto md:mr-0 w-full md:w-auto overflow-x-auto custom-scrollbar">
           {statuses.map(status => (
             <button
               key={status}
               onClick={() => setActiveStatus(status)}
               className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 ${
-                activeStatus === status 
-                  ? "bg-[var(--primary)] text-[#050505] shadow-[0_0_10px_var(--primary)]" 
-                  : "text-gray-400 hover:text-white hover:bg-white/10"
+                activeStatus === status
+                  ? "bg-orange-500 text-white shadow-sm"
+                  : "text-gray-500 hover:text-orange-500 hover:bg-orange-50"
               }`}
             >
               <div className="flex items-center gap-2">
@@ -132,10 +132,9 @@ export default function Products() {
             key={project.id}
             whileHover={{ y: -5 }}
             onClick={() => setSelectedProject(project)}
-            className="group rounded-2xl bg-white/5 border border-white/10 overflow-hidden flex flex-col backdrop-blur-sm hover:border-[var(--primary)]/50 transition-all duration-300 cursor-pointer"
+            className="group rounded-2xl bg-white border border-black/5 shadow-sm overflow-hidden flex flex-col hover:border-[var(--primary)]/50 hover:shadow-lg transition-all duration-300 cursor-pointer"
           >
-              <div className="relative w-full overflow-hidden h-48">
-                <div className="absolute inset-0 bg-[var(--primary)]/20 group-hover:opacity-0 transition-opacity z-10 mix-blend-overlay"></div>
+              <div className="relative w-full overflow-hidden h-48 bg-gray-50">
                 <Image 
                   src={project.image} 
                   alt={project.title} 
@@ -149,39 +148,39 @@ export default function Products() {
                       : "bg-orange-500 shadow-[0_0_10px_#f97316]"
                   }`} title={getStatusLabel(project.status)} />
                 </div>
-                <div className="absolute bottom-2 left-2 z-20 bg-black/50 px-2 py-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">{language === 'ja' ? 'クリックで詳細' : 'Click to view'}</span>
+                <div className="absolute bottom-2 left-2 z-20 bg-white/90 px-2 py-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-[10px] text-gray-600 font-bold tracking-widest uppercase">{language === 'ja' ? 'クリックで詳細' : 'Click to view'}</span>
                 </div>
               </div>
               <div className="flex-1 flex flex-col p-6">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-xl font-bold text-white group-hover:text-[var(--primary)] transition-colors line-clamp-1">{project.title}</h3>
+                  <h3 className="text-xl font-bold text-gray-900 group-hover:text-[var(--primary)] transition-colors line-clamp-1">{project.title}</h3>
                   <span className={`text-xs px-2 py-1 rounded-full font-bold shrink-0 ${
-                    project.category === "WEB" 
-                      ? "bg-green-500/20 text-green-400" 
-                      : "bg-red-500/20 text-red-400"
+                    project.category === "WEB"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-700"
                   }`}>{project.category}</span>
                 </div>
                 
-                <p className="text-sm text-gray-400 mb-4 flex-1 line-clamp-2">
+                <p className="text-sm text-gray-600 mb-4 flex-1 line-clamp-2">
                   {project.description}
                 </p>
-                
+
                 <div className="flex flex-wrap gap-2 mb-6">
                   {project.tags.slice(0, 3).map(tag => (
-                    <span key={tag} className="text-xs px-2 py-1 bg-white/10 rounded text-gray-300">
+                    <span key={tag} className="text-xs px-2 py-1 bg-gray-100 rounded text-gray-600">
                       {tag}
                     </span>
                   ))}
-                  {project.tags.length > 3 && <span className="text-xs px-2 py-1 bg-white/10 rounded text-gray-300">+{project.tags.length - 3}</span>}
+                  {project.tags.length > 3 && <span className="text-xs px-2 py-1 bg-gray-100 rounded text-gray-600">+{project.tags.length - 3}</span>}
                 </div>
-                
-                <div className="flex items-center gap-2 pt-3 border-t border-white/10 mt-auto justify-between">
+
+                <div className="flex items-center gap-2 pt-3 border-t border-black/5 mt-auto justify-between">
                   <Link 
                     href={project.githubUrl} 
                     onClick={(e) => handleCodeClick(e, project.githubUrl)}
                     target={project.githubUrl !== "#" ? "_blank" : undefined}
-                    className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors z-20 relative"
+                    className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors z-20 relative"
                   >
                     <GithubIcon size={16} /> <span>Code</span>
                   </Link>
@@ -189,7 +188,7 @@ export default function Products() {
                     href={project.demoUrl} 
                     onClick={(e) => handlePlayClick(e, project.demoUrl)}
                     target={project.demoUrl !== "#" ? "_blank" : undefined}
-                    className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[var(--primary)] transition-colors z-20 relative"
+                    className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[var(--primary)] transition-colors z-20 relative"
                   >
                     <ExternalLink size={16} /> <span>Play</span>
                   </Link>
@@ -207,7 +206,7 @@ export default function Products() {
               initial={{ opacity: 0, y: 50, x: "-50%" }}
               animate={{ opacity: 1, y: 0, x: "-50%" }}
               exit={{ opacity: 0, y: 50, x: "-50%" }}
-              className="fixed bottom-10 left-1/2 z-[9999] px-6 py-3 rounded-full bg-black/90 border border-[var(--primary)] text-[var(--primary)] font-bold shadow-[0_0_20px_var(--primary)] backdrop-blur-md whitespace-nowrap"
+              className="fixed bottom-10 left-1/2 z-[9999] px-6 py-3 rounded-full bg-white border border-[var(--primary)] text-[var(--primary)] font-bold shadow-xl backdrop-blur-md whitespace-nowrap"
             >
               {toastMessage}
             </motion.div>
@@ -225,35 +224,35 @@ export default function Products() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedProject(null)}
-              className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-md"
             >
               <motion.div
                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
                 onClick={(e) => e.stopPropagation()} 
-                className="relative w-full max-w-5xl bg-[#0a0a0a] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+                className="relative w-full max-w-5xl bg-white border border-black/5 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
               >
-                <button 
+                <button
                   onClick={() => setSelectedProject(null)}
-                  className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-[var(--primary)] hover:text-black text-white rounded-full backdrop-blur-md transition-colors"
+                  className="absolute top-4 right-4 z-10 p-2 bg-white/85 hover:bg-orange-500 hover:text-white text-gray-800 rounded-full backdrop-blur-md shadow-sm transition-colors"
                 >
                   <X size={20} />
                 </button>
 
-                <div className="relative h-64 md:h-96 w-full shrink-0 border-b border-white/5">
+                <div className="relative h-64 md:h-96 w-full shrink-0 border-b border-black/5 bg-gray-50">
                   <Image 
                     src={selectedProject.image} 
                     alt={selectedProject.title} 
                     fill
                     className="object-cover"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/50 to-transparent"></div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-white via-white/30 to-transparent"></div>
                   <div className="absolute top-6 left-6 z-20">
                     <span className={`flex items-center gap-2 text-sm font-bold px-4 py-1.5 rounded-full border backdrop-blur-md ${
-                      selectedProject.status === "Public" 
-                        ? "bg-green-500/10 text-green-400 border-green-500/30" 
-                        : "bg-orange-500/10 text-orange-400 border-orange-500/30"
+                      selectedProject.status === "Public"
+                        ? "bg-green-50/90 text-green-700 border-green-600/30"
+                        : "bg-orange-50/90 text-orange-700 border-orange-600/30"
                     }`}>
                       <div className={`w-2 h-2 rounded-full ${
                         selectedProject.status === "Public" ? "bg-green-500 shadow-[0_0_8px_#22c55e]" : "bg-orange-500 shadow-[0_0_8px_#f97316]"
@@ -265,11 +264,11 @@ export default function Products() {
 
                 <div className="p-6 md:p-10 overflow-y-auto custom-scrollbar">
                   <div className="flex items-center gap-4 mb-6">
-                    <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter">{selectedProject.title}</h2>
+                    <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tighter">{selectedProject.title}</h2>
                     <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                      selectedProject.category === "WEB" 
-                        ? "bg-green-500/10 text-green-400 border-green-500/30" 
-                        : "bg-red-500/10 text-red-400 border-red-500/30"
+                      selectedProject.category === "WEB"
+                        ? "bg-green-50 text-green-700 border-green-600/30"
+                        : "bg-red-50 text-red-700 border-red-600/30"
                     }`}>
                       {selectedProject.category}
                     </span>
@@ -277,17 +276,17 @@ export default function Products() {
 
                   <div className="space-y-6">
                     <div>
-                      <h3 className="text-white font-bold mb-3 border-b border-white/10 pb-2 text-sm tracking-widest uppercase text-gray-500">Overview</h3>
-                      <p className="text-gray-300 text-lg leading-relaxed">
+                      <h3 className="font-bold mb-3 border-b border-black/10 pb-2 text-sm tracking-widest uppercase text-gray-500">Overview</h3>
+                      <p className="text-gray-700 text-lg leading-relaxed">
                         {selectedProject.description}
                       </p>
                     </div>
 
                     <div>
-                      <h3 className="text-white font-bold mb-3 border-b border-white/10 pb-2 text-sm tracking-widest uppercase text-gray-500">Tech Stack</h3>
+                      <h3 className="font-bold mb-3 border-b border-black/10 pb-2 text-sm tracking-widest uppercase text-gray-500">Tech Stack</h3>
                       <div className="flex flex-wrap gap-2">
                         {selectedProject.tags.map(tag => (
-                          <span key={tag} className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-gray-300 text-sm font-medium">
+                          <span key={tag} className="px-3 py-1.5 bg-gray-50 border border-black/10 rounded-lg text-gray-700 text-sm font-medium">
                             {tag}
                           </span>
                         ))}
@@ -295,20 +294,20 @@ export default function Products() {
                     </div>
                   </div>
 
-                  <div className="flex gap-4 mt-12 pt-6 border-t border-white/10">
-                    <Link 
-                      href={selectedProject.githubUrl} 
+                  <div className="flex gap-4 mt-12 pt-6 border-t border-black/10">
+                    <Link
+                      href={selectedProject.githubUrl}
                       onClick={(e) => handleCodeClick(e, selectedProject.githubUrl)}
                       target={selectedProject.githubUrl !== "#" ? "_blank" : undefined}
-                      className="flex-1 py-4 flex items-center justify-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/20 text-white font-bold transition-all hover:scale-[1.02]"
+                      className="flex-1 py-4 flex items-center justify-center gap-2 rounded-xl bg-white hover:bg-gray-50 border border-black/10 shadow-sm text-gray-800 font-bold transition-all hover:scale-[1.02]"
                     >
                       <GithubIcon size={20} /> View Code
                     </Link>
-                    <Link 
-                      href={selectedProject.demoUrl} 
+                    <Link
+                      href={selectedProject.demoUrl}
                       onClick={(e) => handlePlayClick(e, selectedProject.demoUrl)}
                       target={selectedProject.demoUrl !== "#" ? "_blank" : undefined}
-                      className="flex-1 py-4 flex items-center justify-center gap-2 rounded-xl bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20 border border-[var(--primary)]/50 text-[var(--primary)] font-bold transition-all hover:scale-[1.02] shadow-[0_0_15px_rgba(0,240,255,0.1)] hover:shadow-[0_0_20px_rgba(0,240,255,0.3)]"
+                      className="flex-1 py-4 flex items-center justify-center gap-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold transition-all shadow-[0_4px_0_var(--primary-strong)] active:shadow-none active:translate-y-1"
                     >
                       <ExternalLink size={20} /> Play Now
                     </Link>
