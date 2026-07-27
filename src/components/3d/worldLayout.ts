@@ -115,7 +115,7 @@ export const SECTIONS = Object.keys(BUILDING_POSITIONS) as NonNullable<SectionTy
  */
 const MARKER_HEIGHT: Record<NonNullable<SectionType>, number> = {
   about: 5.7, // cottage: roof 7 voxels + chimney to 11
-  products: 13.3, // pink tower: 18 + penthouse + antenna to 29
+  products: 10.4, // pink tower: clears the penthouse roof (23 voxels), not the antenna spire
   skills: 8.7, // blue tower: 15 + rooftop unit to 18
   experience: 4.9, // library: 7 + thick green roof to 9
   contact: 5.7, // billboard: posts 8, board top at 11

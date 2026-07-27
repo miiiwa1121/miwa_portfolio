@@ -15,6 +15,7 @@ import Contact from "@/components/sections/Contact";
 import Footer from "@/components/Footer";
 import { Globe, ChevronRight, Terminal, X, Monitor } from "lucide-react";
 import { GithubIcon, XIcon } from "@/components/icons";
+import CardLeaderLine from "@/components/CardLeaderLine";
 import {
   SHEET_VARIANTS,
   exitDirectionFor,
@@ -112,6 +113,9 @@ export default function Home() {
   const card = CARD[activeSection ?? facing];
   const openedAt = useRef(0);
   const [toolsOpen, setToolsOpen] = useState(false);
+
+  // The dotted trail starts from this card's corner.
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
   // The detail page is bracketed by two transparent spacers. Scrolling off
   // either end pulls the camera back to the diorama and then goes home.
@@ -267,6 +271,7 @@ export default function Home() {
           {!pageOpen && (
             <div
               key={activeSection ?? "home"}
+              ref={cardRef}
               className="pointer-events-auto bg-white/95 backdrop-blur-sm rounded-3xl p-6 sm:p-8 shadow-xl max-w-xs sm:max-w-sm border border-black/5 animate-[fadeIn_0.4s_ease]"
             >
               <p className="text-orange-500 font-black text-lg">{isJa ? card.jaTitle : card.enTitle}</p>
@@ -414,6 +419,9 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Dotted trail from the card out to the marker over its area */}
+      <CardLeaderLine anchorRef={cardRef} hidden={pageOpen} />
 
       {/* Terminal easter egg */}
       <TerminalOverlay />

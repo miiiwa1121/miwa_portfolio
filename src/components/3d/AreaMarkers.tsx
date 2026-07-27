@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { SECTIONS, markerAnchor } from "./worldLayout";
+import { publishMarkerScreen } from "./markerScreen";
 import { useAppState } from "../AppStateContext";
 
 /**
@@ -47,6 +48,9 @@ function makeDotTexture(): THREE.Texture {
   return texture;
 }
 
+/** Scratch vector for the projection; never read across frames. */
+const projected = new THREE.Vector3();
+
 export default function AreaMarkers() {
   const { facing } = useAppState();
   const texture = useMemo(() => makeDotTexture(), []);
@@ -70,6 +74,26 @@ export default function AreaMarkers() {
       const material = sprite.material as THREE.SpriteMaterial;
       material.color.lerp(section === facing ? FACING_COLOR : IDLE_COLOR, EASE);
     });
+
+    // Hand the facing marker's screen position to the DOM leader line.
+    projected.set(...markerAnchor(facing)).project(state.camera);
+    const { width, height } = state.size;
+    const screenX = (projected.x * 0.5 + 0.5) * width;
+    const screenY = (-projected.y * 0.5 + 0.5) * height;
+
+    publishMarkerScreen(
+      Math.round(screenX),
+      Math.round(screenY),
+      // Two ways the marker can have nothing to point at. z >= 1 puts it
+      // behind the camera, where the projection flips and would fling the
+      // trail off in the opposite direction. Outside the viewport it is real
+      // but unseeable, and a trail running off the edge points at nothing.
+      projected.z < 1 &&
+        screenX >= 0 &&
+        screenX <= width &&
+        screenY >= 0 &&
+        screenY <= height
+    );
   });
 
   return (
