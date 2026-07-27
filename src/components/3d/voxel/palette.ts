@@ -1,6 +1,8 @@
 // Shared pastel palette for the whole voxel city.
 // Keeping colors in one place keeps the world cohesive.
 
+import { hash01 } from "./rng";
+
 export const PALETTE = {
   // Terrain
   grass: ["#8fd94b", "#a3e05a", "#7ecb3b", "#b6e77a"],
@@ -33,9 +35,8 @@ export const PALETTE = {
   sky: "#fff3d1",
 } as const;
 
-// Pick a deterministic-ish color from a list using a seed so
-// neighboring voxels get subtle variation instead of a flat fill.
+// Pick a deterministic color from a list using a seed so neighboring
+// voxels get subtle variation instead of a flat fill.
 export function pick(list: readonly string[], seed: number): string {
-  const i = Math.abs(Math.floor(Math.sin(seed * 12.9898) * 43758.5453)) % list.length;
-  return list[i];
+  return list[Math.floor(hash01(seed) * list.length) % list.length];
 }

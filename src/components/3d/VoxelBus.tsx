@@ -41,7 +41,7 @@ function tramVoxels(): Voxel[] {
 
 export function VoxelBus() {
   const groupRef = useRef<THREE.Group>(null);
-  const voxels = useMemo(tramVoxels, []);
+  const voxels = useMemo(() => tramVoxels(), []);
   const radius = 6.6; // matches the island ring road
   const speed = 0.22;
 

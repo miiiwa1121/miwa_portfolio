@@ -6,6 +6,7 @@ import * as THREE from "three";
 import VoxelModel, { Voxel } from "./voxel/VoxelModel";
 import { fillBox, put } from "./voxel/builders";
 import { PALETTE, pick } from "./voxel/palette";
+import { hashRange } from "./voxel/rng";
 
 const VS = 0.42;
 
@@ -73,8 +74,8 @@ function treeVoxels(seed: number): Voxel[] {
   const out: Voxel[] = [];
   const trunkH = 3 + (Math.floor(seed) % 2);
   fillBox(out, 0, 0, 0, 1, trunkH, 1, PALETTE.wood);
-  // leaf blob (5x5 with carved corners), two tiers
-  const leaf = () => pick(PALETTE.grass, seed + Math.random());
+  // Leaf blob (5x5 with carved corners), three tiers. The tint varies per
+  // voxel position rather than per call, so a tree looks the same every mount.
   for (let ly = 0; ly < 3; ly++) {
     const s = ly === 2 ? 3 : 5;
     const o = -Math.floor(s / 2);
@@ -82,7 +83,7 @@ function treeVoxels(seed: number): Voxel[] {
       for (let z = 0; z < s; z++) {
         const corner = (x === 0 || x === s - 1) && (z === 0 || z === s - 1);
         if (corner && s === 5) continue;
-        put(out, o + x, trunkH + ly, o + z, leaf());
+        put(out, o + x, trunkH + ly, o + z, pick(PALETTE.grass, seed + x * 3.1 + ly * 7.7 + z * 1.9));
       }
   }
   return out;
@@ -120,7 +121,7 @@ function lampVoxels(): Voxel[] {
 }
 
 export function StreetLamps() {
-  const voxels = useMemo(lampVoxels, []);
+  const voxels = useMemo(() => lampVoxels(), []);
   const spots = useMemo(
     () =>
       [
@@ -194,27 +195,53 @@ export function Clouds() {
 // ---------------------------------------------------------------
 // Falling pastel confetti
 // ---------------------------------------------------------------
+type ConfettiPart = { x: number; y: number; z: number; speed: number; sway: number; spin: number };
+
+export const CONFETTI_FALL_TOP = 22;
+
+/** Deterministic spawn state for `count` flakes. Pure: same count, same field. */
+export function spawnConfetti(count: number): ConfettiPart[] {
+  return Array.from({ length: count }, (_, i) => {
+    const s = i * 6;
+    return {
+      x: hashRange(s + 1, -14, 14),
+      y: hashRange(s + 2, 1, CONFETTI_FALL_TOP + 1),
+      z: hashRange(s + 3, -14, 14),
+      speed: hashRange(s + 4, 0.4, 1.0),
+      sway: hashRange(s + 5, 0, Math.PI * 2),
+      spin: hashRange(s + 6, 0, Math.PI),
+    };
+  });
+}
+
+/** Advance the confetti field by `delta` seconds. Mutates in place. */
+export function stepConfetti(parts: ConfettiPart[], delta: number): void {
+  for (const p of parts) {
+    p.y -= p.speed * delta;
+    if (p.y < 0) p.y = CONFETTI_FALL_TOP;
+  }
+}
+
+// Scratch transform reused for every instance matrix write. It is never
+// rendered and never read across frames, so one module-level instance is
+// enough — and keeps useFrame from mutating a value React owns.
+const scratch = new THREE.Object3D();
+
 export function Confetti({ count = 90 }: { count?: number }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const dummy = useMemo(() => new THREE.Object3D(), []);
   const palette = useMemo(
     () => [PALETTE.pink[0], PALETTE.blue[0], PALETTE.yellow[0], PALETTE.green[0], PALETTE.orange, PALETTE.white],
     []
   );
-  const parts = useMemo(
-    () =>
-      Array.from({ length: count }, () => ({
-        x: (Math.random() - 0.5) * 28,
-        y: Math.random() * 22 + 1,
-        z: (Math.random() - 0.5) * 28,
-        speed: 0.4 + Math.random() * 0.6,
-        sway: Math.random() * Math.PI * 2,
-        spin: Math.random() * Math.PI,
-      })),
-    [count]
-  );
+
+  // Per-flake positions are animation state, not render state: useFrame writes
+  // to them every frame. Holding them in a ref (seeded in a layout effect,
+  // before the first paint) keeps that mutation off anything React memoises.
+  const partsRef = useRef<ConfettiPart[]>([]);
 
   useLayoutEffect(() => {
+    partsRef.current = spawnConfetti(count);
+
     const mesh = meshRef.current;
     if (!mesh) return;
     const c = new THREE.Color();
@@ -224,16 +251,18 @@ export function Confetti({ count = 90 }: { count?: number }) {
 
   useFrame((state, delta) => {
     const mesh = meshRef.current;
-    if (!mesh) return;
+    const parts = partsRef.current;
+    if (!mesh || parts.length === 0) return;
+
+    stepConfetti(parts, delta);
+
     const t = state.clock.elapsedTime;
     for (let i = 0; i < parts.length; i++) {
       const p = parts[i];
-      p.y -= p.speed * delta;
-      if (p.y < 0) p.y = 22;
-      dummy.position.set(p.x + Math.sin(t * 0.6 + p.sway) * 0.7, p.y, p.z);
-      dummy.rotation.set(p.spin + t, t * 0.8 + p.sway, p.spin);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      scratch.position.set(p.x + Math.sin(t * 0.6 + p.sway) * 0.7, p.y, p.z);
+      scratch.rotation.set(p.spin + t, t * 0.8 + p.sway, p.spin);
+      scratch.updateMatrix();
+      mesh.setMatrixAt(i, scratch.matrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
   });
