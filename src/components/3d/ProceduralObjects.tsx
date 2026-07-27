@@ -36,7 +36,9 @@ function Anchor({ position, sectionId, children }: ObjectProps & { children: Rea
   });
 
   return (
-    <group position={position}>
+    // Named so the camera can look the building up in the scene graph and
+    // frame its actual bounds, rather than being told them by hand.
+    <group position={position} name={sectionId ?? undefined}>
       <group
         ref={groupRef}
         onClick={(e) => {

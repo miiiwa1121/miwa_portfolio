@@ -37,8 +37,24 @@ export const sectionTargets = Object.fromEntries(
   ])
 ) as Record<NonNullable<SectionType>, [number, number, number]>;
 
-export const HOME_RADIUS = 24;
+/**
+ * The free diorama view, set from measured world bounds rather than guessed.
+ *
+ * Measured extents: the island spans roughly ±14 in XZ and reaches y = 12.2 at
+ * the tip of the Products tower's antenna, with its underside at y = -7.3.
+ *
+ * The old values (radius 24, aiming at y = 1) tilted the view down 22.6°,
+ * which against a 45° vertical fov put the top edge of the frame within a
+ * tenth of a degree of horizontal — so anything above the camera's own eye
+ * height was off-screen, and the tower always had its top cut off. Aiming at
+ * the middle of the content rather than at the ground fixes it: at y = 3.5 the
+ * tilt is 16.1°, which clears the tower and still keeps the island's underside
+ * inside the bottom edge.
+ */
+export const HOME_RADIUS = 26;
 export const HOME_HEIGHT = 11;
+/** Aim at the middle of the world's height, not at the ground. */
+export const HOME_TARGET_Y = 3.5;
 export const HOME_ANGLE = Math.PI / 4;
 
 /** How far back from a building the camera parks, and how far above it. */
@@ -105,27 +121,8 @@ export function sectionAzimuth(section: NonNullable<SectionType>): number {
 /** Every focusable area, in the order they sit in the world. */
 export const SECTIONS = Object.keys(BUILDING_POSITIONS) as NonNullable<SectionType>[];
 
-/**
- * Height of each area's marker, in world units, measured from the ground.
- *
- * These clear the top of each structure by roughly a marker's width, so the
- * dot floats just above the roofline rather than embedded in it. They are
- * hand-tuned against the current procedural buildings (chimney, antenna,
- * rooftop unit and all) and will want re-tuning whenever those change shape.
- */
-const MARKER_HEIGHT: Record<NonNullable<SectionType>, number> = {
-  about: 5.7, // cottage: roof 7 voxels + chimney to 11
-  products: 10.4, // pink tower: clears the penthouse roof (23 voxels), not the antenna spire
-  skills: 8.7, // blue tower: 15 + rooftop unit to 18
-  experience: 4.9, // library: 7 + thick green roof to 9
-  contact: 5.7, // billboard: posts 8, board top at 11
-};
-
-/** Where an area's marker floats: directly above its building. */
-export function markerAnchor(section: NonNullable<SectionType>): [number, number, number] {
-  const [x, , z] = BUILDING_POSITIONS[section];
-  return [x, MARKER_HEIGHT[section], z];
-}
+/** Gap between the top of a building and the dot floating over it. */
+export const MARKER_CLEARANCE = 1.1;
 
 /**
  * Which area is front-and-centre at a given orbit azimuth — the one whose
@@ -152,5 +149,5 @@ export function facingSection(azimuth: number): NonNullable<SectionType> {
 /** Where the camera sits in the free diorama view, at a given orbit azimuth. */
 export function homePose(azimuth: number): Pose {
   const [x, z] = azimuthToXZ(azimuth, HOME_RADIUS);
-  return [x, HOME_HEIGHT, z, 0, 1, 0];
+  return [x, HOME_HEIGHT, z, 0, HOME_TARGET_Y, 0];
 }

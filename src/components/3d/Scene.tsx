@@ -13,6 +13,7 @@ import {
   homePose,
   wrapAngle,
   HOME_ANGLE,
+  HOME_HEIGHT,
   type Pose,
 } from "./worldLayout";
 import { useAppState, type SectionType } from "../AppStateContext";
@@ -241,8 +242,13 @@ function CameraController() {
       return;
     }
 
-    // 4. First mount: adopt whatever angle the camera already has.
-    azimuthTargetRef.current = controls.azimuthAngle;
+    // 4. First mount. The Canvas only gets to set a camera *position*, never
+    //    a target, so without this the orbit would run at whatever radius the
+    //    initial position happened to imply while still aiming at the origin —
+    //    which tilted the view down far enough to cut the top off the tallest
+    //    tower. Snap (no transition) so the first frame is already correct.
+    azimuthTargetRef.current = HOME_ANGLE;
+    controls.setLookAt(...homePose(HOME_ANGLE), false);
   }, [activeSection, homeNonce]);
 
   useFrame((_, delta) => {
@@ -322,7 +328,7 @@ export default function Scene({ obscured = false }: { obscured?: boolean }) {
   return (
     <Canvas
       shadows
-      camera={{ position: [16, 11, 16], fov: 45 }}
+      camera={{ position: [18.4, HOME_HEIGHT, 18.4], fov: 45 }}
       dpr={[1, 2]}
       frameloop={obscured ? "demand" : "always"}
     >

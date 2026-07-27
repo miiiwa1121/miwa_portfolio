@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { SECTIONS, markerAnchor } from "./worldLayout";
+import { SECTIONS, MARKER_CLEARANCE } from "./worldLayout";
 import { publishMarkerScreen } from "./markerScreen";
 import { useAppState } from "../AppStateContext";
 
@@ -57,9 +57,35 @@ export default function AreaMarkers() {
   useEffect(() => () => texture.dispose(), [texture]);
 
   const sprites = useRef<(THREE.Sprite | null)[]>([]);
+  const anchors = useRef<THREE.Vector3[]>([]);
+  const placed = useRef(false);
 
   useFrame((state) => {
     const time = state.clock.elapsedTime;
+
+    // Park each dot just clear of its building's real bounds, once the voxel
+    // meshes exist. Reading the scene beats hand-tuned heights: the buildings
+    // are procedural and still changing shape, and a number typed in by hand
+    // silently ends up buried inside a roof the moment one grows.
+    if (!placed.current) {
+      const box = new THREE.Box3();
+      const centre = new THREE.Vector3();
+      let complete = true;
+
+      SECTIONS.forEach((section, i) => {
+        const building = state.scene.getObjectByName(section);
+        const sprite = sprites.current[i];
+        if (!building || !sprite) {
+          complete = false;
+          return;
+        }
+        box.setFromObject(building);
+        box.getCenter(centre);
+        sprite.position.set(centre.x, box.max.y + MARKER_CLEARANCE, centre.z);
+        anchors.current[i] = sprite.position.clone();
+      });
+      placed.current = complete;
+    }
 
     SECTIONS.forEach((section, i) => {
       const sprite = sprites.current[i];
@@ -76,7 +102,9 @@ export default function AreaMarkers() {
     });
 
     // Hand the facing marker's screen position to the DOM leader line.
-    projected.set(...markerAnchor(facing)).project(state.camera);
+    const anchor = anchors.current[SECTIONS.indexOf(facing)];
+    if (!anchor) return;
+    projected.copy(anchor).project(state.camera);
     const { width, height } = state.size;
     const screenX = (projected.x * 0.5 + 0.5) * width;
     const screenY = (-projected.y * 0.5 + 0.5) * height;
@@ -104,7 +132,6 @@ export default function AreaMarkers() {
           ref={(el) => {
             sprites.current[i] = el;
           }}
-          position={markerAnchor(section)}
         >
           {/* depthWrite off so the dots never occlude each other, depthTest on
               so the buildings still occlude them. */}
