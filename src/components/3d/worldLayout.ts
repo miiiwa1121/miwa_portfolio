@@ -57,9 +57,76 @@ export const HOME_HEIGHT = 11;
 export const HOME_TARGET_Y = 3.5;
 export const HOME_ANGLE = Math.PI / 4;
 
-/** How far back from a building the camera parks, and how far above it. */
-export const SECTION_DISTANCE = 13;
-export const SECTION_RISE = 6;
+/**
+ * How steeply the camera looks down when framing a single area, in radians.
+ * Matches the diorama's three-quarter feel rather than dropping to eye level.
+ */
+export const SECTION_TILT = 0.34;
+
+/** Slack around a framed area so it never touches the edges of the frame. */
+export const FRAME_MARGIN = 1.35;
+
+/**
+ * How far back a camera needs to sit for a sphere of `radius` to fit.
+ *
+ * Takes whichever half-angle is tighter, so a tall narrow viewport is fitted
+ * on width and a wide one on height — the reason this is computed rather than
+ * fixed is that a single hardcoded distance frames the 12-unit Products tower
+ * and the 4-unit library equally badly.
+ *
+ * (`fitToBox` from camera-controls looks like the built-in answer to this, but
+ * it rounds the camera's angles to the nearest 90° first, snapping to a
+ * face-on elevation and throwing away the diorama's three-quarter view.)
+ */
+export function frameDistance(radius: number, fovDegrees: number, aspect: number): number {
+  const halfVertical = (fovDegrees * Math.PI) / 360;
+  const halfHorizontal = Math.atan(Math.tan(halfVertical) * aspect);
+  return radius / Math.sin(Math.min(halfVertical, halfHorizontal));
+}
+
+/**
+ * Fraction of the frame's width the card occupies on the left. The camera aims
+ * this far to the side of its subject, which slides the subject clear of the
+ * card instead of sitting behind it.
+ */
+export const CARD_SHARE = 0.3;
+
+/**
+ * How far to aim to the side of the subject so it clears the card.
+ *
+ * Half the frame's width at the subject's distance, times the share to give
+ * up. Derived rather than fixed because the frame is wider the further back
+ * the camera goes, and wider again on a landscape viewport.
+ */
+export function aimOffset(
+  distance: number,
+  fovDegrees: number,
+  aspect: number,
+  share: number = CARD_SHARE
+): number {
+  const halfVertical = (fovDegrees * Math.PI) / 360;
+  const halfHorizontal = Math.atan(Math.tan(halfVertical) * aspect);
+  return distance * Math.tan(halfHorizontal) * share;
+}
+
+/**
+ * Camera placement looking at `target` from `azimuth`, backed off by
+ * `distance`. A positive `sideways` aims left of the subject, which is what
+ * pushes the subject to the right of the frame, out from under the card.
+ */
+export function framePose(
+  target: readonly [number, number, number],
+  azimuth: number,
+  distance: number,
+  tilt: number = SECTION_TILT,
+  sideways = 0
+): Pose {
+  const [tx, ty, tz] = target;
+  const [dx, dz] = azimuthToXZ(azimuth, distance * Math.cos(tilt));
+  // The camera's right in world XZ is a quarter turn round from its azimuth.
+  const [rx, rz] = azimuthToXZ(azimuth + Math.PI / 2, sideways);
+  return [tx + dx, ty + distance * Math.sin(tilt), tz + dz, tx - rx, ty, tz - rz];
+}
 
 /**
  * CameraControls follows three.js's `Spherical` convention, where the
@@ -86,27 +153,11 @@ export function wrapAngle(angle: number): number {
  */
 export type Pose = [number, number, number, number, number, number];
 
-/**
- * Where the camera sits when a building is focused: backed off along the ray
- * from the island centre through the building, and raised above it.
- */
-export function sectionPose(section: NonNullable<SectionType>): Pose {
-  const [tx, ty, tz] = sectionTargets[section];
-  // Normalised outward direction, without allocating a Vector2 — this runs
-  // every frame while scrolling. A building sitting dead centre has no
-  // meaningful outward ray, so fall back to +Z.
-  const len = Math.hypot(tx, tz);
-  const dx = len < 0.001 ? 0 : tx / len;
-  const dz = len < 0.001 ? 1 : tz / len;
-  return [
-    tx + dx * SECTION_DISTANCE,
-    ty + SECTION_RISE,
-    tz + dz * SECTION_DISTANCE,
-    tx,
-    ty,
-    tz,
-  ];
-}
+/** Every focusable area, in the order they sit in the world. */
+export const SECTIONS = Object.keys(BUILDING_POSITIONS) as NonNullable<SectionType>[];
+
+/** Gap between the top of a building and the dot floating over it. */
+export const MARKER_CLEARANCE = 1.1;
 
 /**
  * The orbit azimuth that puts a section's area between the camera and the
@@ -117,12 +168,6 @@ export function sectionAzimuth(section: NonNullable<SectionType>): number {
   const [tx, , tz] = sectionTargets[section];
   return Math.atan2(tx, tz);
 }
-
-/** Every focusable area, in the order they sit in the world. */
-export const SECTIONS = Object.keys(BUILDING_POSITIONS) as NonNullable<SectionType>[];
-
-/** Gap between the top of a building and the dot floating over it. */
-export const MARKER_CLEARANCE = 1.1;
 
 /**
  * Which area is front-and-centre at a given orbit azimuth — the one whose

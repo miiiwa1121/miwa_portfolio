@@ -7,8 +7,11 @@ import * as THREE from "three";
 import Diorama from "./Diorama";
 import {
   sectionTargets,
-  sectionPose,
   sectionAzimuth,
+  framePose,
+  frameDistance,
+  aimOffset,
+  FRAME_MARGIN,
   facingSection,
   homePose,
   wrapAngle,
@@ -157,6 +160,8 @@ function IdleHeartbeat({ obscured }: { obscured: boolean }) {
 function CameraController() {
   const controlsRef = useRef<CameraControls>(null);
   const { activeSection, pageOpen, homeNonce, facing, setFacing } = useAppState();
+  const scene = useThree((state) => state.scene);
+  const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
 
   // The orbit's azimuth is tracked entirely through CameraControls' own
   // `.azimuthAngle` (an accumulative, wraparound-safe property backed by its
@@ -220,10 +225,31 @@ function CameraController() {
       controls.setLookAt(...pose, true).then(() => endFlight(id));
     };
 
-    // 1. A section was focused: go and frame its building.
+    // 1. A section was focused: frame its building from the area's own angle,
+    //    backing off by however much that particular building needs. Reading
+    //    the real bounds means a 12-unit tower and a 4-unit library are each
+    //    framed properly, instead of sharing one hardcoded distance.
     if (activeSection && sectionTargets[activeSection]) {
-      const id = beginFlight();
-      controls.setLookAt(...sectionPose(activeSection), true).then(() => endFlight(id));
+      const building = scene.getObjectByName(activeSection);
+      if (building) {
+        const sphere = new THREE.Box3()
+          .setFromObject(building)
+          .getBoundingSphere(new THREE.Sphere());
+        const distance = frameDistance(
+          sphere.radius * FRAME_MARGIN,
+          camera.fov,
+          camera.aspect
+        );
+        const pose = framePose(
+          [sphere.center.x, sphere.center.y, sphere.center.z],
+          sectionAzimuth(activeSection),
+          distance,
+          undefined,
+          aimOffset(distance, camera.fov, camera.aspect)
+        );
+        const id = beginFlight();
+        controls.setLookAt(...pose, true).then(() => endFlight(id));
+      }
       return;
     }
 
@@ -249,7 +275,7 @@ function CameraController() {
     //    tower. Snap (no transition) so the first frame is already correct.
     azimuthTargetRef.current = HOME_ANGLE;
     controls.setLookAt(...homePose(HOME_ANGLE), false);
-  }, [activeSection, homeNonce]);
+  }, [activeSection, homeNonce, scene, camera]);
 
   useFrame((_, delta) => {
     const controls = controlsRef.current;

@@ -6,10 +6,12 @@ import {
   HOME_TARGET_Y,
   SECTIONS,
   azimuthToXZ,
+  aimOffset,
   facingSection,
+  frameDistance,
+  framePose,
   homePose,
   sectionAzimuth,
-  sectionPose,
   sectionTargets,
   wrapAngle,
 } from "./worldLayout";
@@ -84,42 +86,68 @@ describe("sectionTargets", () => {
   });
 });
 
-describe("sectionPose", () => {
-  it("looks at the section's target", () => {
-    for (const s of SECTIONS) {
-      const pose = sectionPose(s);
-      expect(pose.slice(3)).toEqual(sectionTargets[s]);
+describe("frameDistance", () => {
+  it("backs off further for a bigger subject", () => {
+    const small = frameDistance(2, 45, 1.6);
+    const big = frameDistance(8, 45, 1.6);
+    expect(big).toBeGreaterThan(small);
+    expect(big / small).toBeCloseTo(4); // linear in radius
+  });
+
+  it("actually fits the subject in the frame", () => {
+    // The half-angle subtended by the sphere must not exceed the frame's.
+    for (const [fov, aspect] of [[45, 1.6], [45, 0.5], [60, 1.0]] as const) {
+      for (const radius of [1, 4, 12]) {
+        const d = frameDistance(radius, fov, aspect);
+        const halfV = (fov * Math.PI) / 360;
+        const halfH = Math.atan(Math.tan(halfV) * aspect);
+        expect(Math.asin(radius / d)).toBeLessThanOrEqual(Math.min(halfV, halfH) + 1e-9);
+      }
     }
   });
 
-  it("stands the camera off from the building, not inside it", () => {
-    for (const s of SECTIONS) {
-      const [px, , pz, tx, , tz] = sectionPose(s);
-      expect(Math.hypot(px - tx, pz - tz), s).toBeCloseTo(13);
+  it("pulls back further on a narrow viewport than a wide one", () => {
+    // Portrait is width-limited, so the same subject needs more room.
+    expect(frameDistance(5, 45, 0.5)).toBeGreaterThan(frameDistance(5, 45, 1.6));
+  });
+
+  it("needs less distance with a wider lens", () => {
+    expect(frameDistance(5, 70, 1.6)).toBeLessThan(frameDistance(5, 45, 1.6));
+  });
+});
+
+describe("framePose", () => {
+  const target = [3, 2, -4] as const;
+
+  it("looks at the target it was given", () => {
+    expect(framePose(target, 0.5, 20).slice(3)).toEqual([...target]);
+  });
+
+  it("sits the requested distance away", () => {
+    for (const distance of [8, 20, 40]) {
+      const [px, py, pz] = framePose(target, 1.1, distance);
+      expect(Math.hypot(px - target[0], py - target[1], pz - target[2])).toBeCloseTo(distance);
     }
   });
 
-  it("backs away from the island centre rather than through it", () => {
-    // Being merely "further from the origin" is not enough: pulling back along
-    // the inward ray also lands further out, just on the opposite side with
-    // the whole town between camera and subject. The offset from building to
-    // camera must point the same way as the building's own position vector.
-    for (const s of SECTIONS) {
-      const [px, , pz, tx, , tz] = sectionPose(s);
-      const outwardness = (px - tx) * tx + (pz - tz) * tz;
-      expect(outwardness, s).toBeGreaterThan(0);
+  it("approaches from the given azimuth", () => {
+    for (const azimuth of [0, 1, -2.2]) {
+      const [px, , pz] = framePose(target, azimuth, 15);
+      expect(Math.atan2(px - target[0], pz - target[2])).toBeCloseTo(azimuth);
     }
   });
 
-  it("raises the camera above what it is looking at", () => {
-    for (const s of SECTIONS) {
-      const pose = sectionPose(s);
-      expect(pose[1], s).toBeGreaterThan(pose[4]);
-    }
+  it("looks down at the subject rather than up at it", () => {
+    const pose = framePose(target, 0.7, 15);
+    expect(pose[1]).toBeGreaterThan(pose[4]);
   });
 
-  it("is pure — repeated calls agree", () => {
-    expect(sectionPose("products")).toEqual(sectionPose("products"));
+  it("keeps the same tilt whatever the distance", () => {
+    const angleAt = (d: number) => {
+      const [px, py, pz] = framePose(target, 0.7, d);
+      return Math.atan2(py - target[1], Math.hypot(px - target[0], pz - target[2]));
+    };
+    expect(angleAt(10)).toBeCloseTo(angleAt(30));
   });
 });
 
@@ -223,5 +251,45 @@ describe("section coverage", () => {
   it("has a building for every focusable section", () => {
     const focusable: NonNullable<SectionType>[] = [...SECTIONS];
     expect(Object.keys(BUILDING_POSITIONS).sort()).toEqual([...focusable].sort());
+  });
+});
+
+describe("aimOffset", () => {
+  it("reserves more room on a wider frame", () => {
+    expect(aimOffset(20, 45, 1.6, 0.3)).toBeGreaterThan(aimOffset(20, 45, 0.6, 0.3));
+  });
+
+  it("scales with distance, so the card covers the same share at any zoom", () => {
+    expect(aimOffset(40, 45, 1.6, 0.3) / aimOffset(20, 45, 1.6, 0.3)).toBeCloseTo(2);
+  });
+
+  it("gives nothing away at share 0", () => {
+    expect(aimOffset(20, 45, 1.6, 0)).toBe(0);
+  });
+});
+
+describe("framePose with a sideways aim", () => {
+  const target = [3, 2, -4] as const;
+
+  it("keeps the camera where it was and only moves what it looks at", () => {
+    const straight = framePose(target, 0.7, 20);
+    const shifted = framePose(target, 0.7, 20, undefined, 5);
+    expect(shifted.slice(0, 3)).toEqual(straight.slice(0, 3));
+    expect(shifted.slice(3)).not.toEqual(straight.slice(3));
+  });
+
+  it("aims to the camera's left, which puts the subject on the right", () => {
+    const azimuth = 0; // camera on +Z looking towards -Z; its right is +X
+    const shifted = framePose([0, 0, 0], azimuth, 20, undefined, 5);
+    expect(shifted[3]).toBeCloseTo(-5); // target moved to -X, i.e. camera-left
+  });
+
+  it("shifts perpendicular to the view, never along it", () => {
+    for (const azimuth of [0.3, 1.9, -2.4]) {
+      const [px, , pz, tx, , tz] = framePose(target, azimuth, 20, undefined, 4);
+      const view = [target[0] - px, target[2] - pz];
+      const shift = [tx - target[0], tz - target[2]];
+      expect(view[0] * shift[0] + view[1] * shift[1]).toBeCloseTo(0);
+    }
   });
 });
