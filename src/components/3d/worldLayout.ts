@@ -92,6 +92,16 @@ export function sectionPose(section: NonNullable<SectionType>): Pose {
   ];
 }
 
+/**
+ * The orbit azimuth that puts a section's area between the camera and the
+ * centre of the island — i.e. squarely in front of you, seen from the
+ * overview distance. Same `atan2(x, z)` convention as azimuthToXZ.
+ */
+export function sectionAzimuth(section: NonNullable<SectionType>): number {
+  const [tx, , tz] = sectionTargets[section];
+  return Math.atan2(tx, tz);
+}
+
 /** Where the camera sits in the free diorama view, at a given orbit azimuth. */
 export function homePose(azimuth: number): Pose {
   const [x, z] = azimuthToXZ(azimuth, HOME_RADIUS);

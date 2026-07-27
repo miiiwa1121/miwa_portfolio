@@ -5,8 +5,16 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls } from "@react-three/drei";
 import * as THREE from "three";
 import Diorama from "./Diorama";
-import { sectionTargets, sectionPose, homePose, wrapAngle, HOME_ANGLE } from "./worldLayout";
-import { useAppState } from "../AppStateContext";
+import {
+  sectionTargets,
+  sectionPose,
+  sectionAzimuth,
+  homePose,
+  wrapAngle,
+  HOME_ANGLE,
+  type Pose,
+} from "./worldLayout";
+import { useAppState, type SectionType } from "../AppStateContext";
 
 // Rotation sensitivity (kept gentle).
 const DRAG_SENSITIVITY = 0.004; // radians per px of pointer drag
@@ -158,6 +166,8 @@ function CameraController() {
   // that problem because it's the authoritative source, not a recomputation.
   const azimuthTargetRef = useRef(HOME_ANGLE);
   const draggingRef = useRef(false);
+  const prevSectionRef = useRef<SectionType>(null);
+  const prevNonceRef = useRef(homeNonce);
 
   // A plain "is a flight in progress" boolean cannot be used here.
   // CameraControls' `_createOnRestPromise` has no per-call identity: it
@@ -190,36 +200,48 @@ function CameraController() {
 
   useViewInput(azimuthTargetRef, draggingRef, orbitLockedRef, activeFlightRef);
 
-  // Fly to a building when one is focused.
+  // Every camera destination is decided here, in one place, so the three ways
+  // of arriving cannot disagree about where the camera should end up.
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
 
-    if (!activeSection || !sectionTargets[activeSection]) {
-      // Leaving a section without a reset: the camera stays exactly where the
-      // section framing left it, looking at the area just read about. Pick the
-      // idle orbit up from there rather than from a stale target, which would
-      // otherwise swing the moment the loop resumes.
-      azimuthTargetRef.current = controls.azimuthAngle;
+    const cameFrom = prevSectionRef.current;
+    prevSectionRef.current = activeSection;
+    const wasReset = homeNonce !== prevNonceRef.current;
+    prevNonceRef.current = homeNonce;
+
+    const flyTo = (pose: Pose, azimuth: number) => {
+      azimuthTargetRef.current = azimuth;
+      const id = beginFlight();
+      controls.setLookAt(...pose, true).then(() => endFlight(id));
+    };
+
+    // 1. A section was focused: go and frame its building.
+    if (activeSection && sectionTargets[activeSection]) {
+      const id = beginFlight();
+      controls.setLookAt(...sectionPose(activeSection), true).then(() => endFlight(id));
       return;
     }
 
-    const id = beginFlight();
-    controls.setLookAt(...sectionPose(activeSection), true).then(() => endFlight(id));
-  }, [activeSection]);
+    // 2. A deliberate reset (logo / HOME): the one fixed default view, so it
+    //    lands in exactly the same place every single time.
+    if (wasReset) {
+      flyTo(homePose(HOME_ANGLE), HOME_ANGLE);
+      return;
+    }
 
-  // Full reset (logo / HOME button): always the same view, every time. This
-  // deliberately does not restore wherever the diorama happened to be when the
-  // section was opened — the idle orbit means that angle was different on
-  // every visit, so "home" was never twice the same place.
-  useEffect(() => {
-    const controls = controlsRef.current;
-    if (!controls) return;
+    // 3. Scrolled off the detail page: back out to the overview distance, but
+    //    turned so the area just read about is the thing facing the camera.
+    if (cameFrom && sectionTargets[cameFrom]) {
+      const azimuth = sectionAzimuth(cameFrom);
+      flyTo(homePose(azimuth), azimuth);
+      return;
+    }
 
-    azimuthTargetRef.current = HOME_ANGLE;
-    const id = beginFlight();
-    controls.setLookAt(...homePose(HOME_ANGLE), true).then(() => endFlight(id));
-  }, [homeNonce]);
+    // 4. First mount: adopt whatever angle the camera already has.
+    azimuthTargetRef.current = controls.azimuthAngle;
+  }, [activeSection, homeNonce]);
 
   useFrame((_, delta) => {
     const controls = controlsRef.current;

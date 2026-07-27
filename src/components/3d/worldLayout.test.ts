@@ -5,6 +5,7 @@ import {
   HOME_RADIUS,
   azimuthToXZ,
   homePose,
+  sectionAzimuth,
   sectionPose,
   sectionTargets,
   wrapAngle,
@@ -117,6 +118,40 @@ describe("sectionPose", () => {
 
   it("is pure — repeated calls agree", () => {
     expect(sectionPose("products")).toEqual(sectionPose("products"));
+  });
+});
+
+describe("sectionAzimuth", () => {
+  it("puts the area between the camera and the island centre", () => {
+    // Closing the detail page by scrolling backs out to the overview turned so
+    // the area just read about faces the camera. That only holds if the camera
+    // ends up on the same side of the centre as the building.
+    for (const s of SECTIONS) {
+      const [px, , pz] = homePose(sectionAzimuth(s));
+      const [tx, , tz] = sectionTargets[s];
+      const alignment = (px * tx + pz * tz) / (Math.hypot(px, pz) * Math.hypot(tx, tz));
+      expect(alignment, s).toBeCloseTo(1); // same direction from the origin
+    }
+  });
+
+  it("agrees with the convention CameraControls reads back", () => {
+    for (const s of SECTIONS) {
+      const [px, , pz] = homePose(sectionAzimuth(s));
+      expect(Math.atan2(px, pz), s).toBeCloseTo(sectionAzimuth(s));
+    }
+  });
+
+  it("gives each area its own angle, so they are distinguishable", () => {
+    const angles = SECTIONS.map(sectionAzimuth);
+    for (let i = 0; i < angles.length; i++) {
+      for (let j = i + 1; j < angles.length; j++) {
+        expect(Math.abs(wrapAngle(angles[i] - angles[j]))).toBeGreaterThan(0.2);
+      }
+    }
+  });
+
+  it("is pure", () => {
+    expect(sectionAzimuth("contact")).toBe(sectionAzimuth("contact"));
   });
 });
 
