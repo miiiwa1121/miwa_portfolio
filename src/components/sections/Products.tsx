@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence } from "framer-motion";
 import Section from "@/components/Section";
 import { useLanguage } from "@/components/LanguageContext";
-import { projectsJP, projectsEN, type Project } from "@/data";
+import { PROJECTS, localizeProjects, type Project } from "@/data";
 import {
   filterProjects,
   type CategoryFilter,
@@ -31,10 +31,9 @@ export default function Products() {
   // so hydration adds no markup to <body> and has nothing to mismatch.
   const portalTarget = typeof document === "undefined" ? null : document.body;
 
-  const projects = language === "ja" ? projectsJP : projectsEN;
   const visible = useMemo(
-    () => filterProjects(projects, category, status),
-    [projects, category, status]
+    () => filterProjects(localizeProjects(PROJECTS, language), category, status),
+    [language, category, status]
   );
 
   // Keep the page behind the dialog from scrolling under it.
@@ -67,7 +66,7 @@ export default function Products() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 transition-all duration-500">
         {visible.map((project) => (
           <ProjectCard
-            key={project.id}
+            key={project.slug}
             project={project}
             onOpen={setSelected}
             onBlockedLink={handleBlockedLink}
