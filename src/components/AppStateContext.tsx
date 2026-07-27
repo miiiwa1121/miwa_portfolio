@@ -23,6 +23,13 @@ interface AppStateContextType {
   goHome: () => void;
   /** Bumps every time goHome() runs; the camera watches it to reset its view. */
   homeNonce: number;
+  /**
+   * Which area the camera is currently turned towards. Published by the scene
+   * as it orbits, and read by the card — so the card can never disagree with
+   * what is actually on screen.
+   */
+  facing: NonNullable<SectionType>;
+  setFacing: (section: NonNullable<SectionType>) => void;
 }
 
 const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
@@ -31,6 +38,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [activeSection, setActiveSection] = useState<SectionType>(null);
   const [pageOpen, setPageOpen] = useState(false);
   const [homeNonce, setHomeNonce] = useState(0);
+  const [facing, setFacing] = useState<NonNullable<SectionType>>("products");
 
   const openPage = useCallback((section: NonNullable<SectionType>) => {
     setActiveSection(section);
@@ -54,7 +62,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppStateContext.Provider
-      value={{ activeSection, setActiveSection, pageOpen, setPageOpen, openPage, closePage, goHome, homeNonce }}
+      value={{ activeSection, setActiveSection, pageOpen, setPageOpen, openPage, closePage, goHome, homeNonce, facing, setFacing }}
     >
       {children}
     </AppStateContext.Provider>

@@ -9,6 +9,7 @@ import {
   sectionTargets,
   sectionPose,
   sectionAzimuth,
+  facingSection,
   homePose,
   wrapAngle,
   HOME_ANGLE,
@@ -154,7 +155,7 @@ function IdleHeartbeat({ obscured }: { obscured: boolean }) {
 
 function CameraController() {
   const controlsRef = useRef<CameraControls>(null);
-  const { activeSection, pageOpen, homeNonce } = useAppState();
+  const { activeSection, pageOpen, homeNonce, facing, setFacing } = useAppState();
 
   // The orbit's azimuth is tracked entirely through CameraControls' own
   // `.azimuthAngle` (an accumulative, wraparound-safe property backed by its
@@ -168,6 +169,7 @@ function CameraController() {
   const draggingRef = useRef(false);
   const prevSectionRef = useRef<SectionType>(null);
   const prevNonceRef = useRef(homeNonce);
+  const facingRef = useRef(facing);
 
   // A plain "is a flight in progress" boolean cannot be used here.
   // CameraControls' `_createOnRestPromise` has no per-call identity: it
@@ -289,6 +291,15 @@ function CameraController() {
     // yanked it back out to the island overview on the very next frame.
     const azimuth = THREE.MathUtils.damp(current, target, 5, delta);
     controls.rotateAzimuthTo(azimuth, false);
+
+    // Publish which area is in front. Only on a change — this runs every
+    // frame, and a setState per frame would re-render the whole overlay at
+    // 60Hz on the same main thread that is drawing the diorama.
+    const facing = facingSection(azimuth);
+    if (facing !== facingRef.current) {
+      facingRef.current = facing;
+      setFacing(facing);
+    }
   });
 
   return (

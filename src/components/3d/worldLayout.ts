@@ -102,6 +102,31 @@ export function sectionAzimuth(section: NonNullable<SectionType>): number {
   return Math.atan2(tx, tz);
 }
 
+/** Every focusable area, in the order they sit in the world. */
+export const SECTIONS = Object.keys(BUILDING_POSITIONS) as NonNullable<SectionType>[];
+
+/**
+ * Which area is front-and-centre at a given orbit azimuth — the one whose
+ * own azimuth the camera is closest to, measured the short way round.
+ *
+ * This is the single source of truth for "which spot am I looking at". The
+ * card reads it rather than being set alongside the camera: two places both
+ * deciding, and having to agree, is what turns a rotation into a fight.
+ */
+export function facingSection(azimuth: number): NonNullable<SectionType> {
+  let best = SECTIONS[0];
+  let bestDistance = Infinity;
+
+  for (const section of SECTIONS) {
+    const distance = Math.abs(wrapAngle(sectionAzimuth(section) - azimuth));
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = section;
+    }
+  }
+  return best;
+}
+
 /** Where the camera sits in the free diorama view, at a given orbit azimuth. */
 export function homePose(azimuth: number): Pose {
   const [x, z] = azimuthToXZ(azimuth, HOME_RADIUS);

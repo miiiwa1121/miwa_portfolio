@@ -102,12 +102,14 @@ const CARD: Record<
 };
 
 export default function Home() {
-  const { activeSection, setActiveSection, pageOpen, openPage, closePage, goHome } = useAppState();
+  const { activeSection, setActiveSection, pageOpen, openPage, closePage, goHome, facing } = useAppState();
   const { language, toggleLanguage } = useLanguage();
   const { openTerminal } = useTerminal();
   const isJa = language === "ja";
 
-  const card = CARD[activeSection ?? "home"];
+  // With no section explicitly focused the card describes whatever the camera
+  // is turned towards, so rotating the diorama leafs through the areas.
+  const card = CARD[activeSection ?? facing];
   const openedAt = useRef(0);
   const [toolsOpen, setToolsOpen] = useState(false);
 

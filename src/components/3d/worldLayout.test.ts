@@ -3,7 +3,9 @@ import {
   BUILDING_POSITIONS,
   HOME_HEIGHT,
   HOME_RADIUS,
+  SECTIONS,
   azimuthToXZ,
+  facingSection,
   homePose,
   sectionAzimuth,
   sectionPose,
@@ -12,7 +14,6 @@ import {
 } from "./worldLayout";
 import type { SectionType } from "../AppStateContext";
 
-const SECTIONS = ["about", "products", "skills", "experience", "contact"] as const;
 
 describe("azimuthToXZ", () => {
   // The whole point of this helper is that CameraControls measures azimuth as
@@ -152,6 +153,45 @@ describe("sectionAzimuth", () => {
 
   it("is pure", () => {
     expect(sectionAzimuth("contact")).toBe(sectionAzimuth("contact"));
+  });
+});
+
+describe("facingSection", () => {
+  it("returns an area for any angle, including far outside one turn", () => {
+    for (const a of [-100, -7, -1, 0, 1, 7, 100]) {
+      expect(SECTIONS, String(a)).toContain(facingSection(a));
+    }
+  });
+
+  it("picks each area when the camera is turned exactly at it", () => {
+    for (const s of SECTIONS) expect(facingSection(sectionAzimuth(s)), s).toBe(s);
+  });
+
+  it("is unaffected by winding — the orbit angle accumulates past a full turn", () => {
+    for (const s of SECTIONS) {
+      for (const turns of [-2, -1, 1, 3]) {
+        expect(facingSection(sectionAzimuth(s) + turns * Math.PI * 2), s).toBe(s);
+      }
+    }
+  });
+
+  it("reaches every area over a full sweep, so none is unselectable", () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 360; i++) seen.add(facingSection((i * Math.PI) / 180));
+    expect([...seen].sort()).toEqual([...SECTIONS].sort());
+  });
+
+  it("changes exactly as many times as there are areas, going round once", () => {
+    // One contiguous arc per area. More switches would mean the card flickers
+    // back and forth somewhere on the way round.
+    let switches = 0;
+    let previous = facingSection(0);
+    for (let i = 1; i <= 3600; i++) {
+      const next = facingSection((i * Math.PI * 2) / 3600);
+      if (next !== previous) switches++;
+      previous = next;
+    }
+    expect(switches).toBe(SECTIONS.length);
   });
 });
 
