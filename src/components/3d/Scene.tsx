@@ -5,22 +5,18 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls } from "@react-three/drei";
 import * as THREE from "three";
 import Diorama from "./Diorama";
-import {
-  sectionTargets,
-  sectionPose,
-  homePose,
-  wrapAngle,
-  azimuthToXZ,
-  HOME_RADIUS,
-  HOME_HEIGHT,
-  HOME_ANGLE,
-} from "./worldLayout";
-import { useAppState, SectionType } from "../AppStateContext";
+import { sectionTargets, sectionPose, homePose, wrapAngle, HOME_ANGLE } from "./worldLayout";
+import { useAppState } from "../AppStateContext";
 
 // Rotation sensitivity (kept gentle).
 const DRAG_SENSITIVITY = 0.004; // radians per px of pointer drag
 const WHEEL_SENSITIVITY = 0.0008; // radians per unit of wheel deltaY
 const AUTO_ORBIT_SPEED = 0.045; // radians per second of idle drift
+
+// How long the wheel must be quiet before a stream that began while the orbit
+// was locked is trusted again. Longer than the gaps within a momentum tail,
+// shorter than the pause between two deliberate gestures.
+const WHEEL_REARM_MS = 220;
 
 /** Elements whose gestures should NOT rotate the camera (real UI controls). */
 function isInteractive(target: EventTarget | null): boolean {
@@ -41,7 +37,8 @@ function isInteractive(target: EventTarget | null): boolean {
 function useViewInput(
   targetAngleRef: React.RefObject<number>,
   draggingRef: React.RefObject<boolean>,
-  orbitLockedRef: React.RefObject<boolean>
+  orbitLockedRef: React.RefObject<boolean>,
+  flightRef: React.RefObject<number>
 ) {
   useEffect(() => {
     let down = false;
@@ -49,8 +46,12 @@ function useViewInput(
     let lastY = 0;
     let pointerType = "mouse";
 
+    // A camera flight owns the camera outright; gestures during one would be
+    // fighting it, and would land as a jump the moment it finished.
+    const locked = () => orbitLockedRef.current || flightRef.current !== 0;
+
     const onPointerDown = (e: PointerEvent) => {
-      if (orbitLockedRef.current || isInteractive(e.target)) return;
+      if (locked() || isInteractive(e.target)) return;
       down = true;
       lastX = e.clientX;
       lastY = e.clientY;
@@ -59,7 +60,7 @@ function useViewInput(
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if (!down || orbitLockedRef.current) return;
+      if (!down || locked()) return;
       const dx = e.clientX - lastX;
       const dy = e.clientY - lastY;
       lastX = e.clientX;
@@ -79,8 +80,29 @@ function useViewInput(
       draggingRef.current = false;
     };
 
+    // A hard flick that dismisses the detail page keeps emitting wheel events
+    // for a second or two after the fingers leave the trackpad. Those arrive
+    // just as the orbit unlocks, and used to pour straight into the rotation
+    // target — which is why a hard swipe home sent the camera spinning while a
+    // gentle one looked fine. Momentum is one unbroken stream, so a stream
+    // that began while locked is refused until the wheel falls quiet: a
+    // genuinely new gesture always starts after a pause.
+    let lastWheelAt = 0;
+    let wheelArmed = true;
+
     const onWheel = (e: WheelEvent) => {
-      if (orbitLockedRef.current) return;
+      const sinceLast = e.timeStamp - lastWheelAt;
+      lastWheelAt = e.timeStamp;
+
+      if (locked()) {
+        wheelArmed = false;
+        return;
+      }
+      if (!wheelArmed) {
+        if (sinceLast < WHEEL_REARM_MS) return; // same stream, still coasting
+        wheelArmed = true;
+      }
+
       e.preventDefault(); // stop any rubber-band scroll; there's no page yet
       targetAngleRef.current -= e.deltaY * WHEEL_SENSITIVITY;
     };
@@ -97,7 +119,7 @@ function useViewInput(
       window.removeEventListener("pointercancel", endDrag);
       window.removeEventListener("wheel", onWheel);
     };
-  }, [targetAngleRef, draggingRef, orbitLockedRef]);
+  }, [targetAngleRef, draggingRef, orbitLockedRef, flightRef]);
 }
 
 /**
@@ -135,9 +157,7 @@ function CameraController() {
   // them produced angles that didn't mean anything. `azimuthAngle` never has
   // that problem because it's the authoritative source, not a recomputation.
   const azimuthTargetRef = useRef(HOME_ANGLE);
-  const homeAzimuthRef = useRef(HOME_ANGLE);
   const draggingRef = useRef(false);
-  const prevSectionRef = useRef<SectionType>(null);
 
   // A plain "is a flight in progress" boolean cannot be used here.
   // CameraControls' `_createOnRestPromise` has no per-call identity: it
@@ -168,47 +188,37 @@ function CameraController() {
     orbitLockedRef.current = pageOpen || !!activeSection;
   }, [pageOpen, activeSection]);
 
-  useViewInput(azimuthTargetRef, draggingRef, orbitLockedRef);
+  useViewInput(azimuthTargetRef, draggingRef, orbitLockedRef, activeFlightRef);
 
-  // Zoom to a building when one is focused. Freeze the orbit angle we'll
-  // resume at — read once, here, straight from CameraControls before
-  // anything else can perturb it — so the scroll-linked return lerp and the
-  // home reset both converge on the exact spot the diorama was left at,
-  // instead of drifting frame-to-frame.
+  // Fly to a building when one is focused.
   useEffect(() => {
     const controls = controlsRef.current;
-    const cameFrom = prevSectionRef.current;
-    prevSectionRef.current = activeSection;
+    if (!controls) return;
 
-    if (!controls || !activeSection || !sectionTargets[activeSection]) return;
-
-    // Freeze the orbit angle only when leaving the free home view. Jumping
-    // straight from one building to another must NOT re-freeze it:
-    // `azimuthAngle` is measured around whatever the current target is, so
-    // while parked at a building it describes that building's framing, not
-    // the spot the diorama was left at. Overwriting it there is what made the
-    // camera come back to an arbitrary angle after switching tabs.
-    if (cameFrom === null) {
-      homeAzimuthRef.current = controls.azimuthAngle;
+    if (!activeSection || !sectionTargets[activeSection]) {
+      // Leaving a section without a reset: the camera stays exactly where the
+      // section framing left it, looking at the area just read about. Pick the
+      // idle orbit up from there rather than from a stale target, which would
+      // otherwise swing the moment the loop resumes.
       azimuthTargetRef.current = controls.azimuthAngle;
+      return;
     }
 
     const id = beginFlight();
     controls.setLookAt(...sectionPose(activeSection), true).then(() => endFlight(id));
   }, [activeSection]);
 
-  // Full reset (logo / HOME / scrolled to bottom): restore orbit angle + home view.
+  // Full reset (logo / HOME button): always the same view, every time. This
+  // deliberately does not restore wherever the diorama happened to be when the
+  // section was opened — the idle orbit means that angle was different on
+  // every visit, so "home" was never twice the same place.
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
 
-    // homeAzimuthRef already holds the angle the diorama was left at (frozen
-    // on entry, above) — reuse it so this glides home without an extra spin.
-    const homeAzimuth = homeAzimuthRef.current;
-    azimuthTargetRef.current = homeAzimuth;
-
+    azimuthTargetRef.current = HOME_ANGLE;
     const id = beginFlight();
-    controls.setLookAt(...homePose(homeAzimuth), true).then(() => endFlight(id));
+    controls.setLookAt(...homePose(HOME_ANGLE), true).then(() => endFlight(id));
   }, [homeNonce]);
 
   useFrame((_, delta) => {
@@ -248,10 +258,15 @@ function CameraController() {
     const target = current + wrapAngle(azimuthTargetRef.current - current);
     azimuthTargetRef.current = target;
 
-    // Interpolate for inertia and smooth flowing rotation
+    // Interpolate for inertia and smooth flowing rotation.
+    //
+    // rotateAzimuthTo swings around whatever the camera is currently looking
+    // at, keeping its distance and height. That matters now that closing the
+    // detail page leaves the camera parked on a building: rebuilding the
+    // position from HOME_RADIUS/HOME_HEIGHT, as this used to, would have
+    // yanked it back out to the island overview on the very next frame.
     const azimuth = THREE.MathUtils.damp(current, target, 5, delta);
-    const [x, z] = azimuthToXZ(azimuth, HOME_RADIUS);
-    controls.setPosition(x, HOME_HEIGHT, z, false);
+    controls.rotateAzimuthTo(azimuth, false);
   });
 
   return (

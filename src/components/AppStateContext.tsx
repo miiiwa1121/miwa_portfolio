@@ -13,9 +13,15 @@ interface AppStateContextType {
   setPageOpen: (open: boolean) => void;
   /** Open the detail page focused on a section (also focuses the camera). */
   openPage: (section: NonNullable<SectionType>) => void;
-  /** Full reset: close the page, unfocus, and reset camera position + angle. */
+  /**
+   * Close the detail page and unfocus, leaving the camera exactly where the
+   * section framing put it. This is what scrolling off either end does: you
+   * stay looking at the area you were just reading about.
+   */
+  closePage: () => void;
+  /** Full reset: close the page and fly the camera back to the default view. */
   goHome: () => void;
-  /** Bumps every time goHome() runs; the camera watches it to reset its orbit. */
+  /** Bumps every time goHome() runs; the camera watches it to reset its view. */
   homeNonce: number;
 }
 
@@ -35,16 +41,20 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const goHome = useCallback(() => {
+  const closePage = useCallback(() => {
     setActiveSection(null);
     setPageOpen(false);
-    setHomeNonce((n) => n + 1);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
 
+  const goHome = useCallback(() => {
+    closePage();
+    setHomeNonce((n) => n + 1);
+  }, [closePage]);
+
   return (
     <AppStateContext.Provider
-      value={{ activeSection, setActiveSection, pageOpen, setPageOpen, openPage, goHome, homeNonce }}
+      value={{ activeSection, setActiveSection, pageOpen, setPageOpen, openPage, closePage, goHome, homeNonce }}
     >
       {children}
     </AppStateContext.Provider>

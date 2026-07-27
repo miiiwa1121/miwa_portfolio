@@ -102,7 +102,7 @@ const CARD: Record<
 };
 
 export default function Home() {
-  const { activeSection, setActiveSection, pageOpen, openPage, goHome } = useAppState();
+  const { activeSection, setActiveSection, pageOpen, openPage, closePage, goHome } = useAppState();
   const { language, toggleLanguage } = useLanguage();
   const { openTerminal } = useTerminal();
   const isJa = language === "ja";
@@ -143,10 +143,17 @@ export default function Home() {
     if (obscureTimer.current !== null) clearTimeout(obscureTimer.current);
   }, []);
 
-  const closeToHome = (direction: ExitDirection) => {
+  /**
+   * Dismiss the detail page. `resetCamera` separates the two intents: scrolling
+   * off either end leaves the camera on the area just read about, while the
+   * logo and HOME are a deliberate "take me back to the start" and fly to the
+   * one fixed default view.
+   */
+  const closeToHome = (direction: ExitDirection, resetCamera: boolean) => {
     setExitDirection(direction);
     setCovered(false);
-    goHome();
+    if (resetCamera) goHome();
+    else closePage();
   };
 
   const handleNav = (id: NonNullable<SectionType>) => {
@@ -201,7 +208,7 @@ export default function Home() {
     setCovered(progress <= 0);
 
     if (progress >= RETURN_HOME_AT && Date.now() - openedAt.current > OPEN_SETTLE_MS) {
-      closeToHome(exitDirectionFor(upward, downward));
+      closeToHome(exitDirectionFor(upward, downward), false);
     }
   };
 
@@ -218,7 +225,7 @@ export default function Home() {
         <header className="flex justify-between items-start w-full gap-6">
           {/* Logo → full reset. Text only, no frame/icon. */}
           <button
-            onClick={() => closeToHome("down")}
+            onClick={() => closeToHome("down", true)}
             className="pointer-events-auto font-black text-gray-900 text-4xl sm:text-5xl tracking-tight hover:scale-[1.04] transition-transform [text-shadow:0_1px_5px_rgba(255,255,255,0.7)]"
           >
             Miiiwa<span className="text-orange-500">.</span>
@@ -339,7 +346,7 @@ export default function Home() {
       {/* HOME button — zoomed into a building, page not yet open */}
       {activeSection && !pageOpen && (
         <button
-          onClick={() => closeToHome("down")}
+          onClick={() => closeToHome("down", true)}
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2 bg-white text-gray-800 font-bold py-3 px-7 rounded-full shadow-lg border border-black/5 hover:scale-105 transition-transform"
         >
           <X size={18} /> HOME
