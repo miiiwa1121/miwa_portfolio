@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppState, SectionType } from "@/components/AppStateContext";
 import { useLanguage } from "@/components/LanguageContext";
@@ -36,6 +36,11 @@ const RETURN_HOME_AT = 0.98;
 // Long enough to cover the open animation, short enough not to feel like the
 // page is refusing to close.
 const OPEN_SETTLE_MS = 450;
+
+// Wait before throttling the render loop, so the sheet's slide and the camera's
+// flight to the section both finish at full frame rate. Only once the panel has
+// settled over the whole viewport is there nothing left to see.
+const OBSCURE_DELAY_MS = 900;
 
 type NavItem = { id: NonNullable<SectionType>; ja: string; en: string };
 
@@ -97,7 +102,7 @@ const CARD: Record<
 };
 
 export default function Home() {
-  const { activeSection, setActiveSection, pageOpen, openPage, goHome, scrollProgressRef } = useAppState();
+  const { activeSection, setActiveSection, pageOpen, openPage, goHome } = useAppState();
   const { language, toggleLanguage } = useLanguage();
   const { openTerminal } = useTerminal();
   const isJa = language === "ja";
@@ -116,8 +121,31 @@ export default function Home() {
   // rendered from cached props and would never see a later change.
   const [exitDirection, setExitDirection] = useState<ExitDirection>("down");
 
+  // Whether the 3D canvas is completely hidden behind the detail page, and so
+  // is safe to stop rendering. Deliberately not a per-frame value: it flips
+  // only when the panel starts or stops covering the viewport.
+  const [sceneObscured, setSceneObscured] = useState(false);
+  const obscureTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const setCovered = useCallback((covered: boolean) => {
+    if (obscureTimer.current !== null) {
+      clearTimeout(obscureTimer.current);
+      obscureTimer.current = null;
+    }
+    if (!covered) {
+      setSceneObscured(false);
+      return;
+    }
+    obscureTimer.current = setTimeout(() => setSceneObscured(true), OBSCURE_DELAY_MS);
+  }, []);
+
+  useEffect(() => () => {
+    if (obscureTimer.current !== null) clearTimeout(obscureTimer.current);
+  }, []);
+
   const closeToHome = (direction: ExitDirection) => {
     setExitDirection(direction);
+    setCovered(false);
     goHome();
   };
 
@@ -126,7 +154,6 @@ export default function Home() {
       openPage(id);
     } else if (pageOpen) {
       setActiveSection(id);
-      scrollProgressRef.current = 0; // Reset progress when switching tabs
     } else {
       openPage(id);
     }
@@ -138,7 +165,6 @@ export default function Home() {
       return;
     }
     openedAt.current = Date.now();
-    scrollProgressRef.current = 0;
 
     // Park the viewport on the panel so the spacer above it is reachable by
     // scrolling up. Runs while the sheet is still translated off-screen.
@@ -150,9 +176,12 @@ export default function Home() {
     // read as "scrolled all the way up" and bounce straight back home.
     const frame = requestAnimationFrame(() => {
       scrollReady.current = true;
+      // Parked: the sheet now covers the whole viewport, so the canvas behind
+      // it is about to become invisible.
+      setCovered(true);
     });
     return () => cancelAnimationFrame(frame);
-  }, [pageOpen, activeSection, scrollProgressRef]);
+  }, [pageOpen, activeSection, setCovered]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (!scrollReady.current) return;
@@ -161,13 +190,15 @@ export default function Home() {
     const spacer = window.innerHeight * SPACER_VH;
     const maxScroll = el.scrollHeight - el.clientHeight;
 
-    // Both directions run 0 → 1 as the panel is scrolled away from, so the
-    // camera pulls back to the diorama whichever way the user leaves.
+    // How far into either transparent spacer the reader has scrolled. Zero
+    // means the panel still covers the viewport entirely.
     const upward = 1 - el.scrollTop / spacer;
     const downward = 1 - (maxScroll - el.scrollTop) / spacer;
     const progress = Math.max(0, Math.min(1, Math.max(upward, downward)));
 
-    scrollProgressRef.current = progress;
+    // Entering a spacer reveals the diorama again, so the render loop has to
+    // come back up to speed before it is seen.
+    setCovered(progress <= 0);
 
     if (progress >= RETURN_HOME_AT && Date.now() - openedAt.current > OPEN_SETTLE_MS) {
       closeToHome(exitDirectionFor(upward, downward));
@@ -178,7 +209,7 @@ export default function Home() {
     <main className="w-full h-screen overflow-hidden relative font-sans">
       {/* 3D scene fixed in the background */}
       <div className="fixed inset-0 w-full h-full -z-10 bg-[#fff3d1]">
-        <Scene />
+        <Scene obscured={sceneObscured} />
       </div>
 
       {/* --- PERSISTENT CHROME (always visible in both modes) --- */}

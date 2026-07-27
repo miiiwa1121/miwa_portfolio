@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls } from "@react-three/drei";
 import * as THREE from "three";
 import Diorama from "./Diorama";
@@ -100,9 +100,31 @@ function useViewInput(
   }, [targetAngleRef, draggingRef, orbitLockedRef]);
 }
 
+/**
+ * While the detail page covers the canvas there is nothing to look at, so the
+ * render loop is switched to on-demand and nudged about once a second instead
+ * of running at 60fps behind an opaque panel. Rendering a few thousand
+ * instanced voxels plus a shadow pass for an audience of nobody is the most
+ * expensive thing this page can do, and it competes for the same main thread
+ * the sheet animation and the section mount are using.
+ */
+const OBSCURED_HEARTBEAT_MS = 1000;
+
+function IdleHeartbeat({ obscured }: { obscured: boolean }) {
+  const invalidate = useThree((state) => state.invalidate);
+
+  useEffect(() => {
+    if (!obscured) return;
+    const id = setInterval(invalidate, OBSCURED_HEARTBEAT_MS);
+    return () => clearInterval(id);
+  }, [obscured, invalidate]);
+
+  return null;
+}
+
 function CameraController() {
   const controlsRef = useRef<CameraControls>(null);
-  const { activeSection, pageOpen, homeNonce, scrollProgressRef } = useAppState();
+  const { activeSection, pageOpen, homeNonce } = useAppState();
 
   // The orbit's azimuth is tracked entirely through CameraControls' own
   // `.azimuthAngle` (an accumulative, wraparound-safe property backed by its
@@ -193,50 +215,43 @@ function CameraController() {
     const controls = controlsRef.current;
     if (!controls) return;
 
-    if (!activeSection) {
-      if (!draggingRef.current && !inFlight()) {
-        azimuthTargetRef.current += delta * AUTO_ORBIT_SPEED; // gentle auto-orbit when idle
-      }
+    // The camera is only ever driven here in the free home view. With a
+    // section focused it stays exactly where its flight parked it, so nothing
+    // writes to the camera between flights — one owner at a time.
+    //
+    // This used to also run a scroll-linked lerp from the building framing
+    // back to the home framing, every frame, for the entire time the detail
+    // page was open. That was invisible (the page covers the canvas) and it
+    // was the last camera bug: the branch was chosen from `activeSection`,
+    // React state, while its input came from a ref written synchronously on
+    // scroll. goHome() changed the ref first and the state a render later, so
+    // a frame in between ran the lerp at progress 0 and snapped the camera
+    // back onto the building before the flight home even started.
+    if (activeSection) return;
 
-      if (!inFlight()) {
-        // controls.azimuthAngle gets rewrapped into (-π, π] every frame (it's
-        // recovered via atan2 inside setPosition below), but azimuthTargetRef
-        // is a plain accumulator that keeps growing past ±π as drag/wheel/
-        // auto-orbit deltas pile up. Left alone, damp() would chase the raw
-        // numeric gap between a wrapped value and an unbounded one — often
-        // many multiples of 2π — instead of the short physical distance,
-        // which is what made rotation "run away" after enough spinning.
-        // Re-centering the target within one turn of the current angle first
-        // keeps every damp step on the shortest path.
-        const current = controls.azimuthAngle;
-        const target = current + wrapAngle(azimuthTargetRef.current - current);
-        azimuthTargetRef.current = target;
-
-        // Interpolate for inertia and smooth flowing rotation
-        const azimuth = THREE.MathUtils.damp(current, target, 5, delta);
-        const [x, z] = azimuthToXZ(azimuth, HOME_RADIUS);
-        controls.setPosition(x, HOME_HEIGHT, z, false);
-      }
-    } else {
-      const progress = scrollProgressRef?.current || 0;
-
-      if (!inFlight() && sectionTargets[activeSection]) {
-        // homeAzimuthRef is frozen at the angle the diorama was left at when
-        // this section opened, so the "home" end of the lerp stays fixed for
-        // the whole scroll instead of chasing itself.
-        //
-        // lerpLookAt interpolates via spherical coordinates around each
-        // state's own target (not a straight Cartesian blend), so the camera
-        // sweeps a natural orbit arc between the two poses instead of cutting
-        // a straight line through space.
-        controls.lerpLookAt(
-          ...sectionPose(activeSection),
-          ...homePose(homeAzimuthRef.current),
-          progress,
-          false
-        );
-      }
+    if (!draggingRef.current && !inFlight()) {
+      azimuthTargetRef.current += delta * AUTO_ORBIT_SPEED; // gentle auto-orbit when idle
     }
+
+    if (inFlight()) return;
+
+    // controls.azimuthAngle gets rewrapped into (-π, π] every frame (it's
+    // recovered via atan2 inside setPosition below), but azimuthTargetRef
+    // is a plain accumulator that keeps growing past ±π as drag/wheel/
+    // auto-orbit deltas pile up. Left alone, damp() would chase the raw
+    // numeric gap between a wrapped value and an unbounded one — often
+    // many multiples of 2π — instead of the short physical distance,
+    // which is what made rotation "run away" after enough spinning.
+    // Re-centering the target within one turn of the current angle first
+    // keeps every damp step on the shortest path.
+    const current = controls.azimuthAngle;
+    const target = current + wrapAngle(azimuthTargetRef.current - current);
+    azimuthTargetRef.current = target;
+
+    // Interpolate for inertia and smooth flowing rotation
+    const azimuth = THREE.MathUtils.damp(current, target, 5, delta);
+    const [x, z] = azimuthToXZ(azimuth, HOME_RADIUS);
+    controls.setPosition(x, HOME_HEIGHT, z, false);
   });
 
   return (
@@ -255,9 +270,14 @@ function CameraController() {
   );
 }
 
-export default function Scene() {
+export default function Scene({ obscured = false }: { obscured?: boolean }) {
   return (
-    <Canvas shadows camera={{ position: [16, 11, 16], fov: 45 }} dpr={[1, 2]}>
+    <Canvas
+      shadows
+      camera={{ position: [16, 11, 16], fov: 45 }}
+      dpr={[1, 2]}
+      frameloop={obscured ? "demand" : "always"}
+    >
       <color attach="background" args={["#fff3d1"]} />
       <fog attach="fog" args={["#fff3d1", 30, 70]} />
 
@@ -283,6 +303,7 @@ export default function Scene() {
       <Diorama />
 
       <CameraController />
+      <IdleHeartbeat obscured={obscured} />
     </Canvas>
   );
 }
