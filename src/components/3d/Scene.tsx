@@ -4,82 +4,23 @@ import { useRef, useEffect } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { CameraControls } from "@react-three/drei";
 import * as THREE from "three";
-import Diorama, { BUILDING_POSITIONS } from "./Diorama";
+import Diorama from "./Diorama";
+import {
+  sectionTargets,
+  sectionPose,
+  homePose,
+  wrapAngle,
+  azimuthToXZ,
+  HOME_RADIUS,
+  HOME_HEIGHT,
+  HOME_ANGLE,
+} from "./worldLayout";
 import { useAppState, SectionType } from "../AppStateContext";
-
-// Focus points for each section (building centre, raised to mid-height).
-const sectionTargets: Record<NonNullable<SectionType>, [number, number, number]> = {
-  about: [BUILDING_POSITIONS.about[0], 1.5, BUILDING_POSITIONS.about[2]],
-  products: [BUILDING_POSITIONS.products[0], 3.5, BUILDING_POSITIONS.products[2]],
-  skills: [BUILDING_POSITIONS.skills[0], 3, BUILDING_POSITIONS.skills[2]],
-  experience: [BUILDING_POSITIONS.experience[0], 2, BUILDING_POSITIONS.experience[2]],
-  contact: [BUILDING_POSITIONS.contact[0], 2.5, BUILDING_POSITIONS.contact[2]],
-};
-
-const HOME_RADIUS = 24;
-const HOME_HEIGHT = 11;
-const HOME_ANGLE = Math.PI / 4;
-
-/** How far back from a building the camera parks, and how far above it. */
-const SECTION_DISTANCE = 13;
-const SECTION_RISE = 6;
-
-/**
- * A full camera placement: `[posX, posY, posZ, targetX, targetY, targetZ]`,
- * i.e. exactly the six leading arguments of CameraControls' `setLookAt`, and
- * one half of `lerpLookAt`. Both call sites spread the same tuple, so a
- * framing can only ever be defined in one place.
- */
-type Pose = [number, number, number, number, number, number];
-
-/**
- * Where the camera sits when a building is focused: backed off along the ray
- * from the island centre through the building, and raised above it.
- */
-function sectionPose(section: NonNullable<SectionType>): Pose {
-  const [tx, ty, tz] = sectionTargets[section];
-  // Normalised outward direction, without allocating a Vector2 — this runs
-  // every frame while scrolling. A building sitting dead centre has no
-  // meaningful outward ray, so fall back to +Z.
-  const len = Math.hypot(tx, tz);
-  const dx = len < 0.001 ? 0 : tx / len;
-  const dz = len < 0.001 ? 1 : tz / len;
-  return [
-    tx + dx * SECTION_DISTANCE,
-    ty + SECTION_RISE,
-    tz + dz * SECTION_DISTANCE,
-    tx,
-    ty,
-    tz,
-  ];
-}
-
-/** Where the camera sits in the free diorama view, at a given orbit azimuth. */
-function homePose(azimuth: number): Pose {
-  const [x, z] = azimuthToXZ(azimuth, HOME_RADIUS);
-  return [x, HOME_HEIGHT, z, 0, 1, 0];
-}
 
 // Rotation sensitivity (kept gentle).
 const DRAG_SENSITIVITY = 0.004; // radians per px of pointer drag
 const WHEEL_SENSITIVITY = 0.0008; // radians per unit of wheel deltaY
 const AUTO_ORBIT_SPEED = 0.045; // radians per second of idle drift
-
-/**
- * CameraControls follows three.js's `Spherical` convention, where the
- * azimuth is measured as `atan2(x, z)` (not the more familiar `atan2(z, x)`)
- * — i.e. `x = radius * sin(azimuth)`, `z = radius * cos(azimuth)`. Any XZ
- * position built from an `azimuthAngle` value has to use this convention or
- * it silently points somewhere else entirely.
- */
-function azimuthToXZ(azimuth: number, radius: number): [number, number] {
-  return [Math.sin(azimuth) * radius, Math.cos(azimuth) * radius];
-}
-
-/** Wraps an angle (in radians) into (-π, π]. */
-function wrapAngle(angle: number): number {
-  return THREE.MathUtils.euclideanModulo(angle + Math.PI, Math.PI * 2) - Math.PI;
-}
 
 /** Elements whose gestures should NOT rotate the camera (real UI controls). */
 function isInteractive(target: EventTarget | null): boolean {

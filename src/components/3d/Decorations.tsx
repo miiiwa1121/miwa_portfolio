@@ -6,7 +6,11 @@ import * as THREE from "three";
 import VoxelModel, { Voxel } from "./voxel/VoxelModel";
 import { fillBox, put } from "./voxel/builders";
 import { PALETTE, pick } from "./voxel/palette";
-import { hashRange } from "./voxel/rng";
+import {
+  spawnConfetti,
+  stepConfetti,
+  type ConfettiPart,
+} from "./confetti";
 
 const VS = 0.42;
 
@@ -195,33 +199,6 @@ export function Clouds() {
 // ---------------------------------------------------------------
 // Falling pastel confetti
 // ---------------------------------------------------------------
-type ConfettiPart = { x: number; y: number; z: number; speed: number; sway: number; spin: number };
-
-export const CONFETTI_FALL_TOP = 22;
-
-/** Deterministic spawn state for `count` flakes. Pure: same count, same field. */
-export function spawnConfetti(count: number): ConfettiPart[] {
-  return Array.from({ length: count }, (_, i) => {
-    const s = i * 6;
-    return {
-      x: hashRange(s + 1, -14, 14),
-      y: hashRange(s + 2, 1, CONFETTI_FALL_TOP + 1),
-      z: hashRange(s + 3, -14, 14),
-      speed: hashRange(s + 4, 0.4, 1.0),
-      sway: hashRange(s + 5, 0, Math.PI * 2),
-      spin: hashRange(s + 6, 0, Math.PI),
-    };
-  });
-}
-
-/** Advance the confetti field by `delta` seconds. Mutates in place. */
-export function stepConfetti(parts: ConfettiPart[], delta: number): void {
-  for (const p of parts) {
-    p.y -= p.speed * delta;
-    if (p.y < 0) p.y = CONFETTI_FALL_TOP;
-  }
-}
-
 // Scratch transform reused for every instance matrix write. It is never
 // rendered and never read across frames, so one module-level instance is
 // enough — and keeps useFrame from mutating a value React owns.

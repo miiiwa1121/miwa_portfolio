@@ -10,16 +10,8 @@ import {
 } from "./ProceduralObjects";
 import { FerrisWheel, Trees, StreetLamps, Clouds, Villagers, Confetti } from "./Decorations";
 import { VoxelBus } from "./VoxelBus";
+import { BUILDING_POSITIONS } from "./worldLayout";
 
-// World positions of each section building. Kept in sync with
-// `sectionTargets` in Scene.tsx so the camera zooms to the right spot.
-export const BUILDING_POSITIONS = {
-  products: [1, 0.2, -2] as [number, number, number],
-  skills: [7, 0.2, -3.5] as [number, number, number],
-  experience: [6, 0.2, 5] as [number, number, number],
-  about: [-6.5, 0.2, 4] as [number, number, number],
-  contact: [-7, 0.2, -3] as [number, number, number],
-};
 
 export default function Diorama() {
   return (
