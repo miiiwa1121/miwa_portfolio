@@ -18,9 +18,11 @@ import { onMarkerScreen, type MarkerScreenPoint } from "@/components/3d/markerSc
  */
 
 /**
- * Dashes are spaced a fixed distance apart, so a long trail simply has more
- * of them. A fixed count would stretch the gaps as the marker moved away and
- * bunch them up as it came close, which reads as the trail breathing.
+ * Roughly how far apart the dashes sit. The count is derived from the length,
+ * so a longer trail gets more dashes rather than wider gaps — but the spacing
+ * is then nudged by up to half a step so that *both* ends land exactly where
+ * they should. Fixing the count instead would stretch and squash the gaps as
+ * the marker moved, which reads as the trail breathing.
  */
 const DASH_SPACING = 20;
 
@@ -86,16 +88,20 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
       const unitY = dy / span;
       const half = DASH_LENGTH / 2;
 
-      // Lay the dashes out from the marker backwards, not from the card
-      // forwards. Spacing rarely divides the distance exactly, and whichever
-      // end the sequence starts from absorbs the remainder — which at the
-      // marker end showed up as a gap that grew and shrank between 14 and
-      // 34px as the camera moved. At the card end it is hidden behind the
-      // card's own corner, and the gap by the dot stays exactly MARKER_GAP.
-      const count = Math.min(
-        MAX_DASHES,
-        Math.max(0, Math.floor((reach - DASH_LENGTH) / DASH_SPACING) + 1)
-      );
+      // Pin both ends and let the spacing absorb the remainder.
+      //
+      // The spacing almost never divides the distance exactly, and whichever
+      // end the dashes are laid out from, the other end inherits the leftover.
+      // Anchored at the card the gap by the dot wandered between 14 and 34px;
+      // anchored at the marker the near end slid in and out from under the
+      // card instead. Solving for the spacing fixes both: the first dash
+      // always starts at the card's corner, the last always ends MARKER_GAP
+      // short of the dot, and the step is within half a step of DASH_SPACING.
+      const firstCentre = half;
+      const lastCentre = reach - half;
+      const spread = lastCentre - firstCentre;
+      const count = Math.min(MAX_DASHES, Math.max(2, Math.round(spread / DASH_SPACING) + 1));
+      const spacing = spread / (count - 1);
 
       for (let i = 0; i < MAX_DASHES; i++) {
         const dash = dashesRef.current[i];
@@ -106,7 +112,7 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
           continue;
         }
 
-        const along = reach - half - i * DASH_SPACING;
+        const along = firstCentre + i * spacing;
         const px = startX + unitX * along;
         const py = startY + unitY * along;
 
