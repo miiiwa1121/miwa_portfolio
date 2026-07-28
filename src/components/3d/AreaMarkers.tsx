@@ -56,7 +56,7 @@ const projected = new THREE.Vector3();
 const projectedEdge = new THREE.Vector3();
 
 export default function AreaMarkers() {
-  const { facing, setActiveSection } = useAppState();
+  const { facing, activeSection, setActiveSection } = useAppState();
   const [hovered, setHovered] = useState<string | null>(null);
   useCursor(hovered !== null);
   const texture = useMemo(() => makeDotTexture(), []);
@@ -65,6 +65,13 @@ export default function AreaMarkers() {
   const sprites = useRef<(THREE.Sprite | null)[]>([]);
   const anchors = useRef<THREE.Vector3[]>([]);
   const placed = useRef(false);
+  /** Eased size per marker, so hiding and revealing are not a pop. */
+  const scales = useRef<number[]>([]);
+
+  // The area currently being talked about. Focusing one pins it; otherwise it
+  // is whatever the camera has turned towards. The card reads the same thing,
+  // which is what keeps the highlighted dot, the trail and the card agreeing.
+  const spotlight = activeSection ?? facing;
 
   useFrame((state) => {
     const time = state.clock.elapsedTime;
@@ -103,21 +110,31 @@ export default function AreaMarkers() {
       const base =
         section === hovered
           ? HOVER_SCALE
-          : section === facing
+          : section === spotlight
             ? FACING_SCALE
             : IDLE_SCALE;
-      const size = base * pulse;
-      sprite.scale.setScalar(size);
+
+      // Once an area is focused it is the only one being talked about, so the
+      // other markers withdraw rather than sit there offering to navigate
+      // somewhere the camera has just left.
+      const target = activeSection && section !== activeSection ? 0 : base;
+      const eased = THREE.MathUtils.lerp(scales.current[i] ?? target, target, EASE);
+      scales.current[i] = eased;
+
+      // Below a hair's width it is not just invisible but should stop taking
+      // hover and clicks, which an unseen sprite would otherwise still accept.
+      sprite.visible = eased > 0.02;
+      sprite.scale.setScalar(eased * pulse);
 
       const material = sprite.material as THREE.SpriteMaterial;
       material.color.lerp(
-        section === facing || section === hovered ? FACING_COLOR : IDLE_COLOR,
+        section === spotlight || section === hovered ? FACING_COLOR : IDLE_COLOR,
         EASE
       );
     });
 
     // Hand the facing marker's screen position to the DOM leader line.
-    const anchor = anchors.current[SECTIONS.indexOf(facing)];
+    const anchor = anchors.current[SECTIONS.indexOf(spotlight)];
     if (!anchor) return;
     projected.copy(anchor).project(state.camera);
     const { width, height } = state.size;
@@ -127,8 +144,8 @@ export default function AreaMarkers() {
     // Project the dot's top edge too. A sprite's world size stays constant
     // while its screen size does not, so the trail can only know how much room
     // to leave by measuring it here, where the camera is.
-    const facingSprite = sprites.current[SECTIONS.indexOf(facing)];
-    const worldRadius = (facingSprite?.scale.y ?? IDLE_SCALE) / 2;
+    const spotlightSprite = sprites.current[SECTIONS.indexOf(spotlight)];
+    const worldRadius = (spotlightSprite?.scale.y ?? IDLE_SCALE) / 2;
     projectedEdge
       .copy(anchor)
       .addScaledVector(state.camera.up, worldRadius)
