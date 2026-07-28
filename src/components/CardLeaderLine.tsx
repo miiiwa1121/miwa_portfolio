@@ -97,22 +97,40 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
       const sideX = -unitY;
       const sideY = unitX;
 
-      // An even number of steps leaves the last vertex back on the baseline,
-      // so the trail finishes pointing at the dot rather than off to one side.
-      let steps = Math.floor((reach - CARD_GAP) / ZIGZAG_STEP);
-      if (steps % 2 === 1) steps -= 1;
-      steps = Math.min(steps, MAX_VERTICES - 1);
-      if (steps < 2) return hide();
+      // Whole vertices at the fixed step, then a final one interpolated to land
+      // exactly on `reach`.
+      //
+      // Truncating to whole steps instead made the trail grow and shrink a
+      // segment at a time — and because the count was forced even so it would
+      // finish on the baseline, it jumped a whole peak at once, which read as
+      // the line being typed and deleted a character at a time. Carrying the
+      // last vertex to the exact distance lets the tip slide continuously; it
+      // passes through each whole vertex on the way, so nothing jumps.
+      const whole = Math.min(
+        Math.floor((reach - CARD_GAP) / ZIGZAG_STEP),
+        MAX_VERTICES - 2
+      );
+      if (whole < 2) return hide();
 
-      points.length = 0;
-      for (let i = 0; i <= steps; i++) {
-        const along = CARD_GAP + i * ZIGZAG_STEP;
-        // Peaks on the odd vertices, the even ones on the line itself — which
-        // is what makes it read as ^^^^ rather than a symmetrical wave.
-        const lift = i % 2 === 1 ? ZIGZAG_AMPLITUDE : 0;
+      const liftAt = (i: number) => (i % 2 === 1 ? ZIGZAG_AMPLITUDE : 0);
+      const vertex = (along: number, lift: number) => {
         const px = startX + unitX * along + sideX * lift;
         const py = startY + unitY * along + sideY * lift;
         points.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+      };
+
+      points.length = 0;
+      for (let i = 0; i <= whole; i++) {
+        // Peaks on the odd vertices, the even ones on the line itself — which
+        // is what makes it read as ^^^^ rather than a symmetrical wave.
+        vertex(CARD_GAP + i * ZIGZAG_STEP, liftAt(i));
+      }
+
+      const lastWhole = CARD_GAP + whole * ZIGZAG_STEP;
+      const overshoot = reach - lastWhole;
+      if (overshoot > 0.5) {
+        const t = overshoot / ZIGZAG_STEP;
+        vertex(reach, liftAt(whole) + (liftAt(whole + 1) - liftAt(whole)) * t);
       }
 
       line.setAttribute("points", points.join(" "));
