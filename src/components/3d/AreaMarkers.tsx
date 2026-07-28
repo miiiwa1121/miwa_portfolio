@@ -29,6 +29,17 @@ const PULSE_DEPTH = 0.1; // fraction of the base size
 const PULSE_SPEED = 2.2; // radians per second
 const EASE = 0.12; // per-frame approach to the target size/colour
 
+/**
+ * The spotlight dot does not ease — it is already correct the moment the trail
+ * starts pointing at it.
+ *
+ * The trail's far end moves to the new marker instantly, so easing the new
+ * marker's colour and size in over ~0.4s left the line ending on a small pale
+ * dot while a large accented one still sat somewhere else. Turning quickly,
+ * that reads as the line being connected to nothing. Dots being demoted still
+ * ease, since nothing is anchored to them on the way out.
+ */
+
 /** A soft white disc with a faint rim, tinted per marker via material colour. */
 function makeDotTexture(): THREE.Texture {
   const size = 128;
@@ -118,7 +129,10 @@ export default function AreaMarkers() {
       // other markers withdraw rather than sit there offering to navigate
       // somewhere the camera has just left.
       const target = activeSection && section !== activeSection ? 0 : base;
-      const eased = THREE.MathUtils.lerp(scales.current[i] ?? target, target, EASE);
+      const isSpotlight = section === spotlight;
+      const eased = isSpotlight
+        ? target
+        : THREE.MathUtils.lerp(scales.current[i] ?? target, target, EASE);
       scales.current[i] = eased;
 
       // Below a hair's width it is not just invisible but should stop taking
@@ -127,10 +141,9 @@ export default function AreaMarkers() {
       sprite.scale.setScalar(eased * pulse);
 
       const material = sprite.material as THREE.SpriteMaterial;
-      material.color.lerp(
-        section === spotlight || section === hovered ? FACING_COLOR : IDLE_COLOR,
-        EASE
-      );
+      const wanted = isSpotlight || section === hovered ? FACING_COLOR : IDLE_COLOR;
+      if (isSpotlight) material.color.copy(wanted);
+      else material.color.lerp(wanted, EASE);
     });
 
     // Hand the facing marker's screen position to the DOM leader line.

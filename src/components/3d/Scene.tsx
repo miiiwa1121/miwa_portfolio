@@ -31,6 +31,22 @@ const AUTO_ORBIT_SPEED = 0.045; // radians per second of idle drift
 // shorter than the pause between two deliberate gestures.
 const WHEEL_REARM_MS = 220;
 
+/**
+ * The camera has to be turning slower than this (radians per second) before
+ * the front-and-centre area is allowed to change.
+ *
+ * Without it the choice flips every time the camera crosses a boundary, which
+ * during a flick is several times a second: the card strobes through areas,
+ * and the trail's far end teleports between markers on opposite sides of the
+ * screen while the dots' own highlight is still easing over — so the line
+ * appears to point at nothing. Holding the choice until the spin settles
+ * costs nothing, since nobody reads a card mid-flick.
+ *
+ * Comfortably above the idle drift (0.045 rad/s) and a deliberate slow drag,
+ * well below a flick.
+ */
+const FACING_SETTLE_SPEED = 1.0;
+
 /** Elements whose gestures should NOT rotate the camera (real UI controls). */
 function isInteractive(target: EventTarget | null): boolean {
   return !!(target as HTMLElement | null)?.closest?.(
@@ -176,6 +192,7 @@ function CameraController() {
   const prevSectionRef = useRef<SectionType>(null);
   const prevNonceRef = useRef(homeNonce);
   const facingRef = useRef(facing);
+  const lastAzimuthRef = useRef(HOME_ANGLE);
 
   // A plain "is a flight in progress" boolean cannot be used here.
   // CameraControls' `_createOnRestPromise` has no per-call identity: it
@@ -336,13 +353,18 @@ function CameraController() {
     const azimuth = THREE.MathUtils.damp(current, target, 5, delta);
     controls.rotateAzimuthTo(azimuth, false);
 
-    // Publish which area is in front. Only on a change — this runs every
-    // frame, and a setState per frame would re-render the whole overlay at
-    // 60Hz on the same main thread that is drawing the diorama.
-    const facing = facingSection(azimuth);
-    if (facing !== facingRef.current) {
-      facingRef.current = facing;
-      setFacing(facing);
+    // Publish which area is in front, but only once the spin has settled, and
+    // only on a change — this runs every frame, and a setState per frame would
+    // re-render the whole overlay at 60Hz on the thread drawing the diorama.
+    const turnRate = Math.abs(wrapAngle(azimuth - lastAzimuthRef.current)) / Math.max(delta, 1e-4);
+    lastAzimuthRef.current = azimuth;
+
+    if (turnRate < FACING_SETTLE_SPEED) {
+      const facing = facingSection(azimuth);
+      if (facing !== facingRef.current) {
+        facingRef.current = facing;
+        setFacing(facing);
+      }
     }
   });
 
