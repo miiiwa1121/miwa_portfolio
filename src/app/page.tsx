@@ -297,8 +297,14 @@ export default function Home() {
               key={activeSection ?? "home"}
               ref={cardRef}
               {...cardGestures}
-              className="cursor-pointer select-none touch-none pointer-events-auto bg-white/95 backdrop-blur-sm rounded-3xl p-6 sm:p-8 shadow-xl max-w-xs sm:max-w-sm border border-black/5 animate-[fadeIn_0.4s_ease]"
+              className="relative cursor-pointer select-none touch-none pointer-events-auto bg-white/95 backdrop-blur-sm rounded-3xl p-6 sm:p-8 shadow-xl max-w-xs sm:max-w-sm border border-black/5 animate-[fadeIn_0.4s_ease]"
             >
+              {/* Where the trail leaves the card. Part of the card rather than
+                  the SVG overlay, which sits below the chrome and would hide it. */}
+              <span
+                aria-hidden="true"
+                className="absolute top-5 right-5 w-[9px] h-[9px] rounded-full bg-[rgba(66,38,18,0.75)]"
+              />
               <p className="text-orange-500 font-black text-lg">{isJa ? card.jaTitle : card.enTitle}</p>
               <p className="text-xs text-gray-400 font-bold mb-4 uppercase tracking-[0.2em]">{card.sub}</p>
               <p className="text-gray-700 font-medium mb-6 leading-relaxed text-sm">{isJa ? card.ja : card.en}</p>
