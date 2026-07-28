@@ -31,8 +31,11 @@ const MAX_DASHES = 72;
 const DASH_LENGTH = 8;
 const DASH_WIDTH = 2.6;
 
-/** Clear space left between the last dash and the edge of the dot. */
-const MARKER_GAP = 8;
+/**
+ * Clear space between the tip of the nearest dash and the edge of the dot.
+ * Small enough to read as touching, large enough not to look like a collision.
+ */
+const MARKER_GAP = 3;
 
 /** Below this there is no room for a trail worth drawing. */
 const MIN_TRAIL = 48;
@@ -82,7 +85,17 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
       const unitX = dx / span;
       const unitY = dy / span;
       const half = DASH_LENGTH / 2;
-      const count = Math.min(MAX_DASHES, Math.floor(reach / DASH_SPACING));
+
+      // Lay the dashes out from the marker backwards, not from the card
+      // forwards. Spacing rarely divides the distance exactly, and whichever
+      // end the sequence starts from absorbs the remainder — which at the
+      // marker end showed up as a gap that grew and shrank between 14 and
+      // 34px as the camera moved. At the card end it is hidden behind the
+      // card's own corner, and the gap by the dot stays exactly MARKER_GAP.
+      const count = Math.min(
+        MAX_DASHES,
+        Math.max(0, Math.floor((reach - DASH_LENGTH) / DASH_SPACING) + 1)
+      );
 
       for (let i = 0; i < MAX_DASHES; i++) {
         const dash = dashesRef.current[i];
@@ -93,7 +106,7 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
           continue;
         }
 
-        const along = (i + 0.5) * DASH_SPACING;
+        const along = reach - half - i * DASH_SPACING;
         const px = startX + unitX * along;
         const py = startY + unitY * along;
 
