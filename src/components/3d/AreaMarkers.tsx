@@ -4,7 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useCursor } from "@react-three/drei";
 import * as THREE from "three";
-import { SECTIONS, MARKER_CLEARANCE } from "./worldLayout";
+import {
+  SECTIONS,
+  MARKER_CLEARANCE,
+  MARKER_DOT_FILL,
+  MARKER_DOT_RIM,
+  markerScaleForScreenRadius,
+} from "./worldLayout";
 import { publishMarkerScreen } from "./markerScreen";
 import { sceneClock } from "./sceneClock";
 import { useAppState } from "../AppStateContext";
@@ -17,18 +23,30 @@ import { useAppState } from "../AppStateContext";
  * the marker behind it. An HTML overlay would have to be told about occlusion,
  * and would get it wrong every time the camera moved. (The dotted line back to
  * the card is the opposite case — flat, always on top, and so belongs in DOM.)
+ *
+ * Their *size*, though, is screen-space: each dot is a fixed number of CSS
+ * pixels across, and the world scale that produces it is recomputed each frame
+ * from the sprite's own depth. The dot is one end of a flat annotation whose
+ * other end (the trail) is drawn in DOM at a fixed stroke width and a fixed
+ * zigzag step — measuring the two in different units is what made the gap
+ * between them impossible to keep still.
  */
 
 const IDLE_COLOR = new THREE.Color("#ffffff");
 const FACING_COLOR = new THREE.Color("#f97316");
 
-const IDLE_SCALE = 0.5;
-const FACING_SCALE = 0.8;
+/** Dot radii on screen, in CSS pixels. */
+const IDLE_RADIUS = 9;
+const FACING_RADIUS = 14;
 /** Hovering swells the dot so it reads as a target, not just a label. */
-const HOVER_SCALE = 1.05;
+const HOVER_RADIUS = 18;
+
 const PULSE_DEPTH = 0.1; // fraction of the base size
 const PULSE_SPEED = 2.2; // radians per second
 const EASE = 0.12; // per-frame approach to the target size/colour
+
+/** Below this the dot is not just invisible but should stop taking clicks. */
+const MIN_VISIBLE_RADIUS = 0.5;
 
 /**
  * The spotlight dot does not ease — it is already correct the moment the trail
@@ -50,11 +68,13 @@ function makeDotTexture(): THREE.Texture {
 
   const ctx = canvas.getContext("2d")!;
   const centre = size / 2;
+  // The rim straddles the arc, so the outermost lit pixel lands exactly on
+  // MARKER_DOT_FILL — the fraction the trail measures its clearance from.
   ctx.beginPath();
-  ctx.arc(centre, centre, size * 0.34, 0, Math.PI * 2);
+  ctx.arc(centre, centre, size * (MARKER_DOT_FILL - MARKER_DOT_RIM / 2), 0, Math.PI * 2);
   ctx.fillStyle = "#ffffff";
   ctx.fill();
-  ctx.lineWidth = size * 0.06;
+  ctx.lineWidth = size * MARKER_DOT_RIM;
   ctx.strokeStyle = "rgba(60, 40, 20, 0.25)";
   ctx.stroke();
 
@@ -63,9 +83,9 @@ function makeDotTexture(): THREE.Texture {
   return texture;
 }
 
-/** Scratch vectors for the projection; never read across frames. */
+/** Scratch vectors; never read across frames. */
 const projected = new THREE.Vector3();
-const projectedEdge = new THREE.Vector3();
+const viewSpace = new THREE.Vector3();
 
 export default function AreaMarkers() {
   const { facing, activeSection, setActiveSection } = useAppState();
@@ -77,8 +97,10 @@ export default function AreaMarkers() {
   const sprites = useRef<(THREE.Sprite | null)[]>([]);
   const anchors = useRef<THREE.Vector3[]>([]);
   const placed = useRef(false);
-  /** Eased size per marker, so hiding and revealing are not a pop. */
-  const scales = useRef<number[]>([]);
+  /** Eased radius per marker, in px, so hiding and revealing are not a pop. */
+  const radii = useRef<number[]>([]);
+  /** The radius each dot was actually drawn at this frame, pulse included. */
+  const drawn = useRef<number[]>([]);
 
   // The area currently being talked about. Focusing one pins it; otherwise it
   // is whatever the camera has turned towards. The card reads the same thing,
@@ -115,6 +137,9 @@ export default function AreaMarkers() {
       placed.current = complete;
     }
 
+    const camera = state.camera as THREE.PerspectiveCamera;
+    const viewportHeight = state.size.height;
+
     SECTIONS.forEach((section, i) => {
       const sprite = sprites.current[i];
       if (!sprite) return;
@@ -124,10 +149,10 @@ export default function AreaMarkers() {
       const pulse = 1 + Math.sin(time * PULSE_SPEED + i) * PULSE_DEPTH;
       const base =
         section === hovered
-          ? HOVER_SCALE
+          ? HOVER_RADIUS
           : section === spotlight
-            ? FACING_SCALE
-            : IDLE_SCALE;
+            ? FACING_RADIUS
+            : IDLE_RADIUS;
 
       // Once an area is focused it is the only one being talked about, so the
       // other markers withdraw rather than sit there offering to navigate
@@ -136,13 +161,27 @@ export default function AreaMarkers() {
       const isSpotlight = section === spotlight;
       const eased = isSpotlight
         ? target
-        : THREE.MathUtils.lerp(scales.current[i] ?? target, target, EASE);
-      scales.current[i] = eased;
+        : THREE.MathUtils.lerp(radii.current[i] ?? target, target, EASE);
+      radii.current[i] = eased;
+
+      const radius = eased * pulse;
+      drawn.current[i] = radius;
 
       // Below a hair's width it is not just invisible but should stop taking
       // hover and clicks, which an unseen sprite would otherwise still accept.
-      sprite.visible = eased > 0.02;
-      sprite.scale.setScalar(eased * pulse);
+      sprite.visible = radius > MIN_VISIBLE_RADIUS;
+
+      // The world scale that lands this dot on `radius` px, at this sprite's
+      // own depth. Depth along the camera's forward axis, which is what the
+      // projection divides by — the straight-line distance is a different
+      // number and would size the dots at the edges of the frame wrongly.
+      viewSpace.copy(sprite.position).applyMatrix4(camera.matrixWorldInverse);
+      const depth = -viewSpace.z;
+      if (depth > 0.01) {
+        sprite.scale.setScalar(
+          markerScaleForScreenRadius(radius, depth, camera.fov, viewportHeight)
+        );
+      }
 
       const material = sprite.material as THREE.SpriteMaterial;
       const wanted = isSpotlight || section === hovered ? FACING_COLOR : IDLE_COLOR;
@@ -151,28 +190,20 @@ export default function AreaMarkers() {
     });
 
     // Hand the facing marker's screen position to the DOM leader line.
-    const anchor = anchors.current[SECTIONS.indexOf(spotlight)];
+    const index = SECTIONS.indexOf(spotlight);
+    const anchor = anchors.current[index];
     if (!anchor) return;
-    projected.copy(anchor).project(state.camera);
+    projected.copy(anchor).project(camera);
     const { width, height } = state.size;
     const screenX = (projected.x * 0.5 + 0.5) * width;
     const screenY = (-projected.y * 0.5 + 0.5) * height;
 
-    // Project the dot's top edge too. A sprite's world size stays constant
-    // while its screen size does not, so the trail can only know how much room
-    // to leave by measuring it here, where the camera is.
-    const spotlightSprite = sprites.current[SECTIONS.indexOf(spotlight)];
-    const worldRadius = (spotlightSprite?.scale.y ?? IDLE_SCALE) / 2;
-    projectedEdge
-      .copy(anchor)
-      .addScaledVector(state.camera.up, worldRadius)
-      .project(state.camera);
-    const screenRadius = Math.abs((-projectedEdge.y * 0.5 + 0.5) * height - screenY);
-
     publishMarkerScreen(
-      Math.round(screenX),
-      Math.round(screenY),
-      Math.round(screenRadius),
+      screenX,
+      screenY,
+      // Exact, not estimated: this is the same number the dot was just sized
+      // to, so the trail can stop a fixed distance from its edge.
+      drawn.current[index] ?? 0,
       // Two ways the marker can have nothing to point at. z >= 1 puts it
       // behind the camera, where the projection flips and would fling the
       // trail off in the opposite direction. Outside the viewport it is real

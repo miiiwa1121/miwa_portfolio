@@ -116,8 +116,10 @@ export default function Home() {
   const openedAt = useRef(0);
   const [toolsOpen, setToolsOpen] = useState(false);
 
-  // The dotted trail starts from this card's corner.
-  const cardRef = useRef<HTMLDivElement | null>(null);
+  // The dotted trail starts from this dot on the card's corner. The trail
+  // measures the element itself, so its size and position are stated once, in
+  // the markup below, rather than restated as numbers at the drawing end.
+  const anchorDotRef = useRef<HTMLSpanElement | null>(null);
 
   // Tapping the card opens its area; swiping it up or down steps to the next
   // spot round the island and turns the camera there.
@@ -313,13 +315,13 @@ export default function Home() {
           {!pageOpen && (
             <div
               key={activeSection ?? "home"}
-              ref={cardRef}
               {...cardGestures}
               className="relative cursor-pointer select-none touch-none pointer-events-auto bg-white/95 backdrop-blur-sm rounded-3xl p-6 sm:p-8 shadow-xl max-w-xs sm:max-w-sm border border-black/5 animate-[fadeIn_0.4s_ease]"
             >
               {/* Where the trail leaves the card. Part of the card rather than
                   the SVG overlay, which sits below the chrome and would hide it. */}
               <span
+                ref={anchorDotRef}
                 aria-hidden="true"
                 className="absolute top-5 right-5 w-[9px] h-[9px] rounded-full bg-[rgba(66,38,18,0.75)]"
               />
@@ -470,7 +472,7 @@ export default function Home() {
       </AnimatePresence>
 
       {/* Dotted trail from the card out to the marker over its area */}
-      <CardLeaderLine anchorRef={cardRef} hidden={pageOpen} />
+      <CardLeaderLine anchorRef={anchorDotRef} hidden={pageOpen} />
 
       {/* Terminal easter egg */}
       <TerminalOverlay />

@@ -15,6 +15,11 @@ import { onMarkerScreen, type MarkerScreenPoint } from "@/components/3d/markerSc
  * position every frame and the polyline's points are written straight to the
  * DOM; re-rendering this component sixty times a second would be competing
  * with the renderer for the same main thread.
+ *
+ * Both ends are measured the same way: from the *edge* of the dot they leave,
+ * outwards by a fixed clearance. The card's dot is an element and is measured;
+ * the marker's dot is drawn in WebGL at a size the scene sets in screen pixels
+ * and publishes, so neither radius is ever estimated here.
  */
 
 /**
@@ -38,20 +43,27 @@ const MAX_CYCLES = 80;
 
 const STROKE_WIDTH = 2.4;
 
-/** Minimum clear space between the last peak and the edge of the dot. */
-const MARKER_GAP = 4;
-
 /**
- * How far the trail begins from the anchor dot on the card's corner. Enough
- * that it starts clear of the card rather than running underneath it.
+ * A round linecap puts ink half a stroke beyond the last vertex, at both ends.
+ * Both clearances below are ink-to-ink, so that overhang comes off the top.
  */
-const CARD_GAP = 26;
+const CAP = STROKE_WIDTH / 2;
+
+/** Clear space between the marker dot's edge and the start of the ink. */
+const MARKER_GAP = 9;
+
+/** Clear space between the card's anchor dot and the start of the ink. */
+const CARD_GAP = 17;
 
 /** Below this there is no room for a trail worth drawing. */
 const MIN_TRAIL = 48;
 
 type Props = {
-  /** The card the trail starts from. Hidden whenever this is absent. */
+  /**
+   * The dot on the card that the trail leaves from — the element itself, so
+   * its centre and radius are measured rather than restated here. Hidden
+   * whenever this is absent.
+   */
   anchorRef: React.RefObject<HTMLElement | null>;
   /** Suppressed while the detail page covers everything. */
   hidden: boolean;
@@ -78,20 +90,22 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
 
       if (!visible) return hide();
 
-      // The trail leaves from the dot on the card's top-right corner.
       const rect = anchor.getBoundingClientRect();
-      const startX = rect.right - 20;
-      const startY = rect.top + 20;
+      const startX = rect.left + rect.width / 2;
+      const startY = rect.top + rect.height / 2;
+      const startRadius = Math.max(rect.width, rect.height) / 2;
 
       const dx = x - startX;
       const dy = y - startY;
       const span = Math.hypot(dx, dy);
 
-      // Stop short of the dot rather than running underneath it. The dot's
-      // screen radius comes from the scene, since a sprite's pixel size
-      // depends on how far away the camera is.
-      const reach = span - radius - MARKER_GAP;
-      if (reach < MIN_TRAIL + CARD_GAP) return hide();
+      // Where the ink starts and stops, both a fixed clearance out from the
+      // edge of the dot at that end. The marker's radius comes from the scene:
+      // it is the number the sprite was sized to this very frame, in the same
+      // CSS pixels this SVG is drawn in.
+      const from = startRadius + CARD_GAP + CAP;
+      const reach = span - radius - MARKER_GAP - CAP;
+      if (reach - from < MIN_TRAIL) return hide();
       group.style.opacity = "1";
 
       const unitX = dx / span;
@@ -106,23 +120,23 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
         points.push(`${px.toFixed(1)},${py.toFixed(1)}`);
       };
 
-      // Both ends are pinned on the straight line between card and dot: the
-      // first vertex at CARD_GAP, the last exactly at `reach`. Only the last
-      // peak — the one nearest the dot — takes up the slack.
+      // Both ends are pinned on the straight line between the two dots: the
+      // first vertex at `from`, the last exactly at `reach`. Only the last
+      // peak — the one nearest the marker — takes up the slack.
       //
       // Ending on an interpolated point of the zigzag instead let the tip drift
       // up to the full amplitude off the axis as the trail's length changed,
       // and with it the gap to the dot: the trail looked welded to the card but
       // loose at the dot, which is exactly the asymmetry being fixed here.
-      const trail = reach - CARD_GAP;
+      const trail = reach - from;
       const cycles = Math.min(Math.floor(trail / ZIGZAG_PERIOD), MAX_CYCLES);
 
       points.length = 0;
       for (let i = 0; i < cycles; i++) {
         // Peak, then back down to the baseline — which is what makes it read as
         // ^^^^ rather than a symmetrical wave.
-        vertex(CARD_GAP + i * ZIGZAG_PERIOD, 0);
-        vertex(CARD_GAP + i * ZIGZAG_PERIOD + ZIGZAG_STEP, ZIGZAG_AMPLITUDE);
+        vertex(from + i * ZIGZAG_PERIOD, 0);
+        vertex(from + i * ZIGZAG_PERIOD + ZIGZAG_STEP, ZIGZAG_AMPLITUDE);
       }
       // The leftover grows a peak of its own, its height rising with the room
       // it has. At a full period that peak is indistinguishable from the whole
@@ -131,9 +145,9 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
       const whole = cycles * ZIGZAG_PERIOD;
       const slack = trail - whole;
       if (slack > 0.5) {
-        vertex(CARD_GAP + whole, 0);
+        vertex(from + whole, 0);
         const lift = Math.min(ZIGZAG_AMPLITUDE, (ZIGZAG_AMPLITUDE * slack) / ZIGZAG_PERIOD);
-        vertex(CARD_GAP + whole + slack / 2, lift);
+        vertex(from + whole + slack / 2, lift);
       }
       vertex(reach, 0);
 

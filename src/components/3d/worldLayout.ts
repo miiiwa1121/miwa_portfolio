@@ -160,6 +160,61 @@ export const SECTIONS = Object.keys(BUILDING_POSITIONS) as NonNullable<SectionTy
 export const MARKER_CLEARANCE = 1.1;
 
 /**
+ * How much of a marker sprite's quad the drawn disc covers, measured from its
+ * centre as a fraction of the quad's full height.
+ *
+ * The trail stops a fixed clearance from *this* edge, so the number has to be
+ * the one the texture is painted with rather than a second guess at it — hence
+ * both the painter and the sizing maths below reading it from here.
+ */
+export const MARKER_DOT_FILL = 0.37;
+
+/** The dot's rim, in the same units. It straddles the disc's edge. */
+export const MARKER_DOT_RIM = 0.06;
+
+/**
+ * How many CSS pixels one world unit spans, `viewDepth` in front of the camera.
+ *
+ * `viewDepth` is the distance along the camera's forward axis — the `-z` of the
+ * point in view space, which is exactly what the projection divides by. The
+ * straight-line distance from the camera is a different number, and using it
+ * would misjudge anything away from the centre of the frame.
+ */
+export function pixelsPerWorldUnit(
+  viewDepth: number,
+  fovDegrees: number,
+  viewportHeight: number
+): number {
+  const halfVertical = (fovDegrees * Math.PI) / 360;
+  return viewportHeight / (2 * Math.tan(halfVertical) * viewDepth);
+}
+
+/**
+ * The world scale a marker sprite needs for its drawn disc to come out
+ * `radiusPx` across on screen.
+ *
+ * A sprite is a billboard: three.js offsets its corners in *view* space
+ * (`mvPosition.xy += rotatedPosition` in the sprite shader), so its size on
+ * screen is its scale times the pixels-per-unit at its own depth. Nothing else
+ * enters into it — not the camera's tilt, not where in the frame it sits.
+ *
+ * Recovering that size afterwards by projecting a world-space offset, which is
+ * what this replaced, gets both of those wrong: a world-vertical offset is
+ * foreshortened by the tilt and stretched by perspective towards the edges of
+ * the frame. Deciding the pixel size and solving for the world scale instead
+ * leaves nothing to estimate, which is what lets the trail hold a fixed
+ * clearance from the dot's edge however the camera moves.
+ */
+export function markerScaleForScreenRadius(
+  radiusPx: number,
+  viewDepth: number,
+  fovDegrees: number,
+  viewportHeight: number
+): number {
+  return radiusPx / (MARKER_DOT_FILL * pixelsPerWorldUnit(viewDepth, fovDegrees, viewportHeight));
+}
+
+/**
  * The orbit azimuth that puts a section's area between the camera and the
  * centre of the island — i.e. squarely in front of you, seen from the
  * overview distance. Same `atan2(x, z)` convention as azimuthToXZ.

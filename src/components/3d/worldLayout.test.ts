@@ -4,6 +4,7 @@ import {
   HOME_HEIGHT,
   HOME_RADIUS,
   HOME_TARGET_Y,
+  MARKER_DOT_FILL,
   SECTIONS,
   SECTIONS_BY_AZIMUTH,
   adjacentSection,
@@ -13,6 +14,8 @@ import {
   frameDistance,
   framePose,
   homePose,
+  markerScaleForScreenRadius,
+  pixelsPerWorldUnit,
   sectionAzimuth,
   sectionTargets,
   wrapAngle,
@@ -326,5 +329,73 @@ describe("adjacentSection", () => {
 
   it("never moves when the step is zero", () => {
     for (const s of SECTIONS) expect(adjacentSection(s, 0)).toBe(s);
+  });
+});
+
+describe("pixelsPerWorldUnit", () => {
+  // The definition, stated as the thing it has to satisfy: however many world
+  // units the frame is tall at that depth, they have to add up to the viewport.
+  it("makes the visible frame height come out as the viewport height", () => {
+    for (const depth of [4, 12, 26]) {
+      for (const fov of [35, 45, 60]) {
+        const frameHeight = 2 * Math.tan((fov * Math.PI) / 360) * depth;
+        expect(pixelsPerWorldUnit(depth, fov, 900) * frameHeight).toBeCloseTo(900, 6);
+      }
+    }
+  });
+
+  it("halves as the subject moves twice as far away", () => {
+    expect(pixelsPerWorldUnit(20, 45, 900)).toBeCloseTo(pixelsPerWorldUnit(10, 45, 900) / 2, 6);
+  });
+
+  it("doubles on a viewport twice as tall", () => {
+    expect(pixelsPerWorldUnit(10, 45, 1800)).toBeCloseTo(pixelsPerWorldUnit(10, 45, 900) * 2, 6);
+  });
+
+  it("shrinks as the fov widens, since more world fits in the same pixels", () => {
+    expect(pixelsPerWorldUnit(10, 60, 900)).toBeLessThan(pixelsPerWorldUnit(10, 45, 900));
+  });
+});
+
+describe("markerScaleForScreenRadius", () => {
+  /** What the sprite shader draws, given the scale this hands back. */
+  const drawnRadius = (scale: number, depth: number, fov: number, height: number) =>
+    scale * MARKER_DOT_FILL * pixelsPerWorldUnit(depth, fov, height);
+
+  // The property the trail leans on: ask for a radius, get a scale that draws
+  // exactly that radius. If this holds, the gap between the trail's tip and the
+  // dot's edge is a constant by construction.
+  it("round-trips to the radius that was asked for", () => {
+    for (const depth of [4, 9.5, 18, 26, 40]) {
+      for (const radius of [6, 9, 14, 18]) {
+        const scale = markerScaleForScreenRadius(radius, depth, 45, 900);
+        expect(drawnRadius(scale, depth, 45, 900)).toBeCloseTo(radius, 9);
+      }
+    }
+  });
+
+  it("holds the radius steady across viewports and fields of view", () => {
+    for (const [fov, height] of [
+      [45, 900],
+      [45, 1600],
+      [60, 720],
+    ]) {
+      const scale = markerScaleForScreenRadius(14, 22, fov, height);
+      expect(drawnRadius(scale, 22, fov, height)).toBeCloseTo(14, 9);
+    }
+  });
+
+  it("grows the world scale in step with the distance", () => {
+    const near = markerScaleForScreenRadius(14, 10, 45, 900);
+    expect(markerScaleForScreenRadius(14, 30, 45, 900)).toBeCloseTo(near * 3, 6);
+  });
+
+  it("asks for a quad wider than the disc, since the texture has margin", () => {
+    // The drawn disc covers 0.37 of the sprite, so a 14px radius needs a quad
+    // ~38px across. Sizing the sprite as though the disc filled it would leave
+    // the trail stopping short of a dot a third smaller than it expected —
+    // which is half of what the world-space estimate used to get wrong.
+    const scale = markerScaleForScreenRadius(14, 20, 45, 900);
+    expect(scale * pixelsPerWorldUnit(20, 45, 900)).toBeCloseTo(14 / MARKER_DOT_FILL, 6);
   });
 });
