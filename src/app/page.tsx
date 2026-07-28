@@ -230,7 +230,11 @@ export default function Home() {
   return (
     <main className="w-full h-screen overflow-hidden relative font-sans">
       {/* 3D scene fixed in the background */}
-      <div className="fixed inset-0 w-full h-full -z-10 bg-[#fff3d1]">
+      {/* z-0, not -z-10. Behind a negative index the canvas painted *under*
+          <main> and stopped hit-testing entirely, which silently killed every
+          click and hover in the scene — buildings included. Everything meant
+          to sit over it carries its own higher z-index. */}
+      <div className="fixed inset-0 w-full h-full z-0 bg-[#fff3d1]">
         <Scene obscured={sceneObscured} />
       </div>
 

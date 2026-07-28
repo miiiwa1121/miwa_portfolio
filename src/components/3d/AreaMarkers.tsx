@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
+import { useCursor } from "@react-three/drei";
 import * as THREE from "three";
 import { SECTIONS, MARKER_CLEARANCE } from "./worldLayout";
 import { publishMarkerScreen } from "./markerScreen";
@@ -22,6 +23,8 @@ const FACING_COLOR = new THREE.Color("#f97316");
 
 const IDLE_SCALE = 0.5;
 const FACING_SCALE = 0.8;
+/** Hovering swells the dot so it reads as a target, not just a label. */
+const HOVER_SCALE = 1.05;
 const PULSE_DEPTH = 0.1; // fraction of the base size
 const PULSE_SPEED = 2.2; // radians per second
 const EASE = 0.12; // per-frame approach to the target size/colour
@@ -52,7 +55,9 @@ function makeDotTexture(): THREE.Texture {
 const projected = new THREE.Vector3();
 
 export default function AreaMarkers() {
-  const { facing } = useAppState();
+  const { facing, setActiveSection } = useAppState();
+  const [hovered, setHovered] = useState<string | null>(null);
+  useCursor(hovered !== null);
   const texture = useMemo(() => makeDotTexture(), []);
   useEffect(() => () => texture.dispose(), [texture]);
 
@@ -94,11 +99,20 @@ export default function AreaMarkers() {
       // Offsetting the phase by index keeps the five dots from pulsing in
       // lockstep, which reads as a glitch rather than as life.
       const pulse = 1 + Math.sin(time * PULSE_SPEED + i) * PULSE_DEPTH;
-      const size = (section === facing ? FACING_SCALE : IDLE_SCALE) * pulse;
+      const base =
+        section === hovered
+          ? HOVER_SCALE
+          : section === facing
+            ? FACING_SCALE
+            : IDLE_SCALE;
+      const size = base * pulse;
       sprite.scale.setScalar(size);
 
       const material = sprite.material as THREE.SpriteMaterial;
-      material.color.lerp(section === facing ? FACING_COLOR : IDLE_COLOR, EASE);
+      material.color.lerp(
+        section === facing || section === hovered ? FACING_COLOR : IDLE_COLOR,
+        EASE
+      );
     });
 
     // Hand the facing marker's screen position to the DOM leader line.
@@ -131,6 +145,17 @@ export default function AreaMarkers() {
           key={section}
           ref={(el) => {
             sprites.current[i] = el;
+          }}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setHovered(section);
+          }}
+          onPointerOut={() => setHovered(null)}
+          onClick={(e) => {
+            // Same destination as clicking the building itself: the camera
+            // flies in and frames the area.
+            e.stopPropagation();
+            setActiveSection(section);
           }}
         >
           {/* depthWrite off so the dots never occlude each other, depthTest on
