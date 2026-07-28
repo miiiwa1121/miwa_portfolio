@@ -1,6 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
+import { hashForSection, sectionFromHash } from "./sectionUrl";
 
 export type SectionType = "about" | "products" | "skills" | "experience" | "contact" | null;
 
@@ -70,6 +71,50 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     closePage();
     setHomeNonce((n) => n + 1);
   }, [closePage]);
+
+  // --- The URL ---------------------------------------------------------
+  // The open section is mirrored into the hash so the back button closes the
+  // panel instead of leaving the site, and a section can be linked to.
+
+  /** False until the hash we arrived with has been honoured. */
+  const urlApplied = useRef(false);
+
+  useEffect(() => {
+    const applyUrl = (fromHistory: boolean) => {
+      const section = sectionFromHash(window.location.hash);
+      setActiveSection(section);
+      setPageOpen(!!section && section !== "about");
+      // Going back to no section is a request to see the diorama again.
+      if (fromHistory && !section) setHomeNonce((n) => n + 1);
+      urlApplied.current = true;
+    };
+
+    // Honour a hash the visitor arrived with, deferred a frame rather than run
+    // during render: the page is prerendered without it, so applying it in the
+    // render pass would make the first client render disagree with the markup.
+    const initial = requestAnimationFrame(() => applyUrl(false));
+    const onPopState = () => applyUrl(true);
+
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      cancelAnimationFrame(initial);
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Until the incoming hash has been read, writing to the URL would erase it.
+    if (!urlApplied.current) return;
+
+    const wanted = hashForSection(pageOpen ? activeSection : null);
+    // Already correct — which is exactly the case when this state came *from*
+    // the URL, so following a link or going back never pushes a second entry.
+    if (window.location.hash === wanted) return;
+
+    // pushState, not replaceState: each opened section is its own step back,
+    // which is what makes the back button close the panel.
+    window.history.pushState(null, "", wanted || window.location.pathname);
+  }, [pageOpen, activeSection]);
 
   return (
     <AppStateContext.Provider
