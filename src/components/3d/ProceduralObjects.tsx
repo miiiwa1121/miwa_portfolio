@@ -1,10 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
-import { useCursor } from "@react-three/drei";
-import * as THREE from "three";
-import { useAppState, SectionType } from "../AppStateContext";
+import { useMemo } from "react";
+import type { SectionType } from "../AppStateContext";
 import VoxelModel, { Voxel } from "./voxel/VoxelModel";
 import VoxelText from "./voxel/VoxelText";
 import { fillBox, shellBox, put } from "./voxel/builders";
@@ -14,45 +11,28 @@ import { PALETTE } from "./voxel/palette";
 const VS = 0.42;
 
 // ------------------------------------------------------------------
-// Interaction wrapper: hover lift + click-to-zoom
+// Placement wrapper
 // ------------------------------------------------------------------
 interface ObjectProps {
   position: [number, number, number];
   sectionId: SectionType;
 }
 
+/**
+ * Positions a building and gives it a name, nothing more.
+ *
+ * The buildings are deliberately inert: hovering and clicking belong to the
+ * marker floating above each area, which is a small, unambiguous target with
+ * a card and a line already pointing at it. Letting the whole building
+ * respond as well meant two hit areas for one destination, and a hover-lift
+ * that moved the very thing the marker was anchored to.
+ */
 function Anchor({ position, sectionId, children }: ObjectProps & { children: React.ReactNode }) {
-  const { setActiveSection, activeSection } = useAppState();
-  const [hovered, setHovered] = useState(false);
-  const groupRef = useRef<THREE.Group>(null);
-  const isActive = activeSection === sectionId;
-
-  useCursor(hovered);
-
-  useFrame(() => {
-    if (!groupRef.current) return;
-    const target = hovered && !isActive ? 0.45 : 0;
-    groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, target, 0.12);
-  });
-
   return (
     // Named so the camera can look the building up in the scene graph and
     // frame its actual bounds, rather than being told them by hand.
     <group position={position} name={sectionId ?? undefined}>
-      <group
-        ref={groupRef}
-        onClick={(e) => {
-          e.stopPropagation();
-          setActiveSection(sectionId);
-        }}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setHovered(true);
-        }}
-        onPointerOut={() => setHovered(false)}
-      >
-        {children}
-      </group>
+      {children}
     </group>
   );
 }

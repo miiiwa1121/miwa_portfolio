@@ -11,18 +11,33 @@
 export type MarkerScreenPoint = {
   x: number;
   y: number;
+  /** The dot's on-screen radius in px, so the trail can stop short of it. */
+  radius: number;
   /** False when the marker is behind the camera or off-screen. */
   visible: boolean;
 };
 
-const current: MarkerScreenPoint = { x: 0, y: 0, visible: false };
+const current: MarkerScreenPoint = { x: 0, y: 0, radius: 0, visible: false };
 const listeners = new Set<(point: MarkerScreenPoint) => void>();
 
 /** Called by the scene each frame. Cheap no-op when nothing moved. */
-export function publishMarkerScreen(x: number, y: number, visible: boolean): void {
-  if (current.x === x && current.y === y && current.visible === visible) return;
+export function publishMarkerScreen(
+  x: number,
+  y: number,
+  radius: number,
+  visible: boolean
+): void {
+  if (
+    current.x === x &&
+    current.y === y &&
+    current.radius === radius &&
+    current.visible === visible
+  ) {
+    return;
+  }
   current.x = x;
   current.y = y;
+  current.radius = radius;
   current.visible = visible;
   for (const listener of listeners) listener(current);
 }

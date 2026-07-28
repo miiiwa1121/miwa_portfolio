@@ -27,19 +27,15 @@ const DASH_SPACING = 20;
 /** Enough nodes for the longest trail a viewport can hold. Never recreated. */
 const MAX_DASHES = 72;
 
-/** Dash length at the card end and at the marker end, in px. */
-const NEAR_LENGTH = 9;
-const FAR_LENGTH = 4;
+/** Every dash is the same, near end and far end alike. */
+const DASH_LENGTH = 8;
+const DASH_WIDTH = 2.6;
 
-/** Stroke width at each end, tapering with distance for a sense of depth. */
-const NEAR_WIDTH = 3.4;
-const FAR_WIDTH = 1.6;
+/** Clear space left between the last dash and the edge of the dot. */
+const MARKER_GAP = 8;
 
-/** How far the trail bows away from the straight chord, as a fraction of its length. */
-const BOW = 0.12;
-
-/** Samples used to measure the curve before walking it at even spacing. */
-const ARC_SAMPLES = 160;
+/** Below this there is no room for a trail worth drawing. */
+const MIN_TRAIL = 48;
 
 type Props = {
   /** The card the trail starts from. Hidden whenever this is absent. */
@@ -55,12 +51,7 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
   useEffect(() => {
     if (hidden) return;
 
-    // Reused across frames so walking the curve allocates nothing.
-    const xs = new Float64Array(ARC_SAMPLES + 1);
-    const ys = new Float64Array(ARC_SAMPLES + 1);
-    const lengths = new Float64Array(ARC_SAMPLES + 1);
-
-    const draw = ({ x, y, visible }: MarkerScreenPoint) => {
+    const draw = ({ x, y, radius, visible }: MarkerScreenPoint) => {
       const group = groupRef.current;
       const anchor = anchorRef.current;
       if (!group || !anchor) return;
@@ -78,31 +69,20 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
 
       const dx = x - startX;
       const dy = y - startY;
-      if (Math.hypot(dx, dy) < 60) return hide(); // too short to read as a trail
+      const span = Math.hypot(dx, dy);
+
+      // Stop short of the dot rather than running underneath it: the marker is
+      // the thing being pointed at, and a line crossing it reads as a line
+      // going past it. The dot's screen radius comes from the scene, since a
+      // sprite's pixel size depends on how far away the camera is.
+      const reach = span - radius - MARKER_GAP;
+      if (reach < MIN_TRAIL) return hide();
       group.style.opacity = "1";
 
-      // Bow the trail perpendicular to the chord so it arcs rather than
-      // cutting a hard diagonal across the scene.
-      const controlX = (startX + x) / 2 - dy * BOW;
-      const controlY = (startY + y) / 2 + dx * BOW;
-
-      // Sample the curve and accumulate arc length, so dashes can be placed at
-      // even distances rather than at even values of the bezier parameter —
-      // which are not the same thing, and would crowd the dashes into the bend.
-      let total = 0;
-      for (let i = 0; i <= ARC_SAMPLES; i++) {
-        const t = i / ARC_SAMPLES;
-        const inverse = 1 - t;
-        const px = inverse * inverse * startX + 2 * inverse * t * controlX + t * t * x;
-        const py = inverse * inverse * startY + 2 * inverse * t * controlY + t * t * y;
-        if (i > 0) total += Math.hypot(px - xs[i - 1], py - ys[i - 1]);
-        xs[i] = px;
-        ys[i] = py;
-        lengths[i] = total;
-      }
-
-      const count = Math.min(MAX_DASHES, Math.floor(total / DASH_SPACING));
-      let sample = 0;
+      const unitX = dx / span;
+      const unitY = dy / span;
+      const half = DASH_LENGTH / 2;
+      const count = Math.min(MAX_DASHES, Math.floor(reach / DASH_SPACING));
 
       for (let i = 0; i < MAX_DASHES; i++) {
         const dash = dashesRef.current[i];
@@ -113,34 +93,15 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
           continue;
         }
 
-        // Walk forward to the sample holding this dash's distance along the arc.
         const along = (i + 0.5) * DASH_SPACING;
-        while (sample < ARC_SAMPLES && lengths[sample + 1] < along) sample++;
+        const px = startX + unitX * along;
+        const py = startY + unitY * along;
 
-        const span = lengths[sample + 1] - lengths[sample] || 1;
-        const blend = (along - lengths[sample]) / span;
-        const px = xs[sample] + (xs[sample + 1] - xs[sample]) * blend;
-        const py = ys[sample] + (ys[sample + 1] - ys[sample]) * blend;
-
-        // Lay each dash along the curve's local direction so the trail reads
-        // as one dashed line rather than a scatter of ticks.
-        const tangentX = xs[sample + 1] - xs[sample];
-        const tangentY = ys[sample + 1] - ys[sample];
-        const tangentLength = Math.hypot(tangentX, tangentY) || 1;
-
-        const progress = along / total;
-        const half = (NEAR_LENGTH + (FAR_LENGTH - NEAR_LENGTH) * progress) / 2;
-        const offsetX = (tangentX / tangentLength) * half;
-        const offsetY = (tangentY / tangentLength) * half;
-
-        dash.setAttribute("x1", (px - offsetX).toFixed(1));
-        dash.setAttribute("y1", (py - offsetY).toFixed(1));
-        dash.setAttribute("x2", (px + offsetX).toFixed(1));
-        dash.setAttribute("y2", (py + offsetY).toFixed(1));
-        dash.setAttribute(
-          "stroke-width",
-          (NEAR_WIDTH + (FAR_WIDTH - NEAR_WIDTH) * progress).toFixed(2)
-        );
+        dash.setAttribute("x1", (px - unitX * half).toFixed(1));
+        dash.setAttribute("y1", (py - unitY * half).toFixed(1));
+        dash.setAttribute("x2", (px + unitX * half).toFixed(1));
+        dash.setAttribute("y2", (py + unitY * half).toFixed(1));
+        dash.setAttribute("stroke-width", String(DASH_WIDTH));
       }
     };
 

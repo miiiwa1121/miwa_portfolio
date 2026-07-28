@@ -51,8 +51,9 @@ function makeDotTexture(): THREE.Texture {
   return texture;
 }
 
-/** Scratch vector for the projection; never read across frames. */
+/** Scratch vectors for the projection; never read across frames. */
 const projected = new THREE.Vector3();
+const projectedEdge = new THREE.Vector3();
 
 export default function AreaMarkers() {
   const { facing, setActiveSection } = useAppState();
@@ -123,9 +124,21 @@ export default function AreaMarkers() {
     const screenX = (projected.x * 0.5 + 0.5) * width;
     const screenY = (-projected.y * 0.5 + 0.5) * height;
 
+    // Project the dot's top edge too. A sprite's world size stays constant
+    // while its screen size does not, so the trail can only know how much room
+    // to leave by measuring it here, where the camera is.
+    const facingSprite = sprites.current[SECTIONS.indexOf(facing)];
+    const worldRadius = (facingSprite?.scale.y ?? IDLE_SCALE) / 2;
+    projectedEdge
+      .copy(anchor)
+      .addScaledVector(state.camera.up, worldRadius)
+      .project(state.camera);
+    const screenRadius = Math.abs((-projectedEdge.y * 0.5 + 0.5) * height - screenY);
+
     publishMarkerScreen(
       Math.round(screenX),
       Math.round(screenY),
+      Math.round(screenRadius),
       // Two ways the marker can have nothing to point at. z >= 1 puts it
       // behind the camera, where the projection flips and would fling the
       // trail off in the opposite direction. Outside the viewport it is real
