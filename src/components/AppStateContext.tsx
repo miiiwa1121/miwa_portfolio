@@ -30,6 +30,12 @@ interface AppStateContextType {
    */
   facing: NonNullable<SectionType>;
   setFacing: (section: NonNullable<SectionType>) => void;
+  /**
+   * Ask the camera to turn to an area without focusing it — what swiping the
+   * card does. Carries a nonce so asking twice for the same area still turns.
+   */
+  turnTo: (section: NonNullable<SectionType>) => void;
+  turnRequest: { section: NonNullable<SectionType>; nonce: number } | null;
 }
 
 const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
@@ -39,6 +45,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [pageOpen, setPageOpen] = useState(false);
   const [homeNonce, setHomeNonce] = useState(0);
   const [facing, setFacing] = useState<NonNullable<SectionType>>("products");
+  const [turnRequest, setTurnRequest] = useState<{ section: NonNullable<SectionType>; nonce: number } | null>(null);
 
   const openPage = useCallback((section: NonNullable<SectionType>) => {
     setActiveSection(section);
@@ -47,6 +54,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     } else {
       setPageOpen(false);
     }
+  }, []);
+
+  const turnTo = useCallback((section: NonNullable<SectionType>) => {
+    setTurnRequest((previous) => ({ section, nonce: (previous?.nonce ?? 0) + 1 }));
   }, []);
 
   const closePage = useCallback(() => {
@@ -62,7 +73,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppStateContext.Provider
-      value={{ activeSection, setActiveSection, pageOpen, setPageOpen, openPage, closePage, goHome, homeNonce, facing, setFacing }}
+      value={{ activeSection, setActiveSection, pageOpen, setPageOpen, openPage, closePage, goHome, homeNonce, facing, setFacing, turnTo, turnRequest }}
     >
       {children}
     </AppStateContext.Provider>

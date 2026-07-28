@@ -159,7 +159,7 @@ function IdleHeartbeat({ obscured }: { obscured: boolean }) {
 
 function CameraController() {
   const controlsRef = useRef<CameraControls>(null);
-  const { activeSection, pageOpen, homeNonce, facing, setFacing } = useAppState();
+  const { activeSection, pageOpen, homeNonce, facing, setFacing, turnRequest } = useAppState();
   const scene = useThree((state) => state.scene);
   const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
 
@@ -207,6 +207,18 @@ function CameraController() {
   }, [pageOpen, activeSection]);
 
   useViewInput(azimuthTargetRef, draggingRef, orbitLockedRef, activeFlightRef);
+
+  // Swiping the card asks for a spot. Steering the existing orbit target is
+  // all it takes — the idle loop eases the camera round from wherever it is,
+  // and the card follows because it reads the angle rather than being set.
+  useEffect(() => {
+    if (!turnRequest) return;
+    const controls = controlsRef.current;
+    if (!controls) return;
+    const current = controls.azimuthAngle;
+    azimuthTargetRef.current =
+      current + wrapAngle(sectionAzimuth(turnRequest.section) - current);
+  }, [turnRequest]);
 
   // Every camera destination is decided here, in one place, so the three ways
   // of arriving cannot disagree about where the camera should end up.

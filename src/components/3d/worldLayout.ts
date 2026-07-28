@@ -191,6 +191,31 @@ export function facingSection(azimuth: number): NonNullable<SectionType> {
   return best;
 }
 
+/**
+ * The areas in the order the camera meets them going round, rather than the
+ * order they happen to be declared in. Swiping the card steps through this, so
+ * "next" means the next spot you would reach by turning, not the next key in
+ * an object.
+ */
+export const SECTIONS_BY_AZIMUTH = [...SECTIONS].sort(
+  (a, b) => sectionAzimuth(a) - sectionAzimuth(b)
+);
+
+/**
+ * The area one step round from `from`. Wraps, so stepping past the last spot
+ * continues onto the first rather than stopping.
+ */
+export function adjacentSection(
+  from: NonNullable<SectionType>,
+  step: number
+): NonNullable<SectionType> {
+  const order = SECTIONS_BY_AZIMUTH;
+  const index = order.indexOf(from);
+  if (index === -1) return order[0];
+  const count = order.length;
+  return order[(((index + step) % count) + count) % count];
+}
+
 /** Where the camera sits in the free diorama view, at a given orbit azimuth. */
 export function homePose(azimuth: number): Pose {
   const [x, z] = azimuthToXZ(azimuth, HOME_RADIUS);

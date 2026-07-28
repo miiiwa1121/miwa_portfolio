@@ -5,6 +5,8 @@ import {
   HOME_RADIUS,
   HOME_TARGET_Y,
   SECTIONS,
+  SECTIONS_BY_AZIMUTH,
+  adjacentSection,
   azimuthToXZ,
   aimOffset,
   facingSection,
@@ -291,5 +293,38 @@ describe("framePose with a sideways aim", () => {
       const shift = [tx - target[0], tz - target[2]];
       expect(view[0] * shift[0] + view[1] * shift[1]).toBeCloseTo(0);
     }
+  });
+});
+
+describe("adjacentSection", () => {
+  it("orders the areas the way the camera meets them, not by declaration", () => {
+    const angles = SECTIONS_BY_AZIMUTH.map(sectionAzimuth);
+    for (let i = 1; i < angles.length; i++) expect(angles[i]).toBeGreaterThan(angles[i - 1]);
+  });
+
+  it("steps forward and back to the same place", () => {
+    for (const s of SECTIONS) expect(adjacentSection(adjacentSection(s, 1), -1)).toBe(s);
+  });
+
+  it("wraps past the ends rather than sticking", () => {
+    const first = SECTIONS_BY_AZIMUTH[0];
+    const last = SECTIONS_BY_AZIMUTH[SECTIONS_BY_AZIMUTH.length - 1];
+    expect(adjacentSection(first, -1)).toBe(last);
+    expect(adjacentSection(last, 1)).toBe(first);
+  });
+
+  it("visits every area exactly once before returning", () => {
+    let at = SECTIONS_BY_AZIMUTH[0];
+    const seen = [at];
+    for (let i = 1; i < SECTIONS.length; i++) {
+      at = adjacentSection(at, 1);
+      seen.push(at);
+    }
+    expect(new Set(seen).size).toBe(SECTIONS.length);
+    expect(adjacentSection(at, 1)).toBe(SECTIONS_BY_AZIMUTH[0]);
+  });
+
+  it("never moves when the step is zero", () => {
+    for (const s of SECTIONS) expect(adjacentSection(s, 0)).toBe(s);
   });
 });

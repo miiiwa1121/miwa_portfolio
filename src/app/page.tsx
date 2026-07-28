@@ -16,6 +16,8 @@ import Footer from "@/components/Footer";
 import { Globe, ChevronRight, Terminal, X, Monitor } from "lucide-react";
 import { GithubIcon, XIcon } from "@/components/icons";
 import CardLeaderLine from "@/components/CardLeaderLine";
+import { useCardGestures } from "@/components/useCardGestures";
+import { adjacentSection } from "@/components/3d/worldLayout";
 import {
   SHEET_VARIANTS,
   exitDirectionFor,
@@ -103,7 +105,7 @@ const CARD: Record<
 };
 
 export default function Home() {
-  const { activeSection, setActiveSection, pageOpen, openPage, closePage, goHome, facing } = useAppState();
+  const { activeSection, setActiveSection, pageOpen, openPage, closePage, goHome, facing, turnTo } = useAppState();
   const { language, toggleLanguage } = useLanguage();
   const { openTerminal } = useTerminal();
   const isJa = language === "ja";
@@ -116,6 +118,13 @@ export default function Home() {
 
   // The dotted trail starts from this card's corner.
   const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // Tapping the card opens its area; swiping it up or down steps to the next
+  // spot round the island and turns the camera there.
+  const cardGestures = useCardGestures({
+    onTap: () => openPage(activeSection ?? facing),
+    onSwipe: (step) => turnTo(adjacentSection(activeSection ?? facing, step)),
+  });
 
   // The detail page is bracketed by two transparent spacers. Scrolling off
   // either end pulls the camera back to the diorama and then goes home.
@@ -272,7 +281,8 @@ export default function Home() {
             <div
               key={activeSection ?? "home"}
               ref={cardRef}
-              className="pointer-events-auto bg-white/95 backdrop-blur-sm rounded-3xl p-6 sm:p-8 shadow-xl max-w-xs sm:max-w-sm border border-black/5 animate-[fadeIn_0.4s_ease]"
+              {...cardGestures}
+              className="cursor-pointer select-none touch-none pointer-events-auto bg-white/95 backdrop-blur-sm rounded-3xl p-6 sm:p-8 shadow-xl max-w-xs sm:max-w-sm border border-black/5 animate-[fadeIn_0.4s_ease]"
             >
               <p className="text-orange-500 font-black text-lg">{isJa ? card.jaTitle : card.enTitle}</p>
               <p className="text-xs text-gray-400 font-bold mb-4 uppercase tracking-[0.2em]">{card.sub}</p>
