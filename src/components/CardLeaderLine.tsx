@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { onMarkerScreen, type MarkerScreenPoint } from "@/components/3d/markerScreen";
 
 /**
- * The dashed trail from the card out to the marker floating over its area.
+ * The zigzag trail from the card out to the marker floating over its area.
  *
  * DOM rather than 3D, deliberately: the trail is a flat annotation that should
  * always sit on top, so putting it in the scene would only buy it depth
@@ -12,33 +12,35 @@ import { onMarkerScreen, type MarkerScreenPoint } from "@/components/3d/markerSc
  * want to be hidden behind buildings, so they live in WebGL.)
  *
  * Nothing here goes through React state. The scene pushes the marker's screen
- * position every frame and the dashes' attributes are written straight to the
+ * position every frame and the polyline's points are written straight to the
  * DOM; re-rendering this component sixty times a second would be competing
  * with the renderer for the same main thread.
  */
 
 /**
- * Distance between dashes, fixed. Everything is laid out from the card end, so
- * the dashes nearest the card never move at all as the scene turns — only the
- * far end grows and shrinks, adding and dropping dashes. That is how the
- * reference behaves, and it is what stops the trail appearing to slide in and
- * out from under the card.
+ * Distance along the trail between successive vertices — half a zigzag.
+ *
+ * Fixed, and measured from the card end, so the peaks nearest the card never
+ * move as the scene turns; only the far end gains and loses them. Letting the
+ * step stretch to fit instead would shift every peak whenever the count
+ * changed, which reads as the trail creeping in and out from under the card.
  */
-const DASH_SPACING = 20;
+const ZIGZAG_STEP = 11;
 
-/** Enough nodes for the longest trail a viewport can hold. Never recreated. */
-const MAX_DASHES = 72;
+/** How far the peaks stand off the straight line between card and marker. */
+const ZIGZAG_AMPLITUDE = 6;
 
-/** Every dash is the same, near end and far end alike. */
-const DASH_LENGTH = 8;
-const DASH_WIDTH = 2.6;
+/** Ceiling on vertices, so even the longest trail stays bounded. */
+const MAX_VERTICES = 160;
 
-/** Minimum clear space between the last dash and the edge of the dot. */
-const MARKER_GAP = 3;
+const STROKE_WIDTH = 2.4;
+
+/** Minimum clear space between the last peak and the edge of the dot. */
+const MARKER_GAP = 4;
 
 /**
  * How far the trail begins from the anchor dot on the card's corner. Enough
- * that the dashes start clear of the card rather than running underneath it.
+ * that it starts clear of the card rather than running underneath it.
  */
 const CARD_GAP = 26;
 
@@ -54,15 +56,18 @@ type Props = {
 
 export default function CardLeaderLine({ anchorRef, hidden }: Props) {
   const groupRef = useRef<SVGGElement | null>(null);
-  const dashesRef = useRef<(SVGLineElement | null)[]>([]);
+  const lineRef = useRef<SVGPolylineElement | null>(null);
 
   useEffect(() => {
     if (hidden) return;
 
+    const points: string[] = [];
+
     const draw = ({ x, y, radius, visible }: MarkerScreenPoint) => {
       const group = groupRef.current;
+      const line = lineRef.current;
       const anchor = anchorRef.current;
-      if (!group || !anchor) return;
+      if (!group || !line || !anchor) return;
 
       const hide = () => {
         group.style.opacity = "0";
@@ -70,7 +75,7 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
 
       if (!visible) return hide();
 
-      // Start at the card's top-right corner, the way the reference does.
+      // The trail leaves from the dot on the card's top-right corner.
       const rect = anchor.getBoundingClientRect();
       const startX = rect.right - 20;
       const startY = rect.top + 20;
@@ -79,47 +84,38 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
       const dy = y - startY;
       const span = Math.hypot(dx, dy);
 
-      // Stop short of the dot rather than running underneath it: the marker is
-      // the thing being pointed at, and a line crossing it reads as a line
-      // going past it. The dot's screen radius comes from the scene, since a
-      // sprite's pixel size depends on how far away the camera is.
+      // Stop short of the dot rather than running underneath it. The dot's
+      // screen radius comes from the scene, since a sprite's pixel size
+      // depends on how far away the camera is.
       const reach = span - radius - MARKER_GAP;
-      if (reach < MIN_TRAIL) return hide();
+      if (reach < MIN_TRAIL + CARD_GAP) return hide();
       group.style.opacity = "1";
 
       const unitX = dx / span;
       const unitY = dy / span;
-      const half = DASH_LENGTH / 2;
+      // Perpendicular to the trail, for the peaks to stand off along.
+      const sideX = -unitY;
+      const sideY = unitX;
 
-      // Laid out from the card, at fixed spacing. Whatever the spacing does
-      // not divide is left at the far end, where a slightly larger gap before
-      // the dot goes unnoticed — as against the card end, where any variation
-      // shows as the trail creeping in and out from behind it.
-      const firstCentre = CARD_GAP + half;
-      const count = Math.min(
-        MAX_DASHES,
-        Math.max(0, Math.floor((reach - firstCentre - half) / DASH_SPACING) + 1)
-      );
+      // An even number of steps leaves the last vertex back on the baseline,
+      // so the trail finishes pointing at the dot rather than off to one side.
+      let steps = Math.floor((reach - CARD_GAP) / ZIGZAG_STEP);
+      if (steps % 2 === 1) steps -= 1;
+      steps = Math.min(steps, MAX_VERTICES - 1);
+      if (steps < 2) return hide();
 
-      for (let i = 0; i < MAX_DASHES; i++) {
-        const dash = dashesRef.current[i];
-        if (!dash) continue;
-
-        if (i >= count) {
-          dash.setAttribute("stroke-width", "0");
-          continue;
-        }
-
-        const along = firstCentre + i * DASH_SPACING;
-        const px = startX + unitX * along;
-        const py = startY + unitY * along;
-
-        dash.setAttribute("x1", (px - unitX * half).toFixed(1));
-        dash.setAttribute("y1", (py - unitY * half).toFixed(1));
-        dash.setAttribute("x2", (px + unitX * half).toFixed(1));
-        dash.setAttribute("y2", (py + unitY * half).toFixed(1));
-        dash.setAttribute("stroke-width", String(DASH_WIDTH));
+      points.length = 0;
+      for (let i = 0; i <= steps; i++) {
+        const along = CARD_GAP + i * ZIGZAG_STEP;
+        // Peaks on the odd vertices, the even ones on the line itself — which
+        // is what makes it read as ^^^^ rather than a symmetrical wave.
+        const lift = i % 2 === 1 ? ZIGZAG_AMPLITUDE : 0;
+        const px = startX + unitX * along + sideX * lift;
+        const py = startY + unitY * along + sideY * lift;
+        points.push(`${px.toFixed(1)},${py.toFixed(1)}`);
       }
+
+      line.setAttribute("points", points.join(" "));
     };
 
     return onMarkerScreen(draw);
@@ -130,21 +126,14 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
   return (
     <svg className="fixed inset-0 w-full h-full pointer-events-none z-30" aria-hidden="true">
       <g ref={groupRef} style={{ opacity: 0, transition: "opacity 240ms ease" }}>
-        {Array.from({ length: MAX_DASHES }, (_, i) => (
-          <line
-            key={i}
-            ref={(el) => {
-              dashesRef.current[i] = el;
-            }}
-            x1={-100}
-            y1={-100}
-            x2={-100}
-            y2={-100}
-            stroke="rgba(66, 38, 18, 0.55)"
-            strokeWidth={0}
-            strokeLinecap="round"
-          />
-        ))}
+        <polyline
+          ref={lineRef}
+          fill="none"
+          stroke="rgba(66, 38, 18, 0.55)"
+          strokeWidth={STROKE_WIDTH}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
       </g>
     </svg>
   );
