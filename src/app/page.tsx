@@ -13,7 +13,7 @@ import Skills from "@/components/sections/Skills";
 import Experience from "@/components/sections/Experience";
 import Contact from "@/components/sections/Contact";
 import Footer from "@/components/Footer";
-import { Globe, ChevronRight, Terminal, X, Monitor } from "lucide-react";
+import { Globe, ChevronRight, Terminal, X, Monitor, Pause, Play } from "lucide-react";
 import { GithubIcon, XIcon } from "@/components/icons";
 import CardLeaderLine from "@/components/CardLeaderLine";
 import { useCardGestures } from "@/components/useCardGestures";
@@ -105,7 +105,7 @@ const CARD: Record<
 };
 
 export default function Home() {
-  const { activeSection, setActiveSection, pageOpen, openPage, closePage, goHome, facing, setFacing, turnTo } = useAppState();
+  const { activeSection, setActiveSection, pageOpen, openPage, closePage, goHome, facing, setFacing, turnTo, paused, togglePaused } = useAppState();
   const { language, toggleLanguage } = useLanguage();
   const { openTerminal } = useTerminal();
   const isJa = language === "ja";
@@ -286,6 +286,24 @@ export default function Home() {
             >
               <Globe size={22} className="text-orange-500" />
               <span className="text-sm font-black w-6">{isJa ? "JP" : "EN"}</span>
+            </button>
+
+            {/* Freeze the town. Filled orange while stopped, the same "this
+                toggle is on" language as the links button below. */}
+            <button
+              onClick={togglePaused}
+              title={paused ? (isJa ? "動きを再生" : "Resume motion") : (isJa ? "動きを停止" : "Pause motion")}
+              aria-label={paused ? (isJa ? "動きを再生" : "Resume motion") : (isJa ? "動きを停止" : "Pause motion")}
+              aria-pressed={paused}
+              className={`w-14 h-14 rounded-full flex items-center justify-center shadow-sm hover:scale-105 transition-transform border border-black/5 pointer-events-auto ${
+                paused ? "bg-orange-500 text-white" : "bg-white/85 backdrop-blur-md text-gray-800"
+              }`}
+            >
+              {paused ? (
+                <Play size={20} fill="currentColor" />
+              ) : (
+                <Pause size={20} fill="currentColor" />
+              )}
             </button>
           </div>
         </header>

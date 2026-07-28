@@ -6,6 +6,7 @@ import * as THREE from "three";
 import VoxelModel, { Voxel } from "./voxel/VoxelModel";
 import { fillBox, put } from "./voxel/builders";
 import { PALETTE } from "./voxel/palette";
+import { sceneClock } from "./sceneClock";
 
 const VS = 0.34;
 
@@ -47,7 +48,7 @@ export function VoxelBus() {
 
   useFrame((state) => {
     if (!groupRef.current) return;
-    const a = state.clock.elapsedTime * speed;
+    const a = sceneClock.time(state.clock.elapsedTime) * speed;
     groupRef.current.position.set(Math.cos(a) * radius, 0.35, Math.sin(a) * radius);
     // orient along the tangent of the circle
     groupRef.current.rotation.y = -a + Math.PI / 2;

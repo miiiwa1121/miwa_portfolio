@@ -19,12 +19,13 @@ import {
   HOME_HEIGHT,
   type Pose,
 } from "./worldLayout";
+import { sceneClock } from "./sceneClock";
 import { useAppState, type SectionType } from "../AppStateContext";
 
 // Rotation sensitivity (kept gentle).
-const DRAG_SENSITIVITY = 0.004; // radians per px of pointer drag
-const WHEEL_SENSITIVITY = 0.0008; // radians per unit of wheel deltaY
-const AUTO_ORBIT_SPEED = 0.045; // radians per second of idle drift
+const DRAG_SENSITIVITY = 0.002; // radians per px of pointer drag
+const WHEEL_SENSITIVITY = 0.0004; // radians per unit of wheel deltaY
+const AUTO_ORBIT_SPEED = 0.032; // radians per second of idle drift
 
 // How long the wheel must be quiet before a stream that began while the orbit
 // was locked is trusted again. Longer than the gaps within a momentum tail,
@@ -42,7 +43,7 @@ const WHEEL_REARM_MS = 220;
  * appears to point at nothing. Holding the choice until the spin settles
  * costs nothing, since nobody reads a card mid-flick.
  *
- * Comfortably above the idle drift (0.045 rad/s) and a deliberate slow drag,
+ * Comfortably above the idle drift (0.022 rad/s) and a deliberate slow drag,
  * well below a flick.
  */
 const FACING_SETTLE_SPEED = 1.0;
@@ -173,9 +174,28 @@ function IdleHeartbeat({ obscured }: { obscured: boolean }) {
   return null;
 }
 
+/**
+ * Hands the pause button's state to the diorama's clock, from inside the
+ * Canvas where the renderer's own clock lives.
+ */
+function ScenePause() {
+  const { paused } = useAppState();
+  const clock = useThree((state) => state.clock);
+
+  useEffect(() => {
+    // The `elapsedTime` property, not getElapsedTime(): the getter advances the
+    // clock as a side effect, and would eat the delta the next frame is owed.
+    // Being up to one frame (16ms) behind at the moment of the press is not
+    // something anyone can see; a swallowed frame is.
+    sceneClock.setPaused(paused, clock.elapsedTime);
+  }, [paused, clock]);
+
+  return null;
+}
+
 function CameraController() {
   const controlsRef = useRef<CameraControls>(null);
-  const { activeSection, pageOpen, homeNonce, facing, setFacing, turnRequest } = useAppState();
+  const { activeSection, pageOpen, homeNonce, facing, setFacing, turnRequest, paused } = useAppState();
   const scene = useThree((state) => state.scene);
   const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
 
@@ -224,6 +244,19 @@ function CameraController() {
   }, [pageOpen, activeSection]);
 
   useViewInput(azimuthTargetRef, draggingRef, orbitLockedRef, activeFlightRef);
+
+  // Pausing means "stop now", not "coast to a halt". The damp below is still
+  // carrying the camera towards a target the idle drift left a fraction of a
+  // second ahead of it, so without this the diorama would glide on for another
+  // moment after the button was pressed. Dropping the remaining travel is
+  // enough — the target stops growing on the same frame the clock freezes.
+  // Never during a flight: the target is that flight's destination there, and
+  // clobbering it would drag the camera back off the building on landing.
+  useEffect(() => {
+    if (!paused || inFlight()) return;
+    const controls = controlsRef.current;
+    if (controls) azimuthTargetRef.current = controls.azimuthAngle;
+  }, [paused]);
 
   // Swiping the card asks for a spot. Steering the existing orbit target is
   // all it takes — the idle loop eases the camera round from wherever it is,
@@ -325,7 +358,11 @@ function CameraController() {
     if (activeSection) return;
 
     if (!draggingRef.current && !inFlight()) {
-      azimuthTargetRef.current += delta * AUTO_ORBIT_SPEED; // gentle auto-orbit when idle
+      // Idle drift, and the diorama's clock is what decides whether "idle"
+      // still means "moving" — paused, the step is zero and the target stops
+      // growing, while dragging still works because the damp below is fed the
+      // real delta.
+      azimuthTargetRef.current += sceneClock.delta(delta) * AUTO_ORBIT_SPEED;
     }
 
     if (inFlight()) return;
@@ -420,6 +457,7 @@ export default function Scene({ obscured = false }: { obscured?: boolean }) {
       <Diorama />
 
       <CameraController />
+      <ScenePause />
       <IdleHeartbeat obscured={obscured} />
     </Canvas>
   );

@@ -37,6 +37,14 @@ interface AppStateContextType {
    */
   turnTo: (section: NonNullable<SectionType>) => void;
   turnRequest: { section: NonNullable<SectionType>; nonce: number } | null;
+  /**
+   * Whether the diorama is frozen. Motion only: the idle orbit and everything
+   * that moves by itself stop where they are, while the camera can still be
+   * turned by hand and areas can still be opened — a paused town you can walk
+   * around is the point, a dead canvas is not.
+   */
+  paused: boolean;
+  togglePaused: () => void;
 }
 
 const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
@@ -47,6 +55,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [homeNonce, setHomeNonce] = useState(0);
   const [facing, setFacing] = useState<NonNullable<SectionType>>("products");
   const [turnRequest, setTurnRequest] = useState<{ section: NonNullable<SectionType>; nonce: number } | null>(null);
+  const [paused, setPaused] = useState(false);
+
+  const togglePaused = useCallback(() => setPaused((p) => !p), []);
 
   const openPage = useCallback((section: NonNullable<SectionType>) => {
     setActiveSection(section);
@@ -118,7 +129,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppStateContext.Provider
-      value={{ activeSection, setActiveSection, pageOpen, setPageOpen, openPage, closePage, goHome, homeNonce, facing, setFacing, turnTo, turnRequest }}
+      value={{ activeSection, setActiveSection, pageOpen, setPageOpen, openPage, closePage, goHome, homeNonce, facing, setFacing, turnTo, turnRequest, paused, togglePaused }}
     >
       {children}
     </AppStateContext.Provider>

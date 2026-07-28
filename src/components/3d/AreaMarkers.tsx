@@ -6,6 +6,7 @@ import { useCursor } from "@react-three/drei";
 import * as THREE from "three";
 import { SECTIONS, MARKER_CLEARANCE } from "./worldLayout";
 import { publishMarkerScreen } from "./markerScreen";
+import { sceneClock } from "./sceneClock";
 import { useAppState } from "../AppStateContext";
 
 /**
@@ -85,7 +86,10 @@ export default function AreaMarkers() {
   const spotlight = activeSection ?? facing;
 
   useFrame((state) => {
-    const time = state.clock.elapsedTime;
+    // Only the pulse is on the diorama's clock. The easing below and the
+    // projection at the end are answers to the camera and the pointer, both of
+    // which still move while the scene is paused.
+    const time = sceneClock.time(state.clock.elapsedTime);
 
     // Park each dot just clear of its building's real bounds, once the voxel
     // meshes exist. Reading the scene beats hand-tuned heights: the buildings

@@ -11,6 +11,7 @@ import {
   stepConfetti,
   type ConfettiPart,
 } from "./confetti";
+import { sceneClock } from "./sceneClock";
 
 const VS = 0.42;
 
@@ -58,7 +59,7 @@ export function FerrisWheel({ position = [0, 0, 0] as [number, number, number] }
   }, []);
 
   useFrame((_, delta) => {
-    if (wheelRef.current) wheelRef.current.rotation.z += delta * 0.25;
+    if (wheelRef.current) wheelRef.current.rotation.z += sceneClock.delta(delta) * 0.25;
   });
 
   return (
@@ -178,10 +179,11 @@ export function Clouds() {
   const models = useMemo(() => clouds.map((c) => cloudVoxels(c.seed)), [clouds]);
 
   useFrame((state) => {
+    const time = sceneClock.time(state.clock.elapsedTime);
     clouds.forEach((c, i) => {
       const g = refs.current[i];
       if (!g) return;
-      g.position.x = c.pos[0] + Math.sin(state.clock.elapsedTime * c.speed * 0.2 + c.seed) * 4;
+      g.position.x = c.pos[0] + Math.sin(time * c.speed * 0.2 + c.seed) * 4;
     });
   });
 
@@ -231,9 +233,14 @@ export function Confetti({ count = 90 }: { count?: number }) {
     const parts = partsRef.current;
     if (!mesh || parts.length === 0) return;
 
+    // Frozen, every flake would be written to the same matrix it already holds
+    // and the whole instance buffer re-uploaded for it. This is the one
+    // animation here with a per-frame cost worth skipping outright.
+    if (sceneClock.paused()) return;
+
     stepConfetti(parts, delta);
 
-    const t = state.clock.elapsedTime;
+    const t = sceneClock.time(state.clock.elapsedTime);
     for (let i = 0; i < parts.length; i++) {
       const p = parts[i];
       scratch.position.set(p.x + Math.sin(t * 0.6 + p.sway) * 0.7, p.y, p.z);
@@ -289,10 +296,11 @@ export function Villagers() {
   const models = useMemo(() => npcs.map((n) => npcVoxels(n.body, n.hair)), [npcs]);
 
   useFrame((state) => {
+    const time = sceneClock.time(state.clock.elapsedTime);
     npcs.forEach((n, i) => {
       const g = refs.current[i];
       if (!g) return;
-      const a = state.clock.elapsedTime * n.speed + n.phase;
+      const a = time * n.speed + n.phase;
       g.position.set(Math.cos(a) * n.r, 0.3 + Math.abs(Math.sin(a * 8)) * 0.08, Math.sin(a) * n.r);
       g.rotation.y = -a + (n.speed > 0 ? Math.PI / 2 : -Math.PI / 2);
     });

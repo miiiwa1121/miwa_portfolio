@@ -30,8 +30,11 @@ const ZIGZAG_STEP = 11;
 /** How far the peaks stand off the straight line between card and marker. */
 const ZIGZAG_AMPLITUDE = 6;
 
-/** Ceiling on vertices, so even the longest trail stays bounded. */
-const MAX_VERTICES = 160;
+/** One full zigzag: up to a peak and back down to the baseline. */
+const ZIGZAG_PERIOD = ZIGZAG_STEP * 2;
+
+/** Ceiling on whole zigzags, so even the longest trail stays bounded. */
+const MAX_CYCLES = 80;
 
 const STROKE_WIDTH = 2.4;
 
@@ -97,41 +100,42 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
       const sideX = -unitY;
       const sideY = unitX;
 
-      // Whole vertices at the fixed step, then a final one interpolated to land
-      // exactly on `reach`.
-      //
-      // Truncating to whole steps instead made the trail grow and shrink a
-      // segment at a time — and because the count was forced even so it would
-      // finish on the baseline, it jumped a whole peak at once, which read as
-      // the line being typed and deleted a character at a time. Carrying the
-      // last vertex to the exact distance lets the tip slide continuously; it
-      // passes through each whole vertex on the way, so nothing jumps.
-      const whole = Math.min(
-        Math.floor((reach - CARD_GAP) / ZIGZAG_STEP),
-        MAX_VERTICES - 2
-      );
-      if (whole < 2) return hide();
-
-      const liftAt = (i: number) => (i % 2 === 1 ? ZIGZAG_AMPLITUDE : 0);
       const vertex = (along: number, lift: number) => {
         const px = startX + unitX * along + sideX * lift;
         const py = startY + unitY * along + sideY * lift;
         points.push(`${px.toFixed(1)},${py.toFixed(1)}`);
       };
 
-      points.length = 0;
-      for (let i = 0; i <= whole; i++) {
-        // Peaks on the odd vertices, the even ones on the line itself — which
-        // is what makes it read as ^^^^ rather than a symmetrical wave.
-        vertex(CARD_GAP + i * ZIGZAG_STEP, liftAt(i));
-      }
+      // Both ends are pinned on the straight line between card and dot: the
+      // first vertex at CARD_GAP, the last exactly at `reach`. Only the last
+      // peak — the one nearest the dot — takes up the slack.
+      //
+      // Ending on an interpolated point of the zigzag instead let the tip drift
+      // up to the full amplitude off the axis as the trail's length changed,
+      // and with it the gap to the dot: the trail looked welded to the card but
+      // loose at the dot, which is exactly the asymmetry being fixed here.
+      const trail = reach - CARD_GAP;
+      const cycles = Math.min(Math.floor(trail / ZIGZAG_PERIOD), MAX_CYCLES);
 
-      const lastWhole = CARD_GAP + whole * ZIGZAG_STEP;
-      const overshoot = reach - lastWhole;
-      if (overshoot > 0.5) {
-        const t = overshoot / ZIGZAG_STEP;
-        vertex(reach, liftAt(whole) + (liftAt(whole + 1) - liftAt(whole)) * t);
+      points.length = 0;
+      for (let i = 0; i < cycles; i++) {
+        // Peak, then back down to the baseline — which is what makes it read as
+        // ^^^^ rather than a symmetrical wave.
+        vertex(CARD_GAP + i * ZIGZAG_PERIOD, 0);
+        vertex(CARD_GAP + i * ZIGZAG_PERIOD + ZIGZAG_STEP, ZIGZAG_AMPLITUDE);
       }
+      // The leftover grows a peak of its own, its height rising with the room
+      // it has. At a full period that peak is indistinguishable from the whole
+      // ones, so the moment it is absorbed into the loop above nothing moves —
+      // the trail still lengthens continuously, just from a fixed far end.
+      const whole = cycles * ZIGZAG_PERIOD;
+      const slack = trail - whole;
+      if (slack > 0.5) {
+        vertex(CARD_GAP + whole, 0);
+        const lift = Math.min(ZIGZAG_AMPLITUDE, (ZIGZAG_AMPLITUDE * slack) / ZIGZAG_PERIOD);
+        vertex(CARD_GAP + whole + slack / 2, lift);
+      }
+      vertex(reach, 0);
 
       line.setAttribute("points", points.join(" "));
     };
