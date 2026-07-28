@@ -17,7 +17,7 @@ import { Globe, ChevronRight, Terminal, X, Monitor } from "lucide-react";
 import { GithubIcon, XIcon } from "@/components/icons";
 import CardLeaderLine from "@/components/CardLeaderLine";
 import { useCardGestures } from "@/components/useCardGestures";
-import { adjacentSection } from "@/components/3d/worldLayout";
+import { adjacentSection, facingSection, HOME_ANGLE } from "@/components/3d/worldLayout";
 import {
   SHEET_VARIANTS,
   exitDirectionFor,
@@ -105,7 +105,7 @@ const CARD: Record<
 };
 
 export default function Home() {
-  const { activeSection, setActiveSection, pageOpen, openPage, closePage, goHome, facing, turnTo } = useAppState();
+  const { activeSection, setActiveSection, pageOpen, openPage, closePage, goHome, facing, setFacing, turnTo } = useAppState();
   const { language, toggleLanguage } = useLanguage();
   const { openTerminal } = useTerminal();
   const isJa = language === "ja";
@@ -167,8 +167,19 @@ export default function Home() {
   const closeToHome = (direction: ExitDirection, resetCamera: boolean) => {
     setExitDirection(direction);
     setCovered(false);
-    if (resetCamera) goHome();
-    else closePage();
+
+    // Say where the camera will end up facing in the same breath as sending it
+    // there. `facing` is otherwise only recomputed once the camera is idle, so
+    // for the half second the flight home takes it still held the area that
+    // was in front *before* this one was opened — and the card and the trail,
+    // which both read it, pointed at the wrong spot until the flight landed.
+    if (resetCamera) {
+      setFacing(facingSection(HOME_ANGLE));
+      goHome();
+    } else {
+      if (activeSection) setFacing(activeSection);
+      closePage();
+    }
   };
 
   const handleNav = (id: NonNullable<SectionType>) => {
