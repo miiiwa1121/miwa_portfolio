@@ -67,7 +67,12 @@ export default function VoxelModel({
         receiveShadow={receiveShadow}
       >
         <boxGeometry args={[voxelSize - gap * voxelSize, voxelSize - gap * voxelSize, voxelSize - gap * voxelSize]} />
-        <meshStandardMaterial roughness={0.9} metalness={0} />
+        {/* Lambert, not Standard. The voxels are flat matte colour with no
+            metalness or roughness variation to express, so the physically
+            based shading was computing a response nothing in the scene uses.
+            The reference site's author landed on the same material after
+            measuring. */}
+        <meshLambertMaterial />
       </instancedMesh>
       {children}
     </group>

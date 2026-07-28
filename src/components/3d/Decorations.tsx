@@ -252,7 +252,7 @@ export function Confetti({ count = 90 }: { count?: number }) {
       receiveShadow={false}
     >
       <boxGeometry args={[0.14, 0.14, 0.14]} />
-      <meshStandardMaterial roughness={0.6} />
+      <meshLambertMaterial />
     </instancedMesh>
   );
 }

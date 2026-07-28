@@ -381,7 +381,10 @@ export default function Scene({ obscured = false }: { obscured?: boolean }) {
         intensity={1.35}
         color="#fff3d6"
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        // Halved from 2048. The shadows here are large soft shapes cast by
+        // blocky geometry, where the extra resolution bought detail nobody
+        // could see for four times the shadow-pass cost.
+        shadow-mapSize={[1024, 1024]}
         shadow-camera-left={-30}
         shadow-camera-right={30}
         shadow-camera-top={30}
