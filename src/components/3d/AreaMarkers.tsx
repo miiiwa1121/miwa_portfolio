@@ -140,6 +140,20 @@ export default function AreaMarkers() {
     const camera = state.camera as THREE.PerspectiveCamera;
     const viewportHeight = state.size.height;
 
+    // Bring the camera's matrices up to date with the position it was just
+    // moved to, before anything below reads them.
+    //
+    // This is the whole reason the trail's far end used to lag the dot by a
+    // frame. `camera-controls`' update() writes `position` and `quaternion`
+    // every frame but only calls updateMatrixWorld() in its focal-offset
+    // branch, which this scene never takes — so at this point matrixWorld and
+    // matrixWorldInverse are still the *previous* frame's. project() reads
+    // matrixWorldInverse, so the trail was aimed at where the marker had been,
+    // while gl.render() refreshed the matrices a moment later and drew the dot
+    // where it now is. Static things never showed it; the gap at the moving
+    // end opened turning one way and closed turning the other.
+    camera.updateMatrixWorld();
+
     SECTIONS.forEach((section, i) => {
       const sprite = sprites.current[i];
       if (!sprite) return;

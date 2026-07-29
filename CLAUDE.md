@@ -60,6 +60,7 @@ Vitest（node 環境）で、**React も three.js も含まない純粋ロジッ
 - **カードとカメラを相互に更新しない。** 正面のエリアは `facingSection()` が方位角から決め、カードはそれを読むだけ
 - **マーカーとカードを結ぶ点線は React state を通さない。** 毎フレームの再レンダーを避けるため `3d/markerScreen.ts` の購読チャンネル経由で渡す
 - **マーカーの大きさは画面 px で決め、ワールド scale を毎フレーム逆算する（`markerScaleForScreenRadius()`）。** 逆はできない。スプライトはビュー空間で頂点をずらすビルボードなので、ワールド空間のベクトルを射影しても画面サイズにはならない
+- **`useFrame` の中でカメラの行列を読む前に `camera.updateMatrixWorld()` を呼ぶ。** `camera-controls` は毎フレーム `position` / `quaternion` しか書かず、行列を張り直すのは `gl.render()` の中。これを飛ばすと `.project()` が前フレームのカメラで射影し、DOM 側だけ1フレーム遅れる（回転方向で符号が反転するズレになる）
 - **自分から動くものは `3d/sceneClock.ts` から時刻を読む。** `state.clock.elapsedTime` や生の `delta` を直接使うと、停止ボタンで止まらないオブジェクトが1つだけ残る
 - **詳細ページがキャンバスを覆っている間は `frameloop="demand"`。** 省電力のためのこの切り替えを外さない
 
