@@ -210,7 +210,7 @@ export default function Home() {
 
           {/* Nav + language */}
           <div className="flex items-center gap-4">
-            <nav className="hidden lg:flex gap-2 pointer-events-auto bg-white/85 backdrop-blur-md px-3 py-3 rounded-full shadow-sm border border-black/5">
+            <nav className="hidden lg:flex gap-2 pointer-events-auto bg-white/85 backdrop-blur-md px-3 py-3 rounded-full border border-black/5">
               {NAV.map((item) => (
                 <button
                   key={item.id}
@@ -229,7 +229,7 @@ export default function Home() {
             <button
               onClick={toggleLanguage}
               title="Toggle language"
-              className="h-14 px-4 bg-white/85 backdrop-blur-md rounded-full flex items-center gap-2 text-gray-800 shadow-sm hover:scale-105 transition-transform border border-black/5 pointer-events-auto"
+              className="h-14 px-4 bg-white/85 backdrop-blur-md rounded-full flex items-center gap-2 text-gray-800 hover:scale-105 transition-transform border border-black/5 pointer-events-auto"
             >
               <Globe size={22} className="text-orange-500" />
               <span className="text-sm font-black w-6">{isJa ? "JP" : "EN"}</span>
@@ -242,7 +242,7 @@ export default function Home() {
               title={paused ? (isJa ? "動きを再生" : "Resume motion") : (isJa ? "動きを停止" : "Pause motion")}
               aria-label={paused ? (isJa ? "動きを再生" : "Resume motion") : (isJa ? "動きを停止" : "Pause motion")}
               aria-pressed={paused}
-              className={`w-14 h-14 rounded-full flex items-center justify-center shadow-sm hover:scale-105 transition-transform border border-black/5 pointer-events-auto ${
+              className={`w-14 h-14 rounded-full flex items-center justify-center hover:scale-105 transition-transform border border-black/5 pointer-events-auto ${
                 paused ? "bg-orange-500 text-white" : "bg-white/85 backdrop-blur-md text-gray-800"
               }`}
             >
@@ -283,7 +283,7 @@ export default function Home() {
               onClick={() => setToolsOpen((o) => !o)}
               title={isJa ? "リンク" : "Links"}
               aria-expanded={toolsOpen}
-              className={`w-11 h-11 rounded-full flex items-center justify-center shadow-sm hover:scale-110 transition-all border border-black/5 ${
+              className={`w-11 h-11 rounded-full flex items-center justify-center hover:scale-110 transition-all border border-black/5 ${
                 toolsOpen ? "bg-orange-500 text-white" : "bg-white/85 backdrop-blur-md text-gray-800"
               }`}
             >
@@ -296,7 +296,7 @@ export default function Home() {
                   target="_blank"
                   rel="noopener noreferrer"
                   title="GitHub"
-                  className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-800 shadow-sm hover:scale-110 transition-transform border border-black/5 shrink-0"
+                  className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-800 hover:scale-110 transition-transform border border-black/5 shrink-0"
                 >
                   <GithubIcon size={20} />
                 </a>
@@ -305,14 +305,14 @@ export default function Home() {
                   target="_blank"
                   rel="noopener noreferrer"
                   title="X"
-                  className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-900 shadow-sm hover:scale-110 transition-transform border border-black/5 shrink-0"
+                  className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-900 hover:scale-110 transition-transform border border-black/5 shrink-0"
                 >
                   <XIcon size={18} />
                 </a>
                 <button
                   onClick={openTerminal}
                   title="Terminal mode"
-                  className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-green-600 shadow-sm hover:scale-110 transition-transform border border-black/5 shrink-0"
+                  className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-green-600 hover:scale-110 transition-transform border border-black/5 shrink-0"
                 >
                   <Terminal size={20} />
                 </button>
@@ -356,7 +356,7 @@ export default function Home() {
       {activeSection && activeSection !== "about" && !pageOpen && (
         <button
           onClick={() => closeToHome("down", true)}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2 bg-white text-gray-800 font-bold py-3 px-7 rounded-full shadow-lg border border-black/5 hover:scale-105 transition-transform"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2 bg-white text-gray-800 font-bold py-3 px-7 rounded-full border border-black/5 hover:scale-105 transition-transform"
         >
           <X size={18} /> HOME
         </button>
@@ -379,7 +379,7 @@ export default function Home() {
             {/* Transparent spacer: scrolling up into it returns home */}
             <div className="h-screen pointer-events-none" />
 
-            <div className="bg-white pt-24 pb-24 min-h-screen flex flex-col shadow-2xl relative z-30">
+            <div className="bg-white pt-24 pb-24 min-h-screen flex flex-col relative z-30">
               <div className="flex-grow">
                 <AnimatePresence mode="wait">
                   <motion.div

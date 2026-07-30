@@ -20,7 +20,7 @@ export default function ProjectCard({ project, onOpen, onBlockedLink }: Props) {
     <motion.div
       whileHover={{ y: -5 }}
       onClick={() => onOpen(project)}
-      className="group rounded-2xl bg-white border border-black/5 shadow-sm overflow-hidden flex flex-col hover:border-[var(--primary)]/50 hover:shadow-lg transition-all duration-300 cursor-pointer"
+      className="group rounded-2xl bg-white border border-black/5 overflow-hidden flex flex-col hover:border-[var(--primary)]/50 transition-all duration-300 cursor-pointer"
     >
       <div className="relative w-full overflow-hidden h-48 bg-gray-50">
         <Image

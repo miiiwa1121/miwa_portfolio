@@ -16,7 +16,7 @@ export default function Contact() {
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="p-8 md:p-12 rounded-3xl bg-white border border-black/5 shadow-xl relative overflow-hidden"
+          className="p-8 md:p-12 rounded-3xl bg-white border border-black/5 relative overflow-hidden"
         >
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)]"></div>
 
@@ -39,7 +39,7 @@ export default function Contact() {
             </Link>
             <Link
               href="mailto:contact@example.com"
-              className="flex items-center justify-center gap-3 w-full sm:w-auto px-8 py-4 rounded-full bg-white text-gray-800 font-bold border border-black/10 shadow-sm hover:border-orange-500 hover:text-orange-500 hover:scale-105 transition-all"
+              className="flex items-center justify-center gap-3 w-full sm:w-auto px-8 py-4 rounded-full bg-white text-gray-800 font-bold border border-black/10 hover:border-orange-500 hover:text-orange-500 hover:scale-105 transition-all"
             >
               <Mail size={20} />
               Email Me

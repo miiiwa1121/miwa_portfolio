@@ -35,7 +35,7 @@ export default function ProductFilters({
             aria-pressed={category === value}
             className={`px-6 py-2 rounded-full font-bold transition-all duration-300 ${
               category === value
-                ? "bg-orange-500 text-white shadow-sm border-transparent"
+                ? "bg-orange-500 text-white border-transparent"
                 : "bg-white text-gray-600 hover:text-orange-500 hover:bg-orange-50 border border-black/10"
             }`}
           >
@@ -45,7 +45,7 @@ export default function ProductFilters({
       </div>
 
       {/* Status */}
-      <div className="flex gap-2 p-1.5 bg-white rounded-full border border-black/10 shadow-sm ml-auto mr-auto md:mr-0 w-full md:w-auto overflow-x-auto custom-scrollbar">
+      <div className="flex gap-2 p-1.5 bg-white rounded-full border border-black/10 ml-auto mr-auto md:mr-0 w-full md:w-auto overflow-x-auto custom-scrollbar">
         {STATUS_FILTERS.map((value) => (
           <button
             key={value}
@@ -53,7 +53,7 @@ export default function ProductFilters({
             aria-pressed={status === value}
             className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 ${
               status === value
-                ? "bg-orange-500 text-white shadow-sm"
+                ? "bg-orange-500 text-white"
                 : "text-gray-500 hover:text-orange-500 hover:bg-orange-50"
             }`}
           >

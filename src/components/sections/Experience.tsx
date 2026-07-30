@@ -146,11 +146,11 @@ export default function Experience() {
             transition={{ duration: 0.5, delay: index * 0.1 }}
             className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active"
           >
-            <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-[var(--primary)] shadow-md shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 relative z-10">
+            <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-[var(--primary)] shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 relative z-10">
               <div className="w-2 h-2 bg-white rounded-full" />
             </div>
 
-            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-6 rounded-2xl bg-white border border-black/5 shadow-sm hover:border-[var(--primary)]/50 hover:shadow-md transition-all">
+            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-6 rounded-2xl bg-white border border-black/5 hover:border-[var(--primary)]/50 transition-all">
               <div className="flex flex-col md:flex-row md:items-center justify-between mb-2 gap-2">
                 <h3 className="font-bold text-gray-900 text-xl">{exp.title}</h3>
                 <span className="text-[var(--primary)] font-mono text-sm font-semibold bg-[var(--primary)]/10 px-3 py-1 rounded-full w-fit">{exp.year}</span>

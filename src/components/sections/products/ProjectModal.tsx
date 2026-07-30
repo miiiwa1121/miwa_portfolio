@@ -44,12 +44,12 @@ export default function ProjectModal({ project, onClose, onBlockedLink }: Props)
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.9, opacity: 0, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-5xl bg-white border border-black/5 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+        className="relative w-full max-w-5xl bg-white border border-black/5 rounded-3xl overflow-hidden flex flex-col max-h-[90vh]"
       >
         <button
           onClick={onClose}
           aria-label={language === "ja" ? "閉じる" : "Close"}
-          className="absolute top-4 right-4 z-10 p-2 bg-white/85 hover:bg-orange-500 hover:text-white text-gray-800 rounded-full backdrop-blur-md shadow-sm transition-colors"
+          className="absolute top-4 right-4 z-10 p-2 bg-white/85 hover:bg-orange-500 hover:text-white text-gray-800 rounded-full backdrop-blur-md transition-colors"
         >
           <X size={20} />
         </button>
@@ -131,7 +131,7 @@ export default function ProjectModal({ project, onClose, onBlockedLink }: Props)
               iconSize={20}
               codeLabel="View Code"
               demoLabel="Play Now"
-              codeClassName="flex-1 py-4 flex items-center justify-center gap-2 rounded-xl bg-white hover:bg-gray-50 border border-black/10 shadow-sm text-gray-800 font-bold transition-all hover:scale-[1.02]"
+              codeClassName="flex-1 py-4 flex items-center justify-center gap-2 rounded-xl bg-white hover:bg-gray-50 border border-black/10 text-gray-800 font-bold transition-all hover:scale-[1.02]"
               demoClassName="flex-1 py-4 flex items-center justify-center gap-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold transition-all shadow-[0_4px_0_var(--primary-strong)] active:shadow-none active:translate-y-1"
             />
           </div>

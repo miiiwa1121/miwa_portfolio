@@ -61,11 +61,8 @@ export default function Skills() {
               viewport={{ once: true }}
               transition={{ delay: (index % 6) * 0.05 }}
               whileHover={{ y: -5, scale: 1.05 }}
-              className="flex flex-col items-center justify-center p-6 rounded-2xl bg-white border border-black/5 shadow-sm hover:border-[var(--hover-color)] hover:shadow-[0_6px_20px_var(--hover-color-alpha)] transition-all duration-300 cursor-default group"
-              style={{
-                '--hover-color': skill.color,
-                '--hover-color-alpha': `${skill.color}33` // 20% opacity hex
-              } as React.CSSProperties}
+              className="flex flex-col items-center justify-center p-6 rounded-2xl bg-white border border-black/5 hover:border-[var(--hover-color)] transition-all duration-300 cursor-default group"
+              style={{ '--hover-color': skill.color } as React.CSSProperties}
             >
               <Icon
                 size={48}

@@ -16,6 +16,7 @@
 - **Tailwind CSS** (v4) - ユーティリティファーストのCSSフレームワーク。デザイントークンは `src/app/globals.css` の `:root` に集約。
 - **Framer Motion** - React向けの高機能アニメーションライブラリ。セクションのフェードイン、詳細ページの開閉、モーダルの出現に使用。
 - **Lucide React** / **React Icons** - SVGアイコンライブラリ。技術スタックのアイコンはローカル描画（外部CDNに依存しない）。
+- **柔らかい環境光的な box-shadow（`shadow-sm`〜`shadow-2xl`）は採用しない方針。** カード・ヘッダー・詳細ページ（Products/Skills/Experience/Contact の内側のカード類も含む）は `border border-black/5` 系のボーダーだけで面の境界を示す。例外は2つ、どちらも「環境光」ではなく別の意味を持つ意図的な効果: (1) オレンジのCTAボタンの `shadow-[0_4px_0_...]`＋`active:shadow-none active:translate-y-1` は押し込み感を出す立体的な段差で、外すとボタンの物理的なフィードバックそのものが消える。(2) ステータスを示す小さいドットの `shadow-[0_0_8px/10px_...]` は発光表現で、面の下に落ちる影ではない。
 
 ## デザイントークン
 サイト全体の配色は3Dのボクセル世界と揃えている。
