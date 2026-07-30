@@ -482,3 +482,25 @@ export function homePose(azimuth: number): Pose {
 export function homeFocalOffsetX(fovDegrees: number, aspect: number): number {
   return -aimOffset(HOME_DISTANCE, fovDegrees, aspect, HOME_CARD_SHARE);
 }
+
+/**
+ * Whether the frame's dimensions actually changed — i.e. whether the focal
+ * offset above, which is a share of the frame's width, has to be recomputed.
+ *
+ * By value, and not by the identity of the object holding them, which is the
+ * whole reason this is a named function with a test. `useThree`'s `size` is
+ * handed back as a *fresh object* on re-renders that have nothing to do with a
+ * resize, so `prev === next` reads every re-render as a resize. That is not a
+ * harmless extra recomputation: the resize path *snaps* the offset to its
+ * destination, so a re-render that focused an area (or left one) teleported the
+ * offset there a moment before the flight read it as its starting value. From
+ * and to came out equal, the offset never travelled, and the frame jumped
+ * sideways by the whole push instead — measured at 141px focusing an area and
+ * 164px leaving one, on a 1280px-wide frame.
+ */
+export function frameSizeChanged(
+  prev: { width: number; height: number },
+  next: { width: number; height: number }
+): boolean {
+  return prev.width !== next.width || prev.height !== next.height;
+}

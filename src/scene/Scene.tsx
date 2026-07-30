@@ -13,6 +13,7 @@ import {
   aimOffset,
   FRAME_MARGIN,
   facingSection,
+  frameSizeChanged,
   homePose,
   homeFocalOffsetX,
   wrapAngle,
@@ -352,13 +353,21 @@ function CameraController() {
   // would trail the offset behind the frame it is measured against. Mid-flight
   // the flight owns the offset, so the new figure is handed to it as a
   // destination instead — snapping there would be undone on the next frame.
-  // Guarded on the size object's identity so this only ever acts on a real
-  // resize — `activeSection` is in the deps to keep the closure above current,
-  // not as a reason to run.
-  const lastSizeRef = useRef(size);
+  //
+  // Guarded on the frame's *dimensions*, via `frameSizeChanged`, so this only
+  // ever acts on a real resize. It used to compare `size` by identity, and
+  // `useThree` hands back a fresh object on re-renders that are not resizes at
+  // all — so this ran on every re-render, including the one that focuses an
+  // area or leaves it. Since it runs *before* the destination effect below, it
+  // snapped the offset to that destination before the flight could read it as
+  // its starting value, and the flight then travelled from the destination to
+  // the destination: the sideways push arrived in a single frame as a 141px
+  // jump instead of easing in over the trip. `activeSection` is in the deps to
+  // keep the closure above current, not as a reason to run.
+  const lastSizeRef = useRef({ width: size.width, height: size.height });
   useEffect(() => {
-    if (lastSizeRef.current === size) return;
-    lastSizeRef.current = size;
+    if (!frameSizeChanged(lastSizeRef.current, size)) return;
+    lastSizeRef.current = { width: size.width, height: size.height };
     const glide = glideRef.current;
     if (glide) glide.toOffsetX = focalOffsetX();
     else snapFocalOffset();

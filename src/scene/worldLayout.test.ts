@@ -25,6 +25,7 @@ import {
   frameDistance,
   framePose,
   glidePose,
+  frameSizeChanged,
   homeFocalOffsetX,
   homePose,
   markerScaleForScreenRadius,
@@ -313,6 +314,36 @@ describe("homeFocalOffsetX", () => {
 
   it("pushes less than a section does, since the whole island has to stay in frame", () => {
     expect(HOME_CARD_SHARE).toBeLessThan(CARD_SHARE);
+  });
+});
+
+describe("frameSizeChanged", () => {
+  // The case this exists for, and the bug it is a regression test against: two
+  // *different objects* holding the same dimensions are not a resize. `useThree`
+  // hands back a fresh `size` on re-renders that are not resizes, and the
+  // resize path snaps the focal offset straight to its destination — so reading
+  // those re-renders as resizes teleported the offset to the destination just
+  // before a flight read it as its starting value, and the sideways push
+  // arrived as a jump instead of easing in. An identity comparison passes every
+  // other test here and fails only this one.
+  it("is not a resize when a fresh object carries the same dimensions", () => {
+    expect(frameSizeChanged({ width: 1280, height: 800 }, { width: 1280, height: 800 })).toBe(
+      false
+    );
+  });
+
+  it("is a resize when either dimension moves", () => {
+    expect(frameSizeChanged({ width: 1280, height: 800 }, { width: 1281, height: 800 })).toBe(true);
+    expect(frameSizeChanged({ width: 1280, height: 800 }, { width: 1280, height: 799 })).toBe(true);
+  });
+
+  // Width is what the offset is a share of, but height changes the aspect and
+  // so the frame's width in world units too — both have to count.
+  it("counts a height-only change, which still moves the aspect", () => {
+    const before = homeFocalOffsetX(45, 1280 / 800);
+    const after = homeFocalOffsetX(45, 1280 / 600);
+    expect(after).not.toBeCloseTo(before);
+    expect(frameSizeChanged({ width: 1280, height: 800 }, { width: 1280, height: 600 })).toBe(true);
   });
 });
 
