@@ -13,7 +13,7 @@ import {
 } from "./worldLayout";
 import { publishMarkerScreen } from "./markerScreen";
 import { sceneClock } from "./sceneClock";
-import { useAppState } from "../AppStateContext";
+import { useAppState } from "@/state/AppStateContext";
 
 /**
  * A pulsing dot floating over each area, marking the spots worth visiting.

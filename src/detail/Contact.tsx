@@ -1,10 +1,10 @@
 "use client";
 
-import Section from "@/components/Section";
+import Section from "./Section";
 import { motion } from "framer-motion";
 import { Mail, MessageSquare } from "lucide-react";
 import Link from "next/link";
-import { useLanguage } from "../LanguageContext";
+import { useLanguage } from "@/state/LanguageContext";
 
 export default function Contact() {
   const { language } = useLanguage();

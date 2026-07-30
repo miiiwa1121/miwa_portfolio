@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useLanguage } from "../LanguageContext";
+import { useLanguage } from "@/state/LanguageContext";
 import { motion } from "framer-motion";
 import {
   aboutReturn,
@@ -10,7 +10,7 @@ import {
   settleRetryDelay,
   shouldReturnHome,
   wheelScrollStep,
-} from "../aboutScroll";
+} from "./aboutScroll";
 
 /**
  * The About column: text straight over the diorama, with no card and no sheet.

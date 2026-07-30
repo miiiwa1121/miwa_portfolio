@@ -26,8 +26,8 @@ import {
   type Pose,
 } from "./worldLayout";
 import { sceneClock } from "./sceneClock";
-import { aboutReturn } from "../aboutScroll";
-import { useAppState, type SectionType } from "../AppStateContext";
+import { aboutReturn } from "@/hub/about/aboutScroll";
+import { useAppState, type SectionType } from "@/state/AppStateContext";
 
 // Rotation sensitivity (kept gentle).
 const DRAG_SENSITIVITY = 0.002; // radians per px of pointer drag

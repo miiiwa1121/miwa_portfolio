@@ -62,15 +62,22 @@ npm run build
 
 ## 📁 ディレクトリ構成
 
+画面上の役割でディレクトリを切っている（`components/` のような実装手段での分類はしていない）。
+
 ```
 src/
 ├── app/                  # App Router のエントリポイント（layout / page / globals.css）
-├── components/
-│   ├── 3d/               # Three.js / R3F のシーン
-│   │   └── voxel/        # ボクセルエンジン（生成ヘルパー・パレット・立体文字）
-│   ├── sections/         # 詳細ページの各セクション
-│   └── ...               # 状態管理コンテキスト・ターミナル等
-└── data/                 # 制作実績のデータ（日英）
+├── types.ts              # 全層が読む語彙（Language / SectionType）
+├── state/                # アプリ全体の状態（AppState / Language の Context、URLハッシュ連携）
+├── scene/                # Three.js / R3F のシーン
+│   └── voxel/            # ボクセルエンジン（生成ヘルパー・パレット・立体文字）
+├── hub/                  # キャンバスの上に浮くホーム画面（カード・点線トレイル・Footer）
+│   └── about/            # 自己紹介カラム（シートを開かない唯一の例外）
+├── detail/                # HTMLで組む詳細ページの各セクション
+│   └── products/         # 制作実績セクションのUI
+├── terminal/              # ターミナルモード（Context + Overlay）
+├── ui/                    # 複数箇所で使う共有UIパーツ（アイコン等）
+└── data/                  # 制作実績のデータ（日英）
 ```
 
 技術スタックの詳細は [docs/tech.md](docs/tech.md) を参照してください。

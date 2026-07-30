@@ -1,5 +1,5 @@
 import type { Project } from "@/data";
-import type { Language } from "@/components/LanguageContext";
+import type { Language } from "@/state/LanguageContext";
 
 /** Category filter values. "All" is the no-op option. */
 export const CATEGORY_FILTERS = ["All", "WEB", "APP"] as const;

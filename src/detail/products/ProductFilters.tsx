@@ -1,6 +1,6 @@
 "use client";
 
-import { useLanguage } from "@/components/LanguageContext";
+import { useLanguage } from "@/state/LanguageContext";
 import {
   CATEGORY_FILTERS,
   STATUS_FILTERS,

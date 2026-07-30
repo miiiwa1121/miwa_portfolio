@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight } from "lucide-react";
 import { useCardGestures } from "./useCardGestures";
 import { initialWheelState, stepForWheel } from "./cardWheel";
-import type { SectionType } from "./AppStateContext";
+import type { SectionType } from "@/types";
 
 /**
  * The contextual card over the diorama, drawn as a stack.

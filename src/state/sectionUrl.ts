@@ -1,4 +1,4 @@
-import type { SectionType } from "./AppStateContext";
+import type { SectionType } from "@/types";
 
 /**
  * The open section, expressed in the URL.

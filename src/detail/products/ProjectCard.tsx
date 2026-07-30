@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { useLanguage } from "@/components/LanguageContext";
+import { useLanguage } from "@/state/LanguageContext";
 import type { Project } from "@/data";
 import { statusLabel } from "./catalog";
 import ProjectLinks, { type BlockedLink } from "./ProjectLinks";

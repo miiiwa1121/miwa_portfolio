@@ -1,8 +1,8 @@
 "use client";
 
-import Section from "@/components/Section";
+import Section from "./Section";
 import { motion } from "framer-motion";
-import { useLanguage } from "../LanguageContext";
+import { useLanguage } from "@/state/LanguageContext";
 
 const experiencesJP = [
   {

@@ -1,4 +1,4 @@
-import type { SectionType } from "../AppStateContext";
+import type { SectionType } from "@/types";
 
 /**
  * Where the world sits and where the camera looks from.

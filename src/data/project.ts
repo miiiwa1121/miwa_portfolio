@@ -1,4 +1,4 @@
-import type { Language } from "@/components/LanguageContext";
+import type { Language } from "@/types";
 
 export type ProjectCategory = "WEB" | "APP";
 export type ProjectStatus = "Public" | "dev";

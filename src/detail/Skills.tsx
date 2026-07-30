@@ -1,6 +1,6 @@
 "use client";
 
-import Section from "@/components/Section";
+import Section from "./Section";
 import { motion } from "framer-motion";
 import {
   SiHtml5, SiCss, SiJavascript, SiTypescript,

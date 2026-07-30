@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { SectionType } from "../AppStateContext";
+import type { SectionType } from "@/types";
 import VoxelModel, { Voxel } from "./voxel/VoxelModel";
 import VoxelText from "./voxel/VoxelText";
 import { fillBox, shellBox, put } from "./voxel/builders";

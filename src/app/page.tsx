@@ -2,27 +2,27 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAppState, SectionType } from "@/components/AppStateContext";
-import { useLanguage } from "@/components/LanguageContext";
-import { useTerminal } from "@/components/TerminalContext";
-import Scene from "@/components/3d/Scene";
-import TerminalOverlay from "@/components/TerminalOverlay";
-import About from "@/components/sections/About";
-import Products from "@/components/sections/Products";
-import Skills from "@/components/sections/Skills";
-import Experience from "@/components/sections/Experience";
-import Contact from "@/components/sections/Contact";
-import Footer from "@/components/Footer";
+import { useAppState, SectionType } from "@/state/AppStateContext";
+import { useLanguage } from "@/state/LanguageContext";
+import { useTerminal } from "@/terminal/TerminalContext";
+import Scene from "@/scene/Scene";
+import TerminalOverlay from "@/terminal/TerminalOverlay";
+import About from "@/hub/about/About";
+import Products from "@/detail/Products";
+import Skills from "@/detail/Skills";
+import Experience from "@/detail/Experience";
+import Contact from "@/detail/Contact";
+import Footer from "@/hub/Footer";
 import { Globe, Terminal, X, Monitor, Pause, Play } from "lucide-react";
-import { GithubIcon, XIcon } from "@/components/icons";
-import CardLeaderLine from "@/components/CardLeaderLine";
-import AreaCard from "@/components/AreaCard";
-import { adjacentSection, facingSection, HOME_ANGLE } from "@/components/3d/worldLayout";
+import { GithubIcon, XIcon } from "@/ui/icons";
+import CardLeaderLine from "@/hub/CardLeaderLine";
+import AreaCard from "@/hub/AreaCard";
+import { adjacentSection, facingSection, HOME_ANGLE } from "@/scene/worldLayout";
 import {
   SHEET_VARIANTS,
   exitDirectionFor,
   type ExitDirection,
-} from "@/components/detailSheet";
+} from "@/detail/detailSheet";
 
 // Each transparent spacer bracketing the detail page is exactly one viewport
 // tall, which is what makes "the panel has left the screen" and "progress has

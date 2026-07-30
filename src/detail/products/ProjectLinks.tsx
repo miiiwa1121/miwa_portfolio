@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
-import { GithubIcon } from "@/components/icons";
+import { GithubIcon } from "@/ui/icons";
 import type { Project } from "@/data";
 import { isPlaceholderUrl } from "./catalog";
 

@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence } from "framer-motion";
-import Section from "@/components/Section";
-import { useLanguage } from "@/components/LanguageContext";
+import Section from "./Section";
+import { useLanguage } from "@/state/LanguageContext";
 import { PROJECTS, localizeProjects, type Project } from "@/data";
 import {
   filterProjects,

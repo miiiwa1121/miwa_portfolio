@@ -2,8 +2,9 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
 import { hashForSection, sectionFromHash } from "./sectionUrl";
+import type { SectionType } from "@/types";
 
-export type SectionType = "about" | "products" | "skills" | "experience" | "contact" | null;
+export type { SectionType };
 
 interface AppStateContextType {
   /** Which building the camera is focused on (null = home diorama view). */

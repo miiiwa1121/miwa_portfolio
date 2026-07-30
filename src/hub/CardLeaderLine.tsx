@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { onMarkerScreen, type MarkerScreenPoint } from "@/components/3d/markerScreen";
+import { onMarkerScreen, type MarkerScreenPoint } from "@/scene/markerScreen";
 
 /**
  * The zigzag trail from the card out to the marker floating over its area.

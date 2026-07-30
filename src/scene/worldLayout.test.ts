@@ -33,7 +33,7 @@ import {
   sectionTargets,
   wrapAngle,
 } from "./worldLayout";
-import type { SectionType } from "../AppStateContext";
+import type { SectionType } from "@/types";
 
 
 describe("azimuthToXZ", () => {
