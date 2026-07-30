@@ -45,7 +45,7 @@ export const ABOUT_SETTLE_MS = 500;
  *
  * The one number to change if it still wants tuning.
  */
-export const ABOUT_SCROLL_RATE = 0.5;
+export const ABOUT_SCROLL_RATE = 0.2;
 
 /**
  * A wheel notch in lines, in pixels.
