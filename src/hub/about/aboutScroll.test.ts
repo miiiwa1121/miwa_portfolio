@@ -79,26 +79,26 @@ describe("wheelScrollStep", () => {
   // Literals, not ABOUT_SCROLL_RATE: written against the constant every one of
   // these holds at a rate of 1, which is the setting they exist to rule out —
   // it is the browser's own pace, i.e. the thing this replaced.
-  it("carries the column half as far as the wheel asks", () => {
-    expect(wheelScrollStep(100, 0, 950)).toBe(50);
-    expect(wheelScrollStep(240, 0, 950)).toBe(120);
+  it("damps the wheel well below the browser's own pace", () => {
+    expect(wheelScrollStep(100, 0, 950)).toBe(20);
+    expect(wheelScrollStep(240, 0, 950)).toBe(48);
   });
 
   it("scrolls back up as readily as down", () => {
-    expect(wheelScrollStep(-100, 0, 950)).toBe(-50);
+    expect(wheelScrollStep(-100, 0, 950)).toBe(-20);
   });
 
   // Firefox reports lines, not pixels: three of them damped as though they
   // were three pixels would leave the column all but frozen.
   it("reads a delta in lines as lines", () => {
-    expect(wheelScrollStep(3, 1, 950)).toBe(60);
-    expect(wheelScrollStep(-3, 1, 950)).toBe(-60);
+    expect(wheelScrollStep(3, 1, 950)).toBe(24);
+    expect(wheelScrollStep(-3, 1, 950)).toBe(-24);
   });
 
   // A page is the reader's own viewport, so this one cannot be a fixed figure.
   it("reads a delta in pages against the column's own height", () => {
-    expect(wheelScrollStep(1, 2, 950)).toBe(475);
-    expect(wheelScrollStep(1, 2, 600)).toBe(300);
+    expect(wheelScrollStep(1, 2, 950)).toBe(190);
+    expect(wheelScrollStep(1, 2, 600)).toBe(120);
   });
 
   it("never travels further than the browser would have", () => {

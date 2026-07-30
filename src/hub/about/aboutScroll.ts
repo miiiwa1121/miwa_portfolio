@@ -37,11 +37,12 @@ export const ABOUT_SETTLE_MS = 500;
  * How far a wheel gesture carries the column, as a share of the travel the
  * browser would have given it.
  *
- * Half speed. The column is not a document being skimmed for a heading — it is
- * a piece of writing that also flies the camera home, and at the browser's own
- * rate one flick of a trackpad crosses most of it, taking the diorama with it.
- * Halving the travel makes the same gesture read a paragraph rather than a
- * page, and gives the return the length of a trip instead of a jump cut.
+ * One-fifth speed. The column is not a document being skimmed for a heading —
+ * it is a piece of writing that also flies the camera home, and at the
+ * browser's own rate one flick of a trackpad crosses most of it, taking the
+ * diorama with it. Cutting the travel down makes the same gesture read a
+ * paragraph rather than a page, and gives the return the length of a trip
+ * instead of a jump cut.
  *
  * The one number to change if it still wants tuning.
  */
