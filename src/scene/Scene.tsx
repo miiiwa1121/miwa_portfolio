@@ -50,8 +50,8 @@ const WHEEL_REARM_MS = 220;
  * in the way there is nothing to wait for, and the same delay would only read
  * as the camera being slow off the mark.
  */
-const FLIGHT_SECONDS = 0.8;
-const RETURN_SECONDS = 1.2;
+const FLIGHT_SECONDS = 1.1;
+const RETURN_SECONDS = 1.6;
 
 /**
  * The largest step one frame may contribute to a flight.
