@@ -453,9 +453,16 @@ function CameraController() {
       return;
     }
 
-    // 2. A deliberate reset (logo / HOME): the one fixed default view, so it
-    //    lands in exactly the same place every single time.
-    if (wasReset) {
+    // 2. A deliberate reset (logo / HOME) with no area to leave — the camera
+    //    was already free, idle-orbiting or dragged off to wherever, so there
+    //    is nothing to pull back *from* and this is the one fixed default view
+    //    every time. If an area *was* focused, this falls through to 4 instead:
+    //    pulling back facing that area is the same trip scrolling off the
+    //    detail page makes, and re-aiming at HOME_ANGLE on top of it used to
+    //    spend the flight sweeping the whole distance between the two angles —
+    //    at 45° and the reset button doubling as "spin most of the way round
+    //    the island" for every area that didn't happen to sit near there.
+    if (wasReset && !(cameFrom && sectionTargets[cameFrom])) {
       flyTo(homePose(HOME_ANGLE), HOME_ANGLE);
       return;
     }
@@ -478,8 +485,11 @@ function CameraController() {
       return;
     }
 
-    // 4. Scrolled off the detail page: back out to the overview distance, but
-    //    turned so the area just read about is the thing facing the camera.
+    // 4. Left an area — by scrolling off the detail page, or by the logo /
+    //    HOME while one was focused (2 falls through to here for that case).
+    //    Either way: back out to the overview distance, but turned so the area
+    //    just read about is the thing facing the camera, not spun round to a
+    //    fixed angle that has nothing to do with where the camera already was.
     if (cameFrom && sectionTargets[cameFrom]) {
       const azimuth = sectionAzimuth(cameFrom);
       flyTo(homePose(azimuth), azimuth);
