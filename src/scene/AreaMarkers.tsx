@@ -11,6 +11,7 @@ import {
   MARKER_DOT_RIM,
   markerScaleForScreenRadius,
 } from "./worldLayout";
+import { sectionDirection } from "./planet/sections";
 import { publishMarkerScreen } from "./markerScreen";
 import { sceneClock } from "./sceneClock";
 import { useAppState } from "@/state/AppStateContext";
@@ -86,6 +87,32 @@ function makeDotTexture(): THREE.Texture {
 /** Scratch vectors; never read across frames. */
 const projected = new THREE.Vector3();
 const viewSpace = new THREE.Vector3();
+const cornerScratch = new THREE.Vector3();
+const normalScratch = new THREE.Vector3();
+
+/**
+ * How far a box reaches outward from its own centre, in direction `normal`.
+ *
+ * The successor to `box.max.y` — which was only ever "how far up" because the
+ * old world's buildings had no reason to be anything but Y-up. On the sphere
+ * a building's own foundation (see `FOUNDATION_DEPTH` in ProceduralObjects.tsx)
+ * makes its bounding box reach much further inward, towards the planet's
+ * centre, than outward towards the roof — a bounding *sphere* centred on the
+ * box would be inflated by that buried depth and park the marker further from
+ * the roof than the roof needs. Walking the box's 8 corners and keeping only
+ * the outward side answers "how far out does the visible part reach" without
+ * being fooled by the part nobody sees.
+ */
+function outwardExtent(box: THREE.Box3, centre: THREE.Vector3, normal: THREE.Vector3): number {
+  let farthest = 0;
+  for (const x of [box.min.x, box.max.x])
+    for (const y of [box.min.y, box.max.y])
+      for (const z of [box.min.z, box.max.z]) {
+        cornerScratch.set(x, y, z).sub(centre);
+        farthest = Math.max(farthest, cornerScratch.dot(normal));
+      }
+  return farthest;
+}
 
 export default function AreaMarkers() {
   const { facing, activeSection, setActiveSection } = useAppState();
@@ -131,7 +158,10 @@ export default function AreaMarkers() {
         }
         box.setFromObject(building);
         box.getCenter(centre);
-        sprite.position.set(centre.x, box.max.y + MARKER_CLEARANCE, centre.z);
+        const [nx, ny, nz] = sectionDirection(section);
+        normalScratch.set(nx, ny, nz);
+        const reach = outwardExtent(box, centre, normalScratch) + MARKER_CLEARANCE;
+        sprite.position.copy(centre).addScaledVector(normalScratch, reach);
         anchors.current[i] = sprite.position.clone();
       });
       placed.current = complete;

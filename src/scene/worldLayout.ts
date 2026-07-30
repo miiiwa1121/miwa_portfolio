@@ -1,4 +1,5 @@
 import type { SectionType } from "@/types";
+import { PLANET_SECTION_KEYS, sectionPosition } from "./planet/sections";
 
 /**
  * Where the world sits and where the camera looks from.
@@ -11,14 +12,22 @@ import type { SectionType } from "@/types";
  * to keep in sync by hand.
  */
 
-/** World positions of each section building. */
-export const BUILDING_POSITIONS = {
-  products: [1, 0.2, -2] as [number, number, number],
-  skills: [7, 0.2, -3.5] as [number, number, number],
-  experience: [6, 0.2, 5] as [number, number, number],
-  about: [-6.5, 0.2, 4] as [number, number, number],
-  contact: [-7, 0.2, -3] as [number, number, number],
-};
+/**
+ * World positions of each section building, on the planet's surface.
+ *
+ * **Stage 2 of docs/planet-migration.md.** These now come from
+ * `scene/planet/sections.ts`'s latitude/longitude table rather than being
+ * authored here directly as flat XZ triples. Everything below this line —
+ * `sectionAzimuth`, `facingSection`, `SECTIONS_BY_AZIMUTH`, `homePose` and the
+ * whole ring camera — is untouched and keeps working on these new values
+ * unmodified, because `sectionAzimuth` reads only `atan2(x, z)`, which
+ * `latLonToDirection`'s convention makes exactly equal to a section's
+ * longitude regardless of its latitude (see planetLayout.ts). The ring camera
+ * itself is deliberately not rewritten yet — that is stage 4.
+ */
+export const BUILDING_POSITIONS = Object.fromEntries(
+  PLANET_SECTION_KEYS.map((key) => [key, sectionPosition(key)])
+) as Record<NonNullable<SectionType>, [number, number, number]>;
 
 /** How high up each building the camera aims — roughly its mid-height. */
 const FOCUS_HEIGHT: Record<NonNullable<SectionType>, number> = {
@@ -40,8 +49,16 @@ export const sectionTargets = Object.fromEntries(
 /**
  * The free diorama view, set from measured world bounds rather than guessed.
  *
- * Measured extents: the island spans roughly ±14 in XZ and reaches y = 12.2 at
- * the tip of the Products tower's antenna, with its underside at y = -7.3.
+ * **This history is the old flat island's.** `HOME_RADIUS`/`HOME_HEIGHT`
+ * themselves have since been retuned for the planet (stage 2 of
+ * docs/planet-migration.md, see the comment on `HOME_RADIUS`), but the *shape*
+ * of the reasoning — aim at the middle of the content rather than the ground,
+ * hold a fixed tilt as the radius moves, measure the worst angle of a full
+ * turn rather than one screenshot — is exactly what stage 2 also used, so it
+ * stays here rather than being deleted.
+ *
+ * Measured extents: the island spanned roughly ±14 in XZ and reached y = 12.2
+ * at the tip of the Products tower's antenna, with its underside at y = -7.3.
  *
  * The old values (radius 24, aiming at y = 1) tilted the view down 22.6°,
  * which against a 45° vertical fov put the top edge of the frame within a
@@ -65,10 +82,28 @@ export const sectionTargets = Object.fromEntries(
  * closer to an elevation. Pinned by a test, since nothing else says the two
  * numbers belong together.
  */
-export const HOME_RADIUS = 27.5;
-export const HOME_HEIGHT = 11.44;
-/** Aim at the middle of the world's height, not at the ground. */
-export const HOME_TARGET_Y = 3.5;
+/**
+ * Stage 2 of docs/planet-migration.md: retuned from 27.5 for the planet's
+ * world radius of 33.6 (`PLANET_RADIUS` in scene/planet/shell.ts), which
+ * replaced the old island's measured extent of roughly ±14. The old radius
+ * sat at 2.04x that extent (a close-but-clearly-an-overview framing); this
+ * keeps the same ratio against the new one, then backs out from the same
+ * 16.1° tilt used below. Provisional — the exact figure is meant to be
+ * checked against a real screenshot, the same way the old value's own
+ * comment describes doing for the island.
+ */
+export const HOME_RADIUS = 158.6;
+export const HOME_HEIGHT = 45.8;
+/**
+ * Aim at the planet's own centre, not at a point above the ground.
+ *
+ * The old island aimed above its own base (3.5) because its content sat
+ * asymmetrically — more of it above the ground than below. A sphere has no
+ * such asymmetry: whichever direction the camera sits at, the same shape sits
+ * on the far side, so centring on the world's own centre is the natural
+ * choice rather than a compromise.
+ */
+export const HOME_TARGET_Y = 0;
 export const HOME_ANGLE = Math.PI / 4;
 
 /**
@@ -85,25 +120,33 @@ export const HOME_DISTANCE = Math.hypot(HOME_RADIUS, HOME_HEIGHT - HOME_TARGET_Y
  * Fraction of the frame's width the home view gives up to the card on the left.
  *
  * Smaller than `CARD_SHARE`, which the sections use: a section is a single
- * building cropped in on, where the home view has to hold the whole island —
- * a wide flat disc whose silhouette already fills most of the frame — so the
- * same push would run its right edge off the screen.
+ * building cropped in on, where the home view has to hold the whole world —
+ * a sphere whose silhouette already fills most of the frame — so the same
+ * push would run its right edge off the screen.
  *
- * The island's centre travels half of this as a fraction of the full frame
- * width (the share is measured against the *half* width), so 0.22 moves it from
- * the middle to a measured 61.7-63.8% across a full turn — against the
- * reference's 61%. That also puts its left edge no further left than 32.0%,
+ * **The measurements below are the old island's**, kept only as the record of
+ * *why* a value this size and not some other, and carried over unchanged
+ * because it is a dimensionless fraction rather than a world-unit distance —
+ * nothing about `HOME_RADIUS` growing for the planet changes what share of
+ * the frame a card needs. It has not yet been re-measured against the sphere
+ * (stage 2 of docs/planet-migration.md); if the push looks wrong on screen,
+ * measure it the same way — worst angle of a full turn, confetti excluded —
+ * before retuning the number.
+ *
+ * The island's centre travelled half of this as a fraction of the full frame
+ * width (the share is measured against the *half* width), so 0.22 moved it
+ * from the middle to a measured 61.7-63.8% across a full turn — against the
+ * reference's 61%. That also put its left edge no further left than 32.0%,
  * clear of the card's right edge at 27.8%, which is what the request was
  * actually about.
  *
- * Set from the *worst* angle of a full turn rather than one screenshot, the same
- * way `ABOUT_RADIUS` was: the island is a disc with a tower on it, so its
- * silhouette breathes as it turns. Sampling that is easy to get wrong — the
- * first pass measured the leftmost and rightmost non-background pixel and read
- * 83% of frame width, but the scene has confetti drifting out to the frame
- * edges and that was mostly what it had found. Counting only columns more than
- * a tenth of the frame deep leaves the island alone, and puts its real width at
- * 57%.
+ * Set from the *worst* angle of a full turn rather than one screenshot: the
+ * island was a disc with a tower on it, so its silhouette breathed as it
+ * turned. Sampling that is easy to get wrong — the first pass measured the
+ * leftmost and rightmost non-background pixel and read 83% of frame width,
+ * but the scene has confetti drifting out to the frame edges and that was
+ * mostly what it had found. Counting only columns more than a tenth of the
+ * frame deep left the island alone, and put its real width at 57%.
  */
 export const HOME_CARD_SHARE = 0.22;
 
@@ -161,24 +204,42 @@ export const ABOUT_TILT = 0.62;
  * the rotation reading like every other view on the site, and that only
  * requires the circle be centred on the same vertical line — not that it be
  * the same size. Pulling the radius out here is what lets the diorama be
- * framed to sit fully inside the frame (measured against reference/image2.png)
- * without ever moving the pivot off that shared line.
+ * framed to sit fully inside the frame without ever moving the pivot off that
+ * shared line.
  *
- * Set from the *widest* angle, not a single screenshot. The island is a disc
- * with a tower and signs on it, so its silhouette breathes as it turns —
+ * **Stage 2 of docs/planet-migration.md**: kept at the same ratio to
+ * `HOME_RADIUS` it held before the planet (32/27.5 ≈ 1.164, so 66 × 1.164 ≈
+ * 77), rather than re-measured from scratch — a worst-angle screenshot
+ * measurement, the way the figure below this was originally set, is only
+ * worth doing once About's own camera framing is rewritten for the sphere
+ * (stage 4; `framePose`'s world-Y tilt does not aim correctly at a building
+ * away from the equator). Until then this only has to keep the relation the
+ * tests pin: further out and higher than the home view.
+ *
+ * The paragraph below is the old island's own measurement, kept as the record
+ * of *why* a worst-angle measurement is the right method — not as this
+ * number's current justification.
+ *
+ * Set from the *widest* angle, not a single screenshot. The island was a disc
+ * with a tower and signs on it, so its silhouette breathed as it turned —
  * sampled across a turn it ran 45.8%..50.0% of frame width, and framing to
  * the average left the widest angles sliced off the right edge (measured
  * 99.9%). Backing off until the worst angle clears is the only setting that
  * holds for every frame of the rotation rather than for the one that was shot.
  */
-export const ABOUT_RADIUS = 32;
+export const ABOUT_RADIUS = 185;
 
 /**
  * Where along the shared axis About aims.
  *
+ * **Stage 2**: still below the new `HOME_TARGET_Y` (0), which is all the
+ * tests require, and left untouched rather than re-solved for the planet —
+ * see the note on `ABOUT_RADIUS` for why About's own framing waits for stage
+ * 4. The reasoning below is the old island's.
+ *
  * Below `HOME_TARGET_Y`, which pushes the island *up* the frame: the camera
  * centres on whatever it aims at, so a lower aim point lifts everything above
- * it into view. The home view aims at 3.5 to clear the Products tower, but at
+ * it into view. The home view aimed at 3.5 to clear the Products tower, but at
  * About's steeper tilt that same aim buried the island's underside off the
  * bottom edge — measured at 99.9% of frame height, against 90.4% in the
  * reference, i.e. cropped rather than sitting complete in its own space.

@@ -76,3 +76,29 @@ export function noise2(x: number, z: number): number {
 export function merge(...groups: Voxel[][]): Voxel[] {
   return groups.flat();
 }
+
+/**
+ * A wide flat plinth extending downward from y = 0, wider than the building's
+ * own footprint by `margin` on every side.
+ *
+ * Buildings now stand on a voxel sphere (see `scene/planet/shell.ts`) rather
+ * than a flat plane. The building's anchor follows the *terrain* (a smooth
+ * function of direction), while the crust around it is a *lattice* that steps
+ * by a whole planet voxel at a time — the two disagree by up to half a planet
+ * voxel wherever the anchor doesn't happen to land exactly on a lattice
+ * boundary. A plinth several building-voxels deep buries that mismatch rather
+ * than computing it exactly, the same way the flat island's buildings never
+ * had to reason about the ground underneath them.
+ */
+export function foundation(
+  out: Voxel[],
+  w: number,
+  d: number,
+  depth: number,
+  color: ColorArg,
+  margin = 2
+): Voxel[] {
+  const ox = -Math.floor((w + margin * 2) / 2);
+  const oz = -Math.floor((d + margin * 2) / 2);
+  return fillBox(out, ox, -depth, oz, w + margin * 2, depth, d + margin * 2, color);
+}

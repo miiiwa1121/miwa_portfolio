@@ -77,16 +77,37 @@ export function planetRelief(dir: Direction): number {
   return (continents * 0.55 + hills * 0.28 + detail * 0.1) / 1.66;
 }
 
-export type ShellOptions = {
+export type GroundOptions = {
   /** Mean radius in voxels. */
   radius?: number;
-  /** Crust depth in voxels. */
-  thickness?: number;
   /** Peak-to-trough terrain, in voxels. Zero gives a bare sphere. */
   relief?: number;
   /** Sea level in voxels relative to the mean radius. */
   seaLevel?: number;
 };
+
+export type ShellOptions = GroundOptions & {
+  /** Crust depth in voxels. */
+  thickness?: number;
+};
+
+/**
+ * The ground's distance from the planet's centre in direction `dir`, in
+ * voxels — sea included, so this is where a building's foundation should
+ * rest, not where the bare terrain happens to be.
+ *
+ * Split out of `planetVoxels` so a building's footing and the ground it
+ * stands on read the same height by construction, rather than by two
+ * separately-tuned copies of "radius plus relief, flattened at the shore"
+ * staying in sync by hand.
+ */
+export function groundRadiusVoxels(dir: Direction, options: GroundOptions = {}): number {
+  const radius = options.radius ?? PLANET_RADIUS_VOXELS;
+  const amplitude = options.relief ?? RELIEF_AMPLITUDE;
+  const seaLevel = options.seaLevel ?? SEA_LEVEL;
+  const ground = planetRelief(dir) * amplitude;
+  return radius + Math.max(ground, seaLevel);
+}
 
 /**
  * Generates the planet's crust.
@@ -122,7 +143,7 @@ export function planetVoxels(options: ShellOptions = {}): Voxel[] {
         const dir: Direction = [x / distance, y / distance, z / distance];
         const ground = planetRelief(dir) * amplitude;
         const underwater = ground < seaLevel;
-        const surface = radius + Math.max(ground, seaLevel);
+        const surface = groundRadiusVoxels(dir, options);
 
         if (distance > surface || distance <= surface - thickness) continue;
 

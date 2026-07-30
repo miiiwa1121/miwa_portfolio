@@ -6,6 +6,7 @@ import {
   PLANET_VOXEL_SIZE,
   RELIEF_AMPLITUDE,
   SEA_LEVEL,
+  groundRadiusVoxels,
   pinholeFraction,
   planetRelief,
   planetVoxels,
@@ -70,6 +71,48 @@ describe("planetRelief", () => {
     const dir = latLonToDirection(30, 200);
     const long: Direction = [dir[0] * 7, dir[1] * 7, dir[2] * 7];
     expect(planetRelief(long)).toBeCloseTo(planetRelief(dir), 10);
+  });
+});
+
+describe("groundRadiusVoxels", () => {
+  // The reason this was split out of planetVoxels: a building's foundation has
+  // to rest at the same height the ground generator actually drew, not at a
+  // second formula that happens to usually agree with it.
+  it("agrees with where planetVoxels actually put the topmost block", () => {
+    for (const dir of fibonacciSphere(40)) {
+      const surface = groundRadiusVoxels(dir);
+      const [x, y, z] = [Math.round(dir[0] * surface), Math.round(dir[1] * surface), Math.round(dir[2] * surface)];
+      // The rounded lattice point at the computed surface has to be crust, not
+      // open air one step further out and not still crust one step further in
+      // — a one-voxel tolerance for the rounding itself either way.
+      const distance = Math.hypot(x, y, z);
+      expect(Math.abs(distance - surface)).toBeLessThan(1.8);
+    }
+  });
+
+  it("is flat at sea, following the mean radius plus sea level", () => {
+    // Any direction where the terrain dips below sea level reads back exactly
+    // at the sea's own height, regardless of how far down the terrain actually
+    // goes — the flatness that makes water read as water rather than as blue
+    // ground.
+    for (const dir of fibonacciSphere(500)) {
+      if (planetRelief(dir) * RELIEF_AMPLITUDE < SEA_LEVEL) {
+        expect(groundRadiusVoxels(dir)).toBeCloseTo(PLANET_RADIUS_VOXELS + SEA_LEVEL, 9);
+      }
+    }
+  });
+
+  it("follows the terrain on land", () => {
+    const dir = latLonToDirection(10, 40);
+    expect(groundRadiusVoxels(dir)).toBeCloseTo(
+      PLANET_RADIUS_VOXELS + Math.max(planetRelief(dir) * RELIEF_AMPLITUDE, SEA_LEVEL),
+      9
+    );
+  });
+
+  it("honours a custom radius, relief and sea level", () => {
+    const dir = latLonToDirection(-20, 300);
+    expect(groundRadiusVoxels(dir, { radius: 10, relief: 0, seaLevel: -5 })).toBe(10);
   });
 });
 

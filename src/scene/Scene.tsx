@@ -678,7 +678,11 @@ function CameraController() {
       // still work normally.
       enabled={false}
       minDistance={3}
-      maxDistance={45}
+      // Stage 2 of docs/planet-migration.md: raised from 45 so the ring
+      // camera (still using the old azimuth/home-pose mechanism, unchanged in
+      // this stage) can actually reach HOME_DISTANCE and ABOUT_DISTANCE on
+      // the much bigger planet, with margin.
+      maxDistance={280}
       maxPolarAngle={Math.PI / 2 - 0.05}
       makeDefault
     />
@@ -698,7 +702,15 @@ export default function Scene({ obscured = false }: { obscured?: boolean }) {
       frameloop={obscured ? "demand" : "always"}
     >
       <color attach="background" args={["#fff3d1"]} />
-      <fog attach="fog" args={["#fff3d1", 30, 70]} />
+      {/*
+       * Stage 2 of docs/planet-migration.md: near/far pushed out from 30/70
+       * so the much bigger planet (world radius 33.6, camera as far as
+       * ABOUT_DISTANCE ≈ 94.6) doesn't fog out mid-measurement — this range
+       * is a temporary shim to keep stage 2's screenshots readable, not a
+       * tuned value. Fog is slated to come off entirely in stage 5 (there is
+       * no atmosphere in space); the colour/lighting pass belongs there too.
+       */}
+      <fog attach="fog" args={["#fff3d1", 100, 260]} />
 
       {/* Warm sunlight */}
       <ambientLight intensity={0.85} />
@@ -712,12 +724,15 @@ export default function Scene({ obscured = false }: { obscured?: boolean }) {
         // blocky geometry, where the extra resolution bought detail nobody
         // could see for four times the shadow-pass cost.
         shadow-mapSize={[1024, 1024]}
-        shadow-camera-left={-30}
-        shadow-camera-right={30}
-        shadow-camera-top={30}
-        shadow-camera-bottom={-30}
+        // Stage 2: widened from ±30/far 90 to cover the planet's own radius
+        // (33.6) plus the tallest building. A temporary shim like the fog
+        // above — revisit once stage 5 settles the lighting for real.
+        shadow-camera-left={-48}
+        shadow-camera-right={48}
+        shadow-camera-top={48}
+        shadow-camera-bottom={-48}
         shadow-camera-near={1}
-        shadow-camera-far={90}
+        shadow-camera-far={140}
         shadow-bias={-0.0005}
       />
       <directionalLight position={[-20, 16, -18]} intensity={0.4} color="#dff0ff" />

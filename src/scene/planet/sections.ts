@@ -1,5 +1,6 @@
 import type { SectionType } from "@/types";
-import { latLonToDirection, type Direction } from "./planetLayout";
+import { latLonToDirection, surfacePoint, tangentBasis, type Direction, type Point3 } from "./planetLayout";
+import { groundRadiusVoxels, PLANET_VOXEL_SIZE } from "./shell";
 
 /**
  * Where each section's building stands on the planet, and which way it faces.
@@ -58,6 +59,39 @@ export const PLANET_SECTIONS: Record<
 export function sectionDirection(section: NonNullable<SectionType>): Direction {
   const { lat, lon } = PLANET_SECTIONS[section];
   return latLonToDirection(lat, lon);
+}
+
+/**
+ * How far the ground itself sits from the planet's centre under a section, in
+ * world units — the terrain's real height at that point, not the mean radius.
+ *
+ * Reads `groundRadiusVoxels` (the same function the crust is generated from)
+ * rather than assuming the mean: a building planted at the mean radius would
+ * float over a hill or sink into a hollow wherever the terrain and the
+ * building's footing disagreed about where "the ground" was.
+ */
+export function sectionGroundRadius(section: NonNullable<SectionType>): number {
+  return groundRadiusVoxels(sectionDirection(section)) * PLANET_VOXEL_SIZE;
+}
+
+/**
+ * Where a section's building stands, in world coordinates.
+ *
+ * `heightAboveSurface` is a world-unit offset outward along the same normal —
+ * how the marker sits clear of the roof, for instance — not a second position
+ * to keep in sync with this one.
+ */
+export function sectionPosition(section: NonNullable<SectionType>, heightAboveSurface = 0): Point3 {
+  return surfacePoint(sectionDirection(section), sectionGroundRadius(section), heightAboveSurface);
+}
+
+/**
+ * The frame a section's building stands in — its local +X/+Y/+Z axes in world
+ * space, from `tangentBasis` at this section's own yaw (see `PLANET_SECTIONS`
+ * for why every yaw is presently 0).
+ */
+export function sectionBasis(section: NonNullable<SectionType>) {
+  return tangentBasis(sectionDirection(section), PLANET_SECTIONS[section].yaw);
 }
 
 /**

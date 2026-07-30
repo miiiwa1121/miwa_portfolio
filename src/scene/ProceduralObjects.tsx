@@ -4,11 +4,25 @@ import { useMemo } from "react";
 import type { SectionType } from "@/types";
 import VoxelModel, { Voxel } from "./voxel/VoxelModel";
 import VoxelText from "./voxel/VoxelText";
-import { fillBox, shellBox, put } from "./voxel/builders";
+import { fillBox, foundation, shellBox, put } from "./voxel/builders";
 import { PALETTE } from "./voxel/palette";
 
 // World size of one building voxel.
 const VS = 0.42;
+
+/**
+ * How many building voxels a foundation reaches down from y = 0.
+ *
+ * 12 voxels at 0.42 world units is 5.04 — comfortably deeper than one planet
+ * voxel's stepping (1.4 world units, see `PLANET_VOXEL_SIZE` in
+ * `scene/planet/shell.ts`), with room left for the terrain sloping away
+ * across a building's own footprint. Picked generously and checked by eye
+ * against the rendered planet rather than derived exactly: the exact
+ * mismatch depends on where in a planet voxel's lattice cell a building's
+ * surface point happens to land, which is not worth solving in closed form
+ * for a plinth nobody is meant to see the bottom of.
+ */
+const FOUNDATION_DEPTH = 12;
 
 // ------------------------------------------------------------------
 // Placement wrapper
@@ -16,10 +30,18 @@ const VS = 0.42;
 interface ObjectProps {
   position: [number, number, number];
   sectionId: SectionType;
+  /**
+   * [x, y, z, w]. Orients the building so its local +Y stands along the
+   * planet's surface normal instead of always pointing world +Y — see
+   * `scene/planet/sections.ts`'s `sectionBasis`. Omitted, a building keeps
+   * the identity rotation (local +Y = world +Y), which is only correct at
+   * the north pole.
+   */
+  quaternion?: [number, number, number, number];
 }
 
 /**
- * Positions a building and gives it a name, nothing more.
+ * Positions and orients a building, and gives it a name, nothing more.
  *
  * The buildings are deliberately inert: hovering and clicking belong to the
  * marker floating above each area, which is a small, unambiguous target with
@@ -27,11 +49,16 @@ interface ObjectProps {
  * respond as well meant two hit areas for one destination, and a hover-lift
  * that moved the very thing the marker was anchored to.
  */
-function Anchor({ position, sectionId, children }: ObjectProps & { children: React.ReactNode }) {
+function Anchor({
+  position,
+  quaternion,
+  sectionId,
+  children,
+}: ObjectProps & { children: React.ReactNode }) {
   return (
     // Named so the camera can look the building up in the scene graph and
     // frame its actual bounds, rather than being told them by hand.
-    <group position={position} name={sectionId ?? undefined}>
+    <group position={position} quaternion={quaternion} name={sectionId ?? undefined}>
       {children}
     </group>
   );
@@ -76,6 +103,7 @@ function useHouse() {
     const out: Voxel[] = [];
     const w = 11, h = 6, d = 9;
     const ox = -Math.floor(w / 2), oz = -Math.floor(d / 2);
+    foundation(out, w, d, FOUNDATION_DEPTH, PALETTE.stone[1]);
     shellBox(out, ox, 0, oz, w, h, d, PALETTE.cream);
     fillBox(out, ox, 0, oz, w, 1, d, PALETTE.wood); // floor
     windowize(out, w, h, d, PALETTE.glassWarm, 3, 2, 2);
@@ -94,6 +122,7 @@ function usePinkTower() {
     const out: Voxel[] = [];
     const w = 12, h = 18, d = 12;
     const ox = -Math.floor(w / 2), oz = -Math.floor(d / 2);
+    foundation(out, w, d, FOUNDATION_DEPTH, PALETTE.stone[0]);
     shellBox(out, ox, 0, oz, w, h, d, PALETTE.pink);
     windowize(out, w, h, d, PALETTE.glass, 2, 3, 3);
     slabRoof(out, w, h, d, PALETTE.pinkDark, 1, 1);
@@ -117,6 +146,7 @@ function useBlueTower() {
     const out: Voxel[] = [];
     const w = 9, h = 15, d = 9;
     const ox = -Math.floor(w / 2), oz = -Math.floor(d / 2);
+    foundation(out, w, d, FOUNDATION_DEPTH, PALETTE.stone[0]);
     shellBox(out, ox, 0, oz, w, h, d, PALETTE.blue);
     windowize(out, w, h, d, PALETTE.glass, 2, 2, 2);
     slabRoof(out, w, h, d, PALETTE.roofBlue, 1, 1);
@@ -134,6 +164,7 @@ function useLibrary() {
     const out: Voxel[] = [];
     const w = 15, h = 7, d = 10;
     const ox = -Math.floor(w / 2), oz = -Math.floor(d / 2);
+    foundation(out, w, d, FOUNDATION_DEPTH, PALETTE.stone[1]);
     shellBox(out, ox, 0, oz, w, h, d, PALETTE.cream);
     fillBox(out, ox, 0, oz, w, 1, d, PALETTE.wood);
     windowize(out, w, h, d, PALETTE.glassWarm, 2, 3, 2);
@@ -152,6 +183,7 @@ function useLibrary() {
 function useBillboard() {
   return useMemo<Voxel[]>(() => {
     const out: Voxel[] = [];
+    foundation(out, 11, 6, FOUNDATION_DEPTH, PALETTE.stone[1]);
     // posts
     fillBox(out, -4, 0, 0, 1, 8, 1, PALETTE.stone[1]);
     fillBox(out, 3, 0, 0, 1, 8, 1, PALETTE.stone[1]);
