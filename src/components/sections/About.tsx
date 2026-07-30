@@ -3,7 +3,14 @@
 import { useEffect, useRef } from "react";
 import { useLanguage } from "../LanguageContext";
 import { motion } from "framer-motion";
-import { aboutScrollProgress, shouldReturnHome } from "../aboutScroll";
+import {
+  aboutReturn,
+  aboutReturnProgress,
+  aboutScrollProgress,
+  settleRetryDelay,
+  shouldReturnHome,
+  wheelScrollStep,
+} from "../aboutScroll";
 
 /**
  * The About column: text straight over the diorama, with no card and no sheet.
@@ -14,6 +21,14 @@ import { aboutScrollProgress, shouldReturnHome } from "../aboutScroll";
  * writing is what goes home. That replaced a HOME button — a control that had
  * to be noticed and aimed at, sitting over a page whose whole premise is that
  * you get around by moving through it.
+ *
+ * The column is a full screen tall and ends in one blank viewport, so the text
+ * runs from the bottom edge to the top edge and the scroll carries it clean
+ * off the top rather than stopping with the last line still showing. That
+ * spacer is also what makes the progress figure mean something the camera can
+ * use: the scrollable range is exactly the height of the writing, so progress
+ * reads as "how much of the text has passed the top of the screen" — half read
+ * is half gone is half way home.
  *
  * The copy below is placeholder standing in for the real thing: it is drawn
  * from the dates and projects in Experience so that it reads truthfully and is
@@ -33,31 +48,90 @@ export default function About({ onFinish }: Props) {
   const openedAt = useRef(0);
   const finished = useRef(false);
   const columnRef = useRef<HTMLDivElement | null>(null);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // The camera starts where the column does. Published on the way in as well
+  // as on the way out, so a column reopened after being read to the end never
+  // hands the scene a leftover 1 and drops it straight home.
   useEffect(() => {
     openedAt.current = Date.now();
+    aboutReturn.publish(0);
+    return () => {
+      aboutReturn.publish(0);
+      if (settleTimer.current !== null) clearTimeout(settleTimer.current);
+    };
   }, []);
 
-  // Wheels over the column scroll it and nothing else. The scene listens on
-  // `window` to orbit the diorama, so without this the same gesture would both
-  // read the text and spin the town underneath it. Passive, unlike the card's
-  // handler: the default action here is the scrolling, and preventing it would
-  // leave the column unable to move.
+  // Wheels over the column scroll it, at half the browser's pace, and do
+  // nothing else.
+  //
+  // `stopPropagation` because the scene listens on `window` to orbit the
+  // diorama, so without it the same gesture would both read the text and spin
+  // the town underneath it. `preventDefault` — which this deliberately did not
+  // do while the browser's own scrolling was wanted — because the column is
+  // now driven from here: at the browser's rate one flick of a trackpad
+  // crossed most of the writing and took the camera home with it.
+  //
+  // Not passive, therefore. What is given up is the browser's own animation of
+  // a discrete mouse notch; a trackpad, which sends a stream of small deltas,
+  // is as smooth as it was and simply travels less far.
   useEffect(() => {
     const element = columnRef.current;
     if (!element) return;
-    const swallow = (event: WheelEvent) => event.stopPropagation();
-    element.addEventListener("wheel", swallow, { passive: true });
-    return () => element.removeEventListener("wheel", swallow);
+    const onWheel = (event: WheelEvent) => {
+      event.stopPropagation();
+      event.preventDefault();
+      // `scrollTop` clamps itself at both ends, so an overscroll at the top or
+      // the bottom stops there rather than being accumulated and having to be
+      // scrolled back out of.
+      element.scrollTop += wheelScrollStep(event.deltaY, event.deltaMode, element.clientHeight);
+    };
+    element.addEventListener("wheel", onWheel, { passive: false });
+    return () => element.removeEventListener("wheel", onWheel);
   }, []);
+
+  const finish = () => {
+    if (finished.current) return;
+    finished.current = true;
+    onFinish();
+  };
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     if (finished.current) return;
     const el = event.currentTarget;
     const progress = aboutScrollProgress(el.scrollTop, el.scrollHeight, el.clientHeight);
-    if (shouldReturnHome(progress, Date.now() - openedAt.current)) {
-      finished.current = true;
-      onFinish();
+    // Before the finish check, not after: the event that ends the column is
+    // also the one that has to leave the camera home, and returning early
+    // would strand it a hair short of the home framing for the scene to then
+    // be told the trip was over.
+    aboutReturn.publish(aboutReturnProgress(progress));
+
+    const age = Date.now() - openedAt.current;
+    if (shouldReturnHome(progress, age)) {
+      finish();
+      return;
+    }
+
+    // A flick hard enough to reach the bottom during the entrance is refused,
+    // and there is nothing left to scroll that would ask again. Re-read the
+    // column when the window closes rather than trusting this position: a
+    // reader who has scrolled back up since has fired events of their own,
+    // and those have already cleared this timer.
+    if (settleTimer.current !== null) clearTimeout(settleTimer.current);
+    settleTimer.current = null;
+    const retry = settleRetryDelay(progress, age);
+    if (retry > 0) {
+      settleTimer.current = setTimeout(() => {
+        const column = columnRef.current;
+        if (!column) return;
+        const now = aboutScrollProgress(
+          column.scrollTop,
+          column.scrollHeight,
+          column.clientHeight
+        );
+        aboutReturn.publish(aboutReturnProgress(now));
+        if (shouldReturnHome(now, Date.now() - openedAt.current)) finish();
+      }, retry);
     }
   };
 
@@ -145,15 +219,19 @@ export default function About({ onFinish }: Props) {
       // itself needs a soft light shadow to stay legible over whatever part
       // of the scene is behind it, the same treatment as the logo in the header.
       //
-      // The scrollbar is hidden and the lower edge is masked into a fade
-      // instead. A track down the side of frameless text reads as the edge of
-      // a panel that is not there, where the fade says "this carries on" in the
-      // language the rest of the page already uses. The mask sits on the
-      // scroller's own box, so the padding under the closing hint (pb-14) is
-      // what keeps that hint clear of it once the column is read to the end.
-      className="pointer-events-auto w-full max-w-lg max-h-[72vh] overflow-y-auto pb-14 text-gray-900 [text-shadow:0_1px_8px_rgba(255,255,255,0.85)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_bottom,black_calc(100%-40px),transparent)]"
+      // The scrollbar is hidden and both edges are masked into fades instead.
+      // A track down the side of frameless text reads as the edge of a panel
+      // that is not there, where the fades say "this carries on" in the
+      // language the rest of the page already uses. Now that the column runs
+      // the full height of the screen the top needs one as much as the bottom:
+      // it is what dissolves each line as it goes, rather than slicing it on
+      // the screen edge underneath the logo.
+      className="pointer-events-auto w-full max-w-lg h-full overflow-y-auto text-gray-900 [text-shadow:0_1px_8px_rgba(255,255,255,0.85)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_bottom,transparent,black_104px,black_calc(100%-88px),transparent)]"
     >
-      <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-8">
+      {/* Clear of the header on the first screenful. Padding rather than a
+          margin on the scroller, so it scrolls away with the text instead of
+          holding a permanent gap the writing can never use. */}
+      <h2 className="pt-28 text-3xl sm:text-4xl font-black tracking-tight mb-8">
         {isJa ? "自己紹介" : "About Me"}
       </h2>
       <div className="space-y-6 text-gray-800 leading-loose text-base sm:text-lg font-medium">
@@ -162,11 +240,13 @@ export default function About({ onFinish }: Props) {
         ))}
       </div>
 
-      {/* The end of the column, and the way out of it. */}
-      <div className="mt-14 mb-2 flex flex-col items-center gap-3 text-gray-900/40 font-bold tracking-[0.2em] text-xs">
-        <div className="w-[1px] h-10 bg-gradient-to-b from-transparent to-gray-900/30" />
-        {isJa ? "スクロールでホームに戻ります" : "Scroll to return home"}
-      </div>
+      {/* One blank screen after the writing, which is what lets the last line
+          leave the top of the screen instead of stopping at the bottom of it.
+          `h-full` and not `h-screen`: it has to be the scroller's own height
+          to the pixel — that equality is what makes the scrollable range come
+          out as exactly the height of the text, and so what makes progress 1
+          mean "the writing has gone" and nothing else. */}
+      <div aria-hidden className="h-full" />
     </motion.div>
   );
 }

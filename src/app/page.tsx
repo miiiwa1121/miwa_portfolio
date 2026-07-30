@@ -324,11 +324,20 @@ export default function Home() {
               mirrored by the camera flight in Scene.tsx pushing the about
               building over to the right of the frame to clear it. Indented
               well past the logo (reference/image2.png), not flush to the
-              edge, so it reads as a placed column rather than a margin note. */}
-          <div className="absolute left-[15%] top-1/2 -translate-y-1/2 pointer-events-none z-30">
+              edge, so it reads as a placed column rather than a margin note.
+              Full height, top edge to bottom edge: the text is meant to run
+              off both ends of the screen and be scrolled up through them. */}
+          <div className="absolute left-[15%] inset-y-0 pointer-events-none z-30">
             <AnimatePresence>
               {!pageOpen && activeSection === "about" && (
-                <About onFinish={() => closeToHome("down", true)} />
+                // `closePage`, not `closeToHome` — nothing here needs flying
+                // anywhere. The scroll that carried the text off the screen
+                // carried the camera home with it (see the About branch of
+                // Scene's frame loop), so by now it is already in the home
+                // framing, and a flight would only be a second arrival on top
+                // of the one the reader just made. Facing is published by the
+                // scene from the angle it actually stopped at.
+                <About onFinish={closePage} />
               )}
             </AnimatePresence>
           </div>
@@ -368,16 +377,7 @@ export default function Home() {
             onScroll={handleScroll}
           >
             {/* Transparent spacer: scrolling up into it returns home */}
-            <div className="h-screen pointer-events-none flex flex-col items-center justify-end pb-32">
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-gray-900/40 font-bold tracking-[0.2em] text-sm animate-pulse flex flex-col items-center gap-4"
-              >
-                {isJa ? "スクロールでホームに戻ります" : "Scroll to return home"}
-                <div className="w-[1px] h-12 bg-gradient-to-b from-transparent to-gray-900/40"></div>
-              </motion.div>
-            </div>
+            <div className="h-screen pointer-events-none" />
 
             <div className="bg-white pt-24 pb-24 min-h-screen flex flex-col shadow-2xl relative z-30">
               <div className="flex-grow">
@@ -399,16 +399,7 @@ export default function Home() {
             </div>
             
             {/* Transparent spacer: scrolling down into it returns home */}
-            <div className="h-screen pointer-events-none flex flex-col items-center justify-start pt-32">
-              <motion.div 
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-gray-900/40 font-bold tracking-[0.2em] text-sm animate-pulse flex flex-col items-center gap-4"
-              >
-                <div className="w-[1px] h-12 bg-gradient-to-b from-gray-900/40 to-transparent"></div>
-                {isJa ? "スクロールでホームに戻ります" : "Scroll to return home"}
-              </motion.div>
-            </div>
+            <div className="h-screen pointer-events-none" />
           </motion.div>
         )}
       </AnimatePresence>

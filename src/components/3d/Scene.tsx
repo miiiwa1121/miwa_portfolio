@@ -26,6 +26,7 @@ import {
   type Pose,
 } from "./worldLayout";
 import { sceneClock } from "./sceneClock";
+import { aboutReturn } from "../aboutScroll";
 import { useAppState, type SectionType } from "../AppStateContext";
 
 // Rotation sensitivity (kept gentle).
@@ -459,7 +460,25 @@ function CameraController() {
       return;
     }
 
-    // 3. Scrolled off the detail page: back out to the overview distance, but
+    // 3. About, read to the end. There is no flight to start: the column's own
+    //    scroll flew this one, frame by frame, and the camera is already
+    //    sitting in the home framing at whatever angle the orbit had drifted
+    //    to (see the About branch of useFrame). Anything launched here would
+    //    be a second trip on top of an arrival that has already happened —
+    //    most visibly a turn back to About's own azimuth, undoing the reading.
+    //    The idle drift picks the angle up from where it stands, and the card
+    //    is told which area that leaves in front, since the free orbit below
+    //    only publishes on a change and this is not one.
+    if (cameFrom === "about" && aboutReturn.progress() >= 1) {
+      aboutOrbitRef.current = null;
+      azimuthTargetRef.current = controls.azimuthAngle;
+      const landedOn = facingSection(controls.azimuthAngle);
+      facingRef.current = landedOn;
+      setFacing(landedOn);
+      return;
+    }
+
+    // 4. Scrolled off the detail page: back out to the overview distance, but
     //    turned so the area just read about is the thing facing the camera.
     if (cameFrom && sectionTargets[cameFrom]) {
       const azimuth = sectionAzimuth(cameFrom);
@@ -467,7 +486,7 @@ function CameraController() {
       return;
     }
 
-    // 4. First mount. The Canvas only gets to set a camera *position*, never
+    // 5. First mount. The Canvas only gets to set a camera *position*, never
     //    a target, so without this the orbit would run at whatever radius the
     //    initial position happened to imply while still aiming at the origin —
     //    which tilted the view down far enough to cut the top off the tallest
@@ -537,7 +556,41 @@ function CameraController() {
         // is no jump here to smooth away, unlike the idle drift below.
         orbit.azimuth += sceneClock.delta(delta) * AUTO_ORBIT_SPEED;
         const pose = framePose(orbit.target, orbit.azimuth, orbit.distance, ABOUT_TILT, orbit.sideways);
-        controls.setLookAt(...pose, false);
+
+        // Reading the column home. Past its half way mark the framing walks
+        // from About's distant, steeply tilted one to the free view's, so the
+        // island closes in as the text goes up and the last line leaving the
+        // screen is the same instant as the arrival — rather than the reading
+        // finishing and an animation then playing.
+        //
+        // Scroll-linked, not a flight: the reader owns the clock, which is
+        // what lets them scroll back up and have the camera go back out with
+        // them. Both ends are rebuilt from the live azimuth every frame rather
+        // than captured when the trip began, so the orbit keeps turning right
+        // through the approach instead of freezing the moment they cross the
+        // half way mark. (An earlier scroll-linked lerp here was the last
+        // camera bug on this page: it chose its branch from React state while
+        // reading a ref written on scroll, and a frame in between snapped the
+        // camera back. This one cannot — the trip only ever runs while About
+        // is the focused section, and finishing it is the one thing that
+        // unfocuses About.)
+        const t = easeInOutCubic(aboutReturn.progress());
+        controls.setLookAt(
+          ...(t > 0 ? glidePose(pose, homePose(orbit.azimuth), t) : pose),
+          false
+        );
+        // The home view's sideways push is a focal offset rather than part of
+        // the pose (see homeFocalOffsetX), so it has to travel on the same
+        // curve to arrive with it. Written every frame, including at t = 0
+        // where it is About's own zero: scrolling back up has to take the push
+        // away again, and a branch that only ever set it would leave the last
+        // value it reached standing.
+        controls.setFocalOffset(homeFocalOffsetX(camera.fov, camera.aspect) * t, 0, 0, false);
+
+        // Where the idle drift picks up once the column is gone. Without this
+        // it would resume from whatever target was left over from before
+        // About was opened, and turn the camera to it the moment it landed.
+        azimuthTargetRef.current = orbit.azimuth;
       }
       return;
     }

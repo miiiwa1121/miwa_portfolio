@@ -204,8 +204,9 @@ export default function AreaCard({
           initial="enter"
           animate="center"
           exit="exit"
+          whileHover={{ y: -4 }}
           transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.7 }}
-          className="relative z-10 bg-white/95 backdrop-blur-sm rounded-3xl p-6 sm:p-8 shadow-xl border border-black/5"
+          className="relative z-10 bg-white/95 backdrop-blur-sm rounded-3xl p-6 sm:p-8 shadow-xl border border-black/5 hover:shadow-2xl transition-shadow duration-300"
         >
           <p className="text-orange-500 font-black text-lg">
             {isJa ? card.jaTitle : card.enTitle}
