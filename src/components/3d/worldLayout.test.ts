@@ -1,18 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
+  ABOUT_CARD_SHARE,
+  ABOUT_DISTANCE,
+  ABOUT_RADIUS,
+  ABOUT_TARGET_Y,
+  ABOUT_TILT,
   BUILDING_POSITIONS,
+  CARD_SHARE,
+  HOME_ANGLE,
+  HOME_CARD_SHARE,
+  HOME_DISTANCE,
   HOME_HEIGHT,
   HOME_RADIUS,
   HOME_TARGET_Y,
   MARKER_DOT_FILL,
+  SECTION_TILT,
   SECTIONS,
   SECTIONS_BY_AZIMUTH,
   adjacentSection,
   azimuthToXZ,
   aimOffset,
+  easeInOutCubic,
   facingSection,
   frameDistance,
   framePose,
+  glidePose,
+  homeFocalOffsetX,
   homePose,
   markerScaleForScreenRadius,
   pixelsPerWorldUnit,
@@ -252,6 +265,57 @@ describe("homePose", () => {
   });
 });
 
+describe("the home view's tilt", () => {
+  it("still looks down 16.1°, the angle the framing was measured at", () => {
+    // The radius grew to make room for the sideways push, and the height was
+    // moved with it so the view got further away rather than flatter. Nothing
+    // else states that the pair belong together, so it is pinned here: raising
+    // the radius alone would flatten the diorama's three-quarter view.
+    const tilt = (Math.atan2(HOME_HEIGHT - HOME_TARGET_Y, HOME_RADIUS) * 180) / Math.PI;
+    expect(tilt).toBeCloseTo(16.1, 1);
+  });
+});
+
+describe("HOME_DISTANCE", () => {
+  it("is the distance homePose actually puts between the camera and its target", () => {
+    // homeFocalOffsetX measures the frame's width at this distance, so a
+    // hand-typed value drifting from the pose would silently mis-size the push.
+    for (const a of [0, 0.8, -2.1]) {
+      const [x, y, z, tx, ty, tz] = homePose(a);
+      expect(Math.hypot(x - tx, y - ty, z - tz)).toBeCloseTo(HOME_DISTANCE);
+    }
+  });
+});
+
+describe("homeFocalOffsetX", () => {
+  // A focal offset moves the camera along its own right axis, so pushing the
+  // island rightwards on screen means moving the camera leftwards: negative.
+  it("is negative, so the island lands right of centre and clear of the card", () => {
+    expect(homeFocalOffsetX(45, 1.6)).toBeLessThan(0);
+  });
+
+  it("pushes further on a wider frame, where a share of the width is more world", () => {
+    expect(homeFocalOffsetX(45, 1.9)).toBeLessThan(homeFocalOffsetX(45, 0.6));
+  });
+
+  it("moves the island's centre by half the share, as a fraction of frame width", () => {
+    // The share is measured against the *half* width (aimOffset's halfHorizontal
+    // leg), so the shift on screen is half of it. This is the number the value
+    // of HOME_CARD_SHARE was chosen against, so it is the one worth pinning.
+    const aspect = 1.6;
+    const halfWidth = HOME_DISTANCE * Math.tan(Math.atan(Math.tan((45 * Math.PI) / 360) * aspect));
+    expect(-homeFocalOffsetX(45, aspect) / (2 * halfWidth)).toBeCloseTo(HOME_CARD_SHARE / 2);
+  });
+
+  it("leaves the island centred when nothing is given away", () => {
+    expect(aimOffset(HOME_DISTANCE, 45, 1.6, 0)).toBe(0);
+  });
+
+  it("pushes less than a section does, since the whole island has to stay in frame", () => {
+    expect(HOME_CARD_SHARE).toBeLessThan(CARD_SHARE);
+  });
+});
+
 describe("section coverage", () => {
   it("has a building for every focusable section", () => {
     const focusable: NonNullable<SectionType>[] = [...SECTIONS];
@@ -296,6 +360,69 @@ describe("framePose with a sideways aim", () => {
       const shift = [tx - target[0], tz - target[2]];
       expect(view[0] * shift[0] + view[1] * shift[1]).toBeCloseTo(0);
     }
+  });
+});
+
+describe("about's framing", () => {
+  it("looks down more steeply and pushes further to the side than a normal section", () => {
+    expect(ABOUT_TILT).toBeGreaterThan(SECTION_TILT);
+    expect(ABOUT_CARD_SHARE).toBeGreaterThan(CARD_SHARE);
+  });
+
+  it("orbits the very same axis the free/home view does — the island's centre line, not the about building", () => {
+    // The defining property, and the reason this shape exists: About pivots on
+    // the vertical line through the island's centre, exactly what the idle
+    // home orbit turns around, rather than on the small "about" building. The
+    // radius and the aim height are free to differ (they are what frame the
+    // shot); being centred on the same line is what is not.
+    const aboutTarget: readonly [number, number, number] = [0, ABOUT_TARGET_Y, 0];
+
+    // Aimed at a point *on* that axis: the axis is the vertical line through
+    // the origin, so the target's XZ has to be the origin itself.
+    expect(aboutTarget[0]).toBe(0);
+    expect(aboutTarget[2]).toBe(0);
+
+    const radii: number[] = [];
+    const heights: number[] = [];
+    for (const azimuth of [0, 1.2, -2.4, 3.0, sectionAzimuth("about")]) {
+      const [px, py, pz] = framePose(aboutTarget, azimuth, ABOUT_DISTANCE, ABOUT_TILT);
+      const [hx, , hz] = homePose(azimuth);
+      // Concentric with home's circle: both are centred on the origin, so the
+      // camera's bearing from the axis matches home's at every azimuth even
+      // though the two radii differ.
+      expect(Math.atan2(px, pz)).toBeCloseTo(Math.atan2(hx, hz));
+      radii.push(Math.hypot(px, pz));
+      heights.push(py);
+    }
+    // A circle about that axis, not an arc drifting off it: the distance from
+    // the axis and the height are the same at every azimuth.
+    for (const r of radii) expect(r).toBeCloseTo(ABOUT_RADIUS);
+    for (const y of heights) expect(y).toBeCloseTo(heights[0]);
+  });
+
+  it("sits further out and higher than the home view, for the distant looking-down framing", () => {
+    expect(ABOUT_RADIUS).toBeGreaterThan(HOME_RADIUS);
+    expect(ABOUT_DISTANCE).toBeGreaterThan(ABOUT_RADIUS); // hypotenuse of the tilt
+    const [, py] = framePose([0, ABOUT_TARGET_Y, 0], 0.7, ABOUT_DISTANCE, ABOUT_TILT);
+    expect(py).toBeGreaterThan(HOME_HEIGHT);
+  });
+
+  it("aims lower than the home view, which is what lifts the island up the frame", () => {
+    // Measured against reference/image2.png: aiming at HOME_TARGET_Y ran the
+    // island off the bottom edge (99.9% of frame height vs the reference's
+    // 90.4%). The camera centres on what it aims at, so dropping the aim point
+    // raises everything above it.
+    expect(ABOUT_TARGET_Y).toBeLessThan(HOME_TARGET_Y);
+  });
+
+  it("still pushes the look-at target aside to clear the text, without moving the camera itself", () => {
+    const azimuth = sectionAzimuth("about");
+    const sideways = aimOffset(ABOUT_DISTANCE, 45, 1.6, ABOUT_CARD_SHARE);
+    const target: readonly [number, number, number] = [0, ABOUT_TARGET_Y, 0];
+    const pushed = framePose(target, azimuth, ABOUT_DISTANCE, ABOUT_TILT, sideways);
+    const plain = framePose(target, azimuth, ABOUT_DISTANCE, ABOUT_TILT);
+    expect(pushed.slice(0, 3)).toEqual(plain.slice(0, 3));
+    expect(pushed.slice(3)).not.toEqual(plain.slice(3));
   });
 });
 
@@ -397,5 +524,109 @@ describe("markerScaleForScreenRadius", () => {
     // which is half of what the world-space estimate used to get wrong.
     const scale = markerScaleForScreenRadius(14, 20, 45, 900);
     expect(scale * pixelsPerWorldUnit(20, 45, 900)).toBeCloseTo(14 / MARKER_DOT_FILL, 6);
+  });
+});
+
+describe("easeInOutCubic", () => {
+  it("starts and ends exactly where the flight does", () => {
+    expect(easeInOutCubic(0)).toBe(0);
+    expect(easeInOutCubic(1)).toBe(1);
+  });
+
+  it("is half way through its travel at half time", () => {
+    expect(easeInOutCubic(0.5)).toBeCloseTo(0.5, 12);
+  });
+
+  // The property the whole curve exists for. The detail sheet takes roughly
+  // 0.3s to clear the screen, so on the 1.2s flight home that is the first
+  // quarter of the flight: an ease-out (which is what camera-controls' own
+  // damping gives) would have spent well over half its travel by then, leaving
+  // a snap for the part anyone can actually see.
+  it("holds most of the travel back past the sheet's exit", () => {
+    expect(easeInOutCubic(0.25)).toBeLessThan(0.1);
+  });
+
+  it("never goes backwards", () => {
+    let previous = -1;
+    for (let t = 0; t <= 1.0001; t += 0.01) {
+      const value = easeInOutCubic(Math.min(1, t));
+      expect(value).toBeGreaterThanOrEqual(previous);
+      previous = value;
+    }
+  });
+
+  it("is symmetrical about the midpoint", () => {
+    for (const t of [0.1, 0.23, 0.4]) {
+      expect(easeInOutCubic(t) + easeInOutCubic(1 - t)).toBeCloseTo(1, 12);
+    }
+  });
+});
+
+describe("glidePose", () => {
+  const from = framePose(sectionTargets.products, sectionAzimuth("products"), 9);
+  const to = homePose(sectionAzimuth("products"));
+
+  const radiusOf = (pose: readonly number[]) =>
+    Math.hypot(pose[0] - pose[3], pose[1] - pose[4], pose[2] - pose[5]);
+
+  it("lands on each end exactly", () => {
+    glidePose(from, to, 0).forEach((v, i) => expect(v).toBeCloseTo(from[i], 9));
+    glidePose(from, to, 1).forEach((v, i) => expect(v).toBeCloseTo(to[i], 9));
+  });
+
+  // The reason this interpolates an orbit rather than the two positions: a
+  // straight line between two points on an arc is a chord, and the chord's
+  // midpoint sits *inside* the arc. Lerping the positions would dip the camera
+  // closer to the town before backing away from it.
+  //
+  // Measured against the HOME button's flight, not the scroll-off one. Both
+  // ends of a scroll-off share an azimuth — it backs out along the line it
+  // came in on — so its chord barely deviates from its arc and the bug hides.
+  // HOME turns as well as retreats, and there the chord cuts the corner: at a
+  // fifth of the way through the position lerp the camera sits 8.2 units out
+  // against the 9 it started at, i.e. moving in.
+  it("backs away the whole time instead of dipping in first", () => {
+    const reset = homePose(HOME_ANGLE);
+    let previous = radiusOf(from);
+    for (let t = 0.05; t <= 1.0001; t += 0.05) {
+      const radius = radiusOf(glidePose(from, reset, Math.min(1, t)));
+      expect(radius).toBeGreaterThan(previous);
+      previous = radius;
+    }
+    expect(previous).toBeCloseTo(radiusOf(reset), 6);
+  });
+
+  it("still retreats monotonically when it is not turning at all", () => {
+    let previous = radiusOf(from);
+    for (let t = 0.05; t <= 1.0001; t += 0.05) {
+      const radius = radiusOf(glidePose(from, to, Math.min(1, t)));
+      expect(radius).toBeGreaterThan(previous);
+      previous = radius;
+    }
+    expect(previous).toBeCloseTo(radiusOf(to), 6);
+  });
+
+  it("carries the look-at point straight across", () => {
+    const mid = glidePose(from, to, 0.5);
+    expect(mid[3]).toBeCloseTo((from[3] + to[3]) / 2, 9);
+    expect(mid[4]).toBeCloseTo((from[4] + to[4]) / 2, 9);
+    expect(mid[5]).toBeCloseTo((from[5] + to[5]) / 2, 9);
+  });
+
+  // Two framings a fraction of a turn apart either side of ±π. Sweeping the
+  // raw difference between two atan2 results — which is what
+  // CameraControls.lerp does — would take the 300°-odd way round instead.
+  it("turns the short way round across the ±π seam", () => {
+    const near = homePose(Math.PI - 0.2);
+    const far = homePose(-Math.PI + 0.2);
+    const mid = glidePose(near, far, 0.5);
+    // Half way between them the short way is the far side of the seam, i.e.
+    // azimuth ±π exactly: straight along -Z, with x back at zero.
+    expect(Math.atan2(mid[0], mid[2])).toBeCloseTo(Math.PI, 6);
+    expect(radiusOf(mid)).toBeCloseTo(radiusOf(near), 6);
+  });
+
+  it("keeps a still camera still", () => {
+    glidePose(to, to, 0.37).forEach((v, i) => expect(v).toBeCloseTo(to[i], 9));
   });
 });

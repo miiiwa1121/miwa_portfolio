@@ -81,14 +81,19 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
     const draw = ({ x, y, radius, visible }: MarkerScreenPoint) => {
       const group = groupRef.current;
       const line = lineRef.current;
-      const anchor = anchorRef.current;
-      if (!group || !line || !anchor) return;
+      if (!group || !line) return;
 
       const hide = () => {
         group.style.opacity = "0";
       };
 
-      if (!visible) return hide();
+      // No anchor means there is nothing to draw *from*, so the trail goes
+      // away — rather than returning and leaving the last frame's polyline on
+      // screen. A stale line is the worse failure of the two: it stays put
+      // while the scene turns under it, which reads as the trail having come
+      // loose from the dot rather than as anything being missing.
+      const anchor = anchorRef.current;
+      if (!anchor || !visible) return hide();
 
       const rect = anchor.getBoundingClientRect();
       const startX = rect.left + rect.width / 2;

@@ -168,14 +168,22 @@ export default function AreaMarkers() {
             ? FACING_RADIUS
             : IDLE_RADIUS;
 
-      // Once an area is focused it is the only one being talked about, so the
-      // other markers withdraw rather than sit there offering to navigate
-      // somewhere the camera has just left.
-      const target = activeSection && section !== activeSection ? 0 : base;
+      // Focusing an area is the end of the markers' job — every dot withdraws,
+      // the focused one included. They are an invitation to go somewhere, and
+      // once the camera has arrived there is nowhere left to invite anyone:
+      // the others point at places just left behind, and the focused one hangs
+      // over the building it has filled the frame with. The trail from the card
+      // is hidden on the same beat, for the same reason.
+      const target = activeSection ? 0 : base;
+      // `target > 0` is what keeps the spotlight's exemption from easing to the
+      // way *in*, which is the only direction it was ever for. Withdrawing is a
+      // demotion like any other, and without this the focused area's own dot
+      // would blink out rather than fade.
       const isSpotlight = section === spotlight;
-      const eased = isSpotlight
-        ? target
-        : THREE.MathUtils.lerp(radii.current[i] ?? target, target, EASE);
+      const eased =
+        isSpotlight && target > 0
+          ? target
+          : THREE.MathUtils.lerp(radii.current[i] ?? target, target, EASE);
       radii.current[i] = eased;
 
       const radius = eased * pulse;

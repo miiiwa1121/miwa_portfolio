@@ -13,10 +13,10 @@ import Skills from "@/components/sections/Skills";
 import Experience from "@/components/sections/Experience";
 import Contact from "@/components/sections/Contact";
 import Footer from "@/components/Footer";
-import { Globe, ChevronRight, Terminal, X, Monitor, Pause, Play } from "lucide-react";
+import { Globe, Terminal, X, Monitor, Pause, Play } from "lucide-react";
 import { GithubIcon, XIcon } from "@/components/icons";
 import CardLeaderLine from "@/components/CardLeaderLine";
-import { useCardGestures } from "@/components/useCardGestures";
+import AreaCard from "@/components/AreaCard";
 import { adjacentSection, facingSection, HOME_ANGLE } from "@/components/3d/worldLayout";
 import {
   SHEET_VARIANTS,
@@ -55,78 +55,23 @@ const NAV: NavItem[] = [
   { id: "contact", ja: "お問い合わせ", en: "Contact" },
 ];
 
-// Contextual card copy — swaps as the camera flies to each building.
-const CARD: Record<
-  "home" | NonNullable<SectionType>,
-  { jaTitle: string; enTitle: string; sub: string; ja: string; en: string }
-> = {
-  home: {
-    jaTitle: "ようこそ",
-    enTitle: "Welcome",
-    sub: "Miiiwa's Portfolio",
-    ja: "駆け出しの学生エンジニア（27卒）Miiiwaのポートフォリオです。ボクセルの街をぐるっと眺めて、気になる建物をクリックしてみてください。",
-    en: "The portfolio of Miiiwa, a junior student engineer (Class of '27). Look around this voxel town and click a building to explore.",
-  },
-  about: {
-    jaTitle: "自己紹介",
-    enTitle: "About",
-    sub: "About Me",
-    ja: "「面白いを最優先！」がモットー。新規性を重視し、まだこの世にないものを探し求めている27卒の学生エンジニアです。",
-    en: "My motto is \"Fun First!\" A Class-of-'27 student engineer who values novelty and searches for things that don't exist yet.",
-  },
-  products: {
-    jaTitle: "制作実績",
-    enTitle: "Products",
-    sub: "Works",
-    ja: "アイデアを形にしてきたプロダクトたち。ゲームからWebアプリまで、遊び心と技術を詰め込みました。",
-    en: "Products where ideas took shape — from games to web apps, packed with playfulness and craft.",
-  },
-  skills: {
-    jaTitle: "技術スタック",
-    enTitle: "Skills",
-    sub: "Tech Stack",
-    ja: "フロントエンドを中心に、UXとデザインにこだわりながら日々新しい技術へ挑戦しています。",
-    en: "Front-end focused, obsessed with UX and design, and always challenging new technology.",
-  },
-  experience: {
-    jaTitle: "経歴・活動",
-    enTitle: "Experience",
-    sub: "Journey",
-    ja: "これまでの学び・挑戦・活動の記録。学生ながら幅広くものづくりに取り組んできました。",
-    en: "A record of learning, challenges, and activity — a wide range of making, all while studying.",
-  },
-  contact: {
-    jaTitle: "お問い合わせ",
-    enTitle: "Contact",
-    sub: "Get in touch",
-    ja: "お気軽にご連絡ください！SNSやフォームからいつでもどうぞ。",
-    en: "Feel free to reach out — anytime via social links or the form.",
-  },
-};
-
 export default function Home() {
   const { activeSection, setActiveSection, pageOpen, openPage, closePage, goHome, facing, setFacing, turnTo, paused, togglePaused } = useAppState();
   const { language, toggleLanguage } = useLanguage();
   const { openTerminal } = useTerminal();
   const isJa = language === "ja";
 
-  // With no section explicitly focused the card describes whatever the camera
-  // is turned towards, so rotating the diorama leafs through the areas.
-  const card = CARD[activeSection ?? facing];
+  // Which area the card is about. With no section explicitly focused it is
+  // whatever the camera is turned towards, so rotating the diorama leafs
+  // through the areas.
+  const card = activeSection ?? facing;
   const openedAt = useRef(0);
   const [toolsOpen, setToolsOpen] = useState(false);
 
-  // The dotted trail starts from this dot on the card's corner. The trail
-  // measures the element itself, so its size and position are stated once, in
-  // the markup below, rather than restated as numbers at the drawing end.
+  // The dotted trail starts from a dot on the card's corner. The trail measures
+  // that element itself, so its size and position are stated once, in the
+  // card's own markup, rather than restated as numbers at the drawing end.
   const anchorDotRef = useRef<HTMLSpanElement | null>(null);
-
-  // Tapping the card opens its area; swiping it up or down steps to the next
-  // spot round the island and turns the camera there.
-  const cardGestures = useCardGestures({
-    onTap: () => openPage(activeSection ?? facing),
-    onSwipe: (step) => turnTo(adjacentSection(activeSection ?? facing, step)),
-  });
 
   // The detail page is bracketed by two transparent spacers. Scrolling off
   // either end pulls the camera back to the diorama and then goes home.
@@ -310,31 +255,19 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Middle: contextual card (orbit mode only) */}
+        {/* Middle: contextual card (orbit mode only, and not while the
+            frameless About panel — which has no card or leader line to
+            anchor — is showing) */}
         <div className="flex-1 flex items-center w-full">
-          {!pageOpen && (
-            <div
-              key={activeSection ?? "home"}
-              {...cardGestures}
-              className="relative cursor-pointer select-none touch-none pointer-events-auto bg-white/95 backdrop-blur-sm rounded-3xl p-6 sm:p-8 shadow-xl max-w-xs sm:max-w-sm border border-black/5 animate-[fadeIn_0.4s_ease]"
-            >
-              {/* Where the trail leaves the card. Part of the card rather than
-                  the SVG overlay, which sits below the chrome and would hide it. */}
-              <span
-                ref={anchorDotRef}
-                aria-hidden="true"
-                className="absolute top-5 right-5 w-[9px] h-[9px] rounded-full bg-[rgba(66,38,18,0.75)]"
-              />
-              <p className="text-orange-500 font-black text-lg">{isJa ? card.jaTitle : card.enTitle}</p>
-              <p className="text-xs text-gray-400 font-bold mb-4 uppercase tracking-[0.2em]">{card.sub}</p>
-              <p className="text-gray-700 font-medium mb-6 leading-relaxed text-sm">{isJa ? card.ja : card.en}</p>
-              <button
-                onClick={() => openPage(activeSection ?? "about")}
-                className="inline-flex bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 px-7 rounded-full shadow-[0_4px_0_#c2410c] active:shadow-[0_0px_0_#c2410c] active:translate-y-1 transition-all items-center gap-1.5"
-              >
-                {isJa ? "詳しく見る" : "More"} <ChevronRight size={18} />
-              </button>
-            </div>
+          {!pageOpen && activeSection !== "about" && (
+            <AreaCard
+              section={card}
+              isJa={isJa}
+              focused={!!activeSection}
+              anchorRef={anchorDotRef}
+              onOpen={() => openPage(card)}
+              onStep={(step) => turnTo(adjacentSection(card, step))}
+            />
           )}
         </div>
 
@@ -387,10 +320,16 @@ export default function Home() {
             )}
           </div>
 
-          {/* Floating About section for home screen */}
-          <div className="absolute right-12 top-1/2 -translate-y-1/2 pointer-events-none z-30">
+          {/* Floating About section for home screen — left side, frameless,
+              mirrored by the camera flight in Scene.tsx pushing the about
+              building over to the right of the frame to clear it. Indented
+              well past the logo (reference/image2.png), not flush to the
+              edge, so it reads as a placed column rather than a margin note. */}
+          <div className="absolute left-[15%] top-1/2 -translate-y-1/2 pointer-events-none z-30">
             <AnimatePresence>
-              {!pageOpen && activeSection === "about" && <About />}
+              {!pageOpen && activeSection === "about" && (
+                <About onFinish={() => closeToHome("down", true)} />
+              )}
             </AnimatePresence>
           </div>
 
@@ -401,8 +340,11 @@ export default function Home() {
         </div>
       </div>
 
-      {/* HOME button — zoomed into a building, page not yet open */}
-      {activeSection && !pageOpen && (
+      {/* HOME button — zoomed into a building, page not yet open.
+          About is the exception: its column is read to the end to leave it, so
+          a button offering the same thing would be a second, competing way out
+          of the one area that already has a natural one. */}
+      {activeSection && activeSection !== "about" && !pageOpen && (
         <button
           onClick={() => closeToHome("down", true)}
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2 bg-white text-gray-800 font-bold py-3 px-7 rounded-full shadow-lg border border-black/5 hover:scale-105 transition-transform"
@@ -471,8 +413,14 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* Dotted trail from the card out to the marker over its area */}
-      <CardLeaderLine anchorRef={anchorDotRef} hidden={pageOpen} />
+      {/* Dotted trail from the card out to the marker over its area. It only
+          has a job in the free orbit view: it is what says "the card is about
+          that spot over there". Focusing an area answers that question by
+          filling the frame with the spot itself, so the trail — and the marker
+          it points at — both withdraw. Unmounting cleanly here (rather than
+          just losing its anchor when the dot above disappears) keeps it from
+          freezing mid-draw at its last position. */}
+      <CardLeaderLine anchorRef={anchorDotRef} hidden={pageOpen || !!activeSection} />
 
       {/* Terminal easter egg */}
       <TerminalOverlay />
