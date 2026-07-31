@@ -13,6 +13,7 @@ import {
 import { BUILDING_POSITIONS } from "./worldLayout";
 import { PLANET_SECTION_KEYS, sectionBasis } from "./planet/sections";
 import AreaMarkers from "./AreaMarkers";
+import FillerCity from "./FillerCity";
 
 /**
  * Each building's rotation: turns its local +Y to stand along the planet's
@@ -75,18 +76,18 @@ export default function Diorama() {
 
       <AreaMarkers />
 
+      {/* The unnamed crowd of small buildings — stage 3 of docs/planet-migration.md. */}
+      <FillerCity />
+
       {/*
        * Decorations (Ferris wheel, trees, lamps, clouds, villagers, tram) and
-       * the confetti are switched off here for stage 2 of
-       * docs/planet-migration.md. Every one of them was tuned for the old flat
-       * island — a fixed y=0.2 ground, XZ circles for the tram's and
-       * villagers' paths, confetti falling in -Y and respawning at a fixed
-       * height — none of which holds on a sphere. Re-scattering them properly
-       * (walking a great circle, drifting along the surface, star dust instead
-       * of falling confetti) is stage 6's job; leaving them on here would mean
-       * tuning their positions twice, and would corrupt this stage's
-       * screenshots — taken to measure the planet's radius and the buildings'
-       * latitudes — with obviously-wrong floating trees.
+       * the confetti are still switched off here. Every one of them was tuned
+       * for the old flat island — a fixed y=0.2 ground, XZ circles for the
+       * tram's and villagers' paths, confetti falling in -Y and respawning at
+       * a fixed height — none of which holds on a sphere. Re-scattering them
+       * properly (walking a great circle, drifting along the surface, star
+       * dust instead of falling confetti) is stage 6's job; leaving them on
+       * here would mean tuning their positions twice.
        */}
     </group>
   );

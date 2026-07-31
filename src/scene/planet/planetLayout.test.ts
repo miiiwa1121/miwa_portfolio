@@ -8,6 +8,7 @@ import {
   fibonacciSphere,
   latLonToDirection,
   normalize,
+  offsetDirection,
   rotateAboutAxis,
   slerpDirection,
   surfacePoint,
@@ -295,6 +296,63 @@ describe("tangentBasis", () => {
       }
       expect(dot(right, up)).toBeCloseTo(0);
       expect(dot(up, forward)).toBeCloseTo(0);
+    }
+  });
+});
+
+describe("offsetDirection", () => {
+  it("returns the centre at zero distance, whatever the bearing", () => {
+    const centre = latLonToDirection(20, 130);
+    for (const bearing of [0, 1, 3, -2]) {
+      expect(angleBetween(offsetDirection(centre, bearing, 0), centre)).toBeCloseTo(0);
+    }
+  });
+
+  it("lands exactly angularDistance away from the centre", () => {
+    const centre = latLonToDirection(-15, 200);
+    for (const d of [0.05, 0.3, 1.0, 2.5]) {
+      expect(angleBetween(offsetDirection(centre, 0.7, d), centre)).toBeCloseTo(d);
+    }
+  });
+
+  // Bearing 0 is defined as due north — straight along tangentBasis's own
+  // forward — and a quarter turn of bearing (east) lands on its right. Get
+  // this backwards and every cluster in the filler city scatters mirrored.
+  it("heads north at bearing 0 and east at a quarter turn", () => {
+    const centre = latLonToDirection(10, 50);
+    const { right, forward } = tangentBasis(centre);
+    // At a small angular distance the displacement off centre is `sin(d)` of
+    // the tangent direction and `1 - cos(d)` (second order, negligible here)
+    // back towards centre itself — so the displacement's own direction
+    // converges on forward/right as d shrinks, rather than matching it
+    // exactly at any finite distance.
+    const d = 0.001;
+    const north = offsetDirection(centre, 0, d);
+    const east = offsetDirection(centre, Math.PI / 2, d);
+    expect(dot(normalize([north[0] - centre[0], north[1] - centre[1], north[2] - centre[2]]), forward)).toBeGreaterThan(0.9999);
+    expect(dot(normalize([east[0] - centre[0], east[1] - centre[1], east[2] - centre[2]]), right)).toBeGreaterThan(0.9999);
+  });
+
+  it("returns a unit vector", () => {
+    for (const d of [0.1, 1.5, 3.0])
+      expect(length(offsetDirection(latLonToDirection(5, 5), 1.1, d))).toBeCloseTo(1);
+  });
+
+  it("is continuous: a small step in distance is a small step in angle", () => {
+    const centre = latLonToDirection(0, 0);
+    const a = offsetDirection(centre, 0.4, 1.0);
+    const b = offsetDirection(centre, 0.4, 1.001);
+    expect(angleBetween(a, b)).toBeCloseTo(0.001, 4);
+  });
+
+  // Every bearing has to converge on the same point once the distance reaches
+  // π — the antipode of centre — the way every line of longitude meets at a
+  // pole.
+  it("converges on the antipode at distance pi regardless of bearing", () => {
+    const centre = latLonToDirection(25, 80);
+    const antipode: Direction = [-centre[0], -centre[1], -centre[2]];
+    for (const bearing of [0, 1.2, 2.8, -1.5]) {
+      expect(angleBetween(offsetDirection(centre, bearing, Math.PI), antipode)).toBeCloseTo(0, 5);
     }
   });
 });

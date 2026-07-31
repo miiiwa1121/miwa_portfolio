@@ -183,6 +183,38 @@ export function tangentBasis(
 }
 
 /**
+ * A direction `angularDistance` radians from `centre`, in compass direction
+ * `bearing` (radians, measured from `tangentBasis(centre).forward` — "north"
+ * — towards `.right` — "east").
+ *
+ * The geodesic-polar-coordinates formula: `cos(d)·centre + sin(d)·tangentDir`
+ * is the point angularDistance `d` along the great circle that leaves `centre`
+ * heading in the tangent direction `tangentDir`. This is what scatters filler
+ * buildings around a cluster's own centre (`scene/planet/city.ts`) — walking a
+ * fixed world-unit offset would bunch points together near the poles of
+ * whatever local frame produced them, where a fixed angle does not, because
+ * it is measured on the sphere itself rather than projected onto one plane.
+ *
+ * `bearing` has no meaning at `angularDistance = 0`, the same way longitude
+ * has none at the poles — every bearing returns `centre` there.
+ */
+export function offsetDirection(centre: Direction, bearing: number, angularDistance: number): Direction {
+  const { right, forward } = tangentBasis(centre);
+  const tangentDir: Direction = [
+    Math.cos(bearing) * forward[0] + Math.sin(bearing) * right[0],
+    Math.cos(bearing) * forward[1] + Math.sin(bearing) * right[1],
+    Math.cos(bearing) * forward[2] + Math.sin(bearing) * right[2],
+  ];
+  const cos = Math.cos(angularDistance);
+  const sin = Math.sin(angularDistance);
+  return normalize([
+    centre[0] * cos + tangentDir[0] * sin,
+    centre[1] * cos + tangentDir[1] * sin,
+    centre[2] * cos + tangentDir[2] * sin,
+  ]);
+}
+
+/**
  * `count` directions spread evenly over the whole sphere (Fibonacci lattice).
  *
  * Even *and* deterministic, which a scatter drawn from `hash01` is not: random
