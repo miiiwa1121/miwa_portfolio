@@ -6,34 +6,37 @@ import { CameraControls } from "@react-three/drei";
 import * as THREE from "three";
 import Diorama from "./Diorama";
 import {
-  sectionTargets,
-  sectionAzimuth,
-  framePose,
   frameDistance,
-  aimOffset,
+  focalOffsetX,
   FRAME_MARGIN,
-  facingSection,
   frameSizeChanged,
-  homePose,
-  homeFocalOffsetX,
+  orbitPose,
+  orbitAnglesOf,
+  sectionPose,
   wrapAngle,
   glidePose,
   easeInOutCubic,
-  HOME_ANGLE,
-  ABOUT_TILT,
-  ABOUT_DISTANCE,
-  ABOUT_TARGET_Y,
+  ORBIT_RADIUS,
+  ORBIT_MIN_POLAR,
+  ORBIT_MAX_POLAR,
+  ORBIT_CARD_SHARE,
+  CARD_SHARE,
+  SECTION_TILT,
+  ABOUT_POLAR,
+  ABOUT_ORBIT_RADIUS,
   ABOUT_CARD_SHARE,
   type Pose,
 } from "./worldLayout";
+import { PLANET_TOUR, sectionU, facingSectionOnPlanet } from "./planet/tour";
+import { PLANET_SECTION_KEYS, sectionDirection } from "./planet/sections";
 import { sceneClock } from "./sceneClock";
 import { aboutReturn } from "@/hub/about/aboutScroll";
 import { useAppState, type SectionType } from "@/state/AppStateContext";
 
 // Rotation sensitivity (kept gentle).
-const DRAG_SENSITIVITY = 0.002; // radians per px of pointer drag
-const WHEEL_SENSITIVITY = 0.0004; // radians per unit of wheel deltaY
-const AUTO_ORBIT_SPEED = 0.032; // radians per second of idle drift
+const DRAG_SENSITIVITY = 0.002; // radians per px of pointer drag, both axes
+const WHEEL_SENSITIVITY = 0.0004; // radians (of great-circle arc) per unit of wheel deltaY
+const AUTO_ORBIT_SPEED = 0.032; // radians (of great-circle arc) per second of idle drift
 
 // How long the wheel must be quiet before a stream that began while the orbit
 // was locked is trusted again. Longer than the gaps within a momentum tail,
@@ -83,17 +86,36 @@ function isInteractive(target: EventTarget | null): boolean {
   );
 }
 
+/** The unit direction the free orbit's azimuth/polar pair currently points at. */
+function directionAt(azimuth: number, polar: number): [number, number, number] {
+  return orbitPose(azimuth, polar, 1).slice(0, 3) as [number, number, number];
+}
+
+/** Keeps a fraction wrapped into [0, 1) — `PLANET_TOUR`'s own convention. */
+function wrap01(u: number): number {
+  return ((u % 1) + 1) % 1;
+}
+
 /**
- * Only in the free home view do wheel / vertical swipe / horizontal drag orbit
- * the diorama (there is nothing to scroll there). Whenever a section is
- * focused — card or full page — orbiting is locked out, since the camera is
- * driven by the zoom/scroll logic instead; a stray gesture is simply ignored
- * rather than silently queued up for later. Listeners live on `window` so a
- * gesture anywhere over the canvas works, even though the canvas sits behind the
+ * Only in the free orbit does dragging or the wheel move the camera (there is
+ * nothing to scroll there otherwise). Whenever a section is focused — card or
+ * full page — input is locked out, since the camera is driven by the
+ * zoom/scroll logic instead; a stray gesture is simply ignored rather than
+ * silently queued up for later. Listeners live on `window` so a gesture
+ * anywhere over the canvas works, even though the canvas sits behind the
  * (mostly pointer-events-none) UI overlay.
+ *
+ * A drag moves both azimuth and polar directly — horizontal travel turns the
+ * planet, vertical travel tips it — and keeps `tourURef` shadowing the
+ * nearest point on the tour path throughout, not just once the drag ends, so
+ * a scroll that starts mid-drag continues from nearby rather than reverting
+ * to wherever the tour was left. The wheel instead advances `tourURef`
+ * directly; it has no reason to leave the path at all.
  */
 function useViewInput(
-  targetAngleRef: React.RefObject<number>,
+  azimuthTargetRef: React.RefObject<number>,
+  polarTargetRef: React.RefObject<number>,
+  tourURef: React.RefObject<number>,
   draggingRef: React.RefObject<boolean>,
   orbitLockedRef: React.RefObject<boolean>,
   flightRef: React.RefObject<unknown>
@@ -102,18 +124,20 @@ function useViewInput(
     let down = false;
     let lastX = 0;
     let lastY = 0;
-    let pointerType = "mouse";
 
     // A camera flight owns the camera outright; gestures during one would be
     // fighting it, and would land as a jump the moment it finished.
     const locked = () => orbitLockedRef.current || flightRef.current !== null;
+
+    const resync = () => {
+      tourURef.current = PLANET_TOUR.nearestU(directionAt(azimuthTargetRef.current, polarTargetRef.current));
+    };
 
     const onPointerDown = (e: PointerEvent) => {
       if (locked() || isInteractive(e.target)) return;
       down = true;
       lastX = e.clientX;
       lastY = e.clientY;
-      pointerType = e.pointerType || "mouse";
       draggingRef.current = true;
     };
 
@@ -123,14 +147,20 @@ function useViewInput(
       const dy = e.clientY - lastY;
       lastX = e.clientX;
       lastY = e.clientY;
-      // Touch: a vertical swipe (scroll gesture) rotates. Mouse: horizontal drag.
-      // Subtracted (not added): CameraControls' azimuth increases clockwise
-      // when viewed from above (three.js's `atan2(x, z)` convention, see
-      // azimuthToXZ below), which is the opposite handedness of the drag
-      // gesture's natural "grab and pull" direction — so the delta is negated
-      // here to keep dragging right feel like rotating the diorama rightward.
-      const delta = pointerType === "touch" ? -dy : dx;
-      targetAngleRef.current -= delta * DRAG_SENSITIVITY;
+
+      // Horizontal drag turns the planet — subtracted, not added, because
+      // CameraControls' azimuth increases clockwise seen from above (three.js's
+      // `atan2(x, z)` convention), the opposite handedness of the drag
+      // gesture's natural "grab and pull" direction.
+      azimuthTargetRef.current -= dx * DRAG_SENSITIVITY;
+      // Vertical drag tips it — dragging up (dy < 0) looks more from above
+      // (polar decreases, towards the pole the same "up" points at), the same
+      // "grab and pull" handedness as the horizontal case.
+      polarTargetRef.current = Math.min(
+        ORBIT_MAX_POLAR,
+        Math.max(ORBIT_MIN_POLAR, polarTargetRef.current + dy * DRAG_SENSITIVITY)
+      );
+      resync();
     };
 
     const endDrag = () => {
@@ -162,7 +192,8 @@ function useViewInput(
       }
 
       e.preventDefault(); // stop any rubber-band scroll; there's no page yet
-      targetAngleRef.current -= e.deltaY * WHEEL_SENSITIVITY;
+      const deltaU = (-e.deltaY * WHEEL_SENSITIVITY) / PLANET_TOUR.length;
+      tourURef.current = wrap01(tourURef.current + deltaU);
     };
 
     window.addEventListener("pointerdown", onPointerDown);
@@ -177,7 +208,7 @@ function useViewInput(
       window.removeEventListener("pointercancel", endDrag);
       window.removeEventListener("wheel", onWheel);
     };
-  }, [targetAngleRef, draggingRef, orbitLockedRef, flightRef]);
+  }, [azimuthTargetRef, polarTargetRef, tourURef, draggingRef, orbitLockedRef, flightRef]);
 }
 
 /**
@@ -228,32 +259,37 @@ function CameraController() {
   const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
   const size = useThree((state) => state.size);
 
-  // The orbit's azimuth is tracked entirely through CameraControls' own
-  // `.azimuthAngle` (an accumulative, wraparound-safe property backed by its
-  // internal spherical state) rather than a hand-rolled ref recovered via
-  // atan2(camera.position). Re-deriving an angle from a transient world-space
-  // position was the root cause of the drift/snap bugs here: intermediate
-  // points along a flight path don't sit on the orbit circle, so atan2'ing
-  // them produced angles that didn't mean anything. `azimuthAngle` never has
-  // that problem because it's the authoritative source, not a recomputation.
-  const azimuthTargetRef = useRef(HOME_ANGLE);
+  const home = orbitAnglesOf(PLANET_TOUR.direction(0));
+
+  // The free orbit's true state — see docs/planet-migration.md, "カメラの状態設計".
+  // `azimuthTargetRef`/`polarTargetRef` are raw targets that jump the instant
+  // a gesture or the tour asks for something new; `azimuthRef`/`polarRef` are
+  // what actually gets rendered, damped towards those targets every frame.
+  // Unlike the flat world's `azimuthAngle`, nothing here is read back from
+  // CameraControls — the full pose is written with setLookAt every frame (see
+  // useFrame below), so these refs are the only source of truth and there is
+  // nothing to recover by inverting a transient world position.
+  const azimuthTargetRef = useRef(home.azimuth);
+  const polarTargetRef = useRef(home.polar);
+  const azimuthRef = useRef(home.azimuth);
+  const polarRef = useRef(home.polar);
+  // Where along the tour path the camera is — meaningful whenever the free
+  // orbit is driving the camera, and shadowed (not driving) during a drag or
+  // while a section holds the camera parked.
+  const tourURef = useRef(0);
+
   const draggingRef = useRef(false);
   const prevSectionRef = useRef<SectionType>(null);
   const prevNonceRef = useRef(homeNonce);
   const facingRef = useRef(facing);
 
-  // About keeps orbiting slowly even though it isn't the free home view — it
-  // has no card to hold the camera clear of, so unlike every other focused
-  // section there's no reason to park it. Distance and sideways offset are
-  // captured once, when the flight there lands, and reused every frame: they
-  // only depend on the building's bounds and the viewport, recomputing them
-  // per frame would just repeat the same trig for no different an answer.
-  const aboutOrbitRef = useRef<{
-    target: [number, number, number];
-    distance: number;
-    sideways: number;
-    azimuth: number;
-  } | null>(null);
+  // About keeps orbiting slowly even though it isn't the free orbit — it has
+  // no card to hold the camera clear of, so unlike every other focused
+  // section there's no reason to park it. Just the one running azimuth: About
+  // pivots on the planet's own centre at fixed ABOUT_POLAR/ABOUT_ORBIT_RADIUS,
+  // not on the building, so there is nothing else about the shot left to
+  // capture when it starts.
+  const aboutAzimuthRef = useRef(0);
 
   /**
    * The flight in progress, if any — driven frame by frame in useFrame below
@@ -266,17 +302,10 @@ function CameraController() {
    * duration is a number rather than an emergent property of a spring, the
    * curve can hold still at the start (see easeInOutCubic), and a frame that
    * arrives late cannot skip the flight forward (see MAX_FLIGHT_STEP).
-   *
-   * It also retires the tokens this used to need. CameraControls'
-   * `_createOnRestPromise` has no per-call identity — it resolves on the next
-   * `rest` event whatever caused it — so a stale `.then` from a superseded
-   * flight could declare a newer one finished, leaving useFrame writing the
-   * camera on top of it. A superseded flight here is simply overwritten.
    */
   const glideRef = useRef<{
     from: Pose;
     to: Pose;
-    /** The sideways push travels with the flight, on the same curve. */
     fromOffsetX: number;
     toOffsetX: number;
     elapsed: number;
@@ -300,52 +329,34 @@ function CameraController() {
    * it is now — including part way through a flight it is superseding, which
    * is what keeps a second destination chosen mid-flight from snapping.
    */
-  const startGlide = (to: Pose, duration: number) => {
+  const startGlide = (to: Pose, toOffsetX: number, duration: number) => {
     const controls = controlsRef.current;
     if (!controls) return;
-    // `false` for where the camera *is*, not where it was last told to go.
-    // The two are the same here (every write below is untransitioned, so
-    // CameraControls' current and end states never diverge), but a flight has
-    // to start from the live camera by definition, and the default is the
-    // other one.
     const position = controls.getPosition(scratchPosition, false);
     const target = controls.getTarget(scratchTarget, false);
     glideRef.current = {
       from: [position.x, position.y, position.z, target.x, target.y, target.z],
       to,
       fromOffsetX: controls.getFocalOffset(scratchOffset, false).x,
-      toOffsetX: focalOffsetX(),
+      toOffsetX,
       elapsed: 0,
       duration,
       primed: false,
     };
   };
 
-  // Orbiting only makes sense in the free home view — lock out drag/wheel input
+  // Orbiting only makes sense in the free orbit — lock out drag/wheel input
   // whenever a section is focused (card or full page) so stray gestures can't
-  // silently accumulate into azimuthTargetRef and cause a spin once we get home.
+  // silently accumulate into the targets and cause a spin once we get back.
   const orbitLockedRef = useRef(pageOpen || !!activeSection);
   useEffect(() => {
     orbitLockedRef.current = pageOpen || !!activeSection;
   }, [pageOpen, activeSection]);
 
-  useViewInput(azimuthTargetRef, draggingRef, orbitLockedRef, glideRef);
+  useViewInput(azimuthTargetRef, polarTargetRef, tourURef, draggingRef, orbitLockedRef, glideRef);
 
-  /**
-   * The sideways push that keeps the island clear of the card on the left.
-   *
-   * Set alongside the destination rather than anywhere else, because it *is*
-   * part of the destination — it decides where in the frame the thing being
-   * looked at ends up. Sections take none of it: they aim to the side through
-   * `framePose`'s own `sideways` yaw, and stacking the two would push them
-   * twice as far. See `homeFocalOffsetX` for why the home view can't use that
-   * same yaw.
-   */
-  const focalOffsetX = () =>
-    activeSection ? 0 : homeFocalOffsetX(camera.fov, camera.aspect);
-
-  const snapFocalOffset = () => {
-    controlsRef.current?.setFocalOffset(focalOffsetX(), 0, 0, false);
+  const snapFocalOffset = (offsetX: number) => {
+    controlsRef.current?.setFocalOffset(offsetX, 0, 0, false);
   };
 
   // The push is a fraction of the frame's *width*, so a resize changes it. Snap
@@ -355,23 +366,18 @@ function CameraController() {
   // destination instead — snapping there would be undone on the next frame.
   //
   // Guarded on the frame's *dimensions*, via `frameSizeChanged`, so this only
-  // ever acts on a real resize. It used to compare `size` by identity, and
-  // `useThree` hands back a fresh object on re-renders that are not resizes at
-  // all — so this ran on every re-render, including the one that focuses an
-  // area or leaves it. Since it runs *before* the destination effect below, it
-  // snapped the offset to that destination before the flight could read it as
-  // its starting value, and the flight then travelled from the destination to
-  // the destination: the sideways push arrived in a single frame as a 141px
-  // jump instead of easing in over the trip. `activeSection` is in the deps to
-  // keep the closure above current, not as a reason to run.
+  // ever acts on a real resize — see the note on `frameSizeChanged` itself for
+  // why an identity comparison on `size` used to fire on every re-render.
   const lastSizeRef = useRef({ width: size.width, height: size.height });
   useEffect(() => {
     if (!frameSizeChanged(lastSizeRef.current, size)) return;
     lastSizeRef.current = { width: size.width, height: size.height };
     const glide = glideRef.current;
-    if (glide) glide.toOffsetX = focalOffsetX();
-    else snapFocalOffset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const offsetX = activeSection
+      ? glide?.toOffsetX ?? 0 // a section's own offset depends on that section's distance, not on the frame alone; leave it be outside a flight
+      : focalOffsetX(ORBIT_RADIUS, camera.fov, camera.aspect, ORBIT_CARD_SHARE);
+    if (glide) glide.toOffsetX = offsetX;
+    else if (!activeSection) snapFocalOffset(offsetX);
   }, [size, activeSection, camera]);
 
   // Pausing means "stop now", not "coast to a halt". The damp below is still
@@ -383,24 +389,20 @@ function CameraController() {
   // clobbering it would drag the camera back off the building on landing.
   useEffect(() => {
     if (!paused || inFlight()) return;
-    const controls = controlsRef.current;
-    if (controls) azimuthTargetRef.current = controls.azimuthAngle;
+    azimuthTargetRef.current = azimuthRef.current;
+    polarTargetRef.current = polarRef.current;
   }, [paused]);
 
-  // Swiping the card asks for a spot. Steering the existing orbit target is
-  // all it takes — the idle loop eases the camera round from wherever it is,
-  // and the card follows because it reads the angle rather than being set.
+  // Swiping the card asks for a spot. Steering tourURef directly is all it
+  // takes — the idle loop eases the camera round from wherever it is, and the
+  // card follows because it reads the direction rather than being set.
   useEffect(() => {
     if (!turnRequest) return;
-    const controls = controlsRef.current;
-    if (!controls) return;
-    const current = controls.azimuthAngle;
-    azimuthTargetRef.current =
-      current + wrapAngle(sectionAzimuth(turnRequest.section) - current);
+    tourURef.current = sectionU(turnRequest.section);
   }, [turnRequest]);
 
-  // Every camera destination is decided here, in one place, so the three ways
-  // of arriving cannot disagree about where the camera should end up.
+  // Every camera destination is decided here, in one place, so the several
+  // ways of arriving cannot disagree about where the camera should end up.
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
@@ -415,104 +417,105 @@ function CameraController() {
     // below is brought up to date, and kept in a ref rather than a dep because
     // this effect must not re-run merely because the page opened or closed.
     const wasCovered = prevPageOpenRef.current;
+    const duration = wasCovered ? RETURN_SECONDS : FLIGHT_SECONDS;
 
-    const flyTo = (pose: Pose, azimuth: number) => {
-      azimuthTargetRef.current = azimuth;
-      startGlide(pose, wasCovered ? RETURN_SECONDS : FLIGHT_SECONDS);
+    /** Point the free orbit's targets at `azimuth`/`polar` and fly there. */
+    const flyToOrbit = (azimuth: number, polar: number) => {
+      azimuthTargetRef.current = azimuthRef.current + wrapAngle(azimuth - azimuthRef.current);
+      polarTargetRef.current = polar;
+      startGlide(
+        orbitPose(azimuth, polar, ORBIT_RADIUS),
+        focalOffsetX(ORBIT_RADIUS, camera.fov, camera.aspect, ORBIT_CARD_SHARE),
+        duration
+      );
     };
 
-    // 1. A section was focused: frame its building from the area's own angle,
-    //    backing off by however much that particular building needs. Reading
-    //    the real bounds means a 12-unit tower and a 4-unit library are each
-    //    framed properly, instead of sharing one hardcoded distance.
-    if (activeSection && sectionTargets[activeSection]) {
+    // 1. A section was focused (not About): frame its building from its own
+    //    local frame, backing off by however much that particular building
+    //    needs. Reading the real bounds means a tall tower and a small house
+    //    are each framed properly, instead of sharing one hardcoded distance.
+    if (activeSection && activeSection !== "about" && PLANET_SECTION_KEYS.includes(activeSection)) {
       const building = scene.getObjectByName(activeSection);
       if (building) {
-        // About has no card to clear and no single building to crop in on —
-        // it pivots on the island's own centre, same as the free/home view,
-        // just backed off further and tilted down more steeply. Every other
-        // section still frames its own building's real bounds, so a 12-unit
-        // tower and a 4-unit library are each framed properly instead of
-        // sharing one hardcoded distance.
-        const isAbout = activeSection === "about";
-        let target: [number, number, number];
-        let distance: number;
-        if (isAbout) {
-          target = [0, ABOUT_TARGET_Y, 0];
-          distance = ABOUT_DISTANCE;
-        } else {
-          const sphere = new THREE.Box3()
-            .setFromObject(building)
-            .getBoundingSphere(new THREE.Sphere());
-          target = [sphere.center.x, sphere.center.y, sphere.center.z];
-          distance = frameDistance(sphere.radius * FRAME_MARGIN, camera.fov, camera.aspect);
-        }
-        const sideways = aimOffset(distance, camera.fov, camera.aspect, isAbout ? ABOUT_CARD_SHARE : undefined);
-        const azimuth = sectionAzimuth(activeSection);
-        const pose = framePose(target, azimuth, distance, isAbout ? ABOUT_TILT : undefined, sideways);
-        // Cached for the idle orbit in useFrame to keep turning from, once
-        // this flight lands — same target/distance/sideways, just a moving
-        // azimuth instead of this one fixed value.
-        aboutOrbitRef.current = isAbout ? { target, distance, sideways, azimuth } : null;
-        // `pose` carries its own sideways aim, so the focal offset goes to zero
-        // — the glide walks it there rather than snapping it away underneath a
-        // flight that is still crossing the frame.
-        startGlide(pose, wasCovered ? RETURN_SECONDS : FLIGHT_SECONDS);
+        const sphere = new THREE.Box3().setFromObject(building).getBoundingSphere(new THREE.Sphere());
+        const target: [number, number, number] = [sphere.center.x, sphere.center.y, sphere.center.z];
+        const distance = frameDistance(sphere.radius * FRAME_MARGIN, camera.fov, camera.aspect);
+        const pose = sectionPose(target, distance, SECTION_TILT);
+        startGlide(pose, focalOffsetX(distance, camera.fov, camera.aspect, CARD_SHARE), duration);
       }
       return;
     }
 
-    // 2. A deliberate reset (logo / HOME) with no area to leave — the camera
-    //    was already free, idle-orbiting or dragged off to wherever, so there
-    //    is nothing to pull back *from* and this is the one fixed default view
-    //    every time. If an area *was* focused, this falls through to 4 instead:
-    //    pulling back facing that area is the same trip scrolling off the
-    //    detail page makes, and re-aiming at HOME_ANGLE on top of it used to
-    //    spend the flight sweeping the whole distance between the two angles —
-    //    at 45° and the reset button doubling as "spin most of the way round
-    //    the island" for every area that didn't happen to sit near there.
-    if (wasReset && !(cameFrom && sectionTargets[cameFrom])) {
-      flyTo(homePose(HOME_ANGLE), HOME_ANGLE);
+    // 2. About was focused: fly to face it, at the wide, steeply-tilted orbit
+    //    that pivots on the planet's own centre rather than on the small
+    //    "about" building (see ABOUT_POLAR/ABOUT_ORBIT_RADIUS). The starting
+    //    azimuth for its own continuing idle rotation (useFrame, below) is
+    //    captured here, once, rather than every frame.
+    if (activeSection === "about") {
+      const azimuth = orbitAnglesOf(sectionDirection("about")).azimuth;
+      aboutAzimuthRef.current = azimuthRef.current + wrapAngle(azimuth - azimuthRef.current);
+      startGlide(
+        orbitPose(aboutAzimuthRef.current, ABOUT_POLAR, ABOUT_ORBIT_RADIUS),
+        focalOffsetX(ABOUT_ORBIT_RADIUS, camera.fov, camera.aspect, ABOUT_CARD_SHARE),
+        duration
+      );
       return;
     }
 
-    // 3. About, read to the end. There is no flight to start: the column's own
+    // 3. A deliberate reset (logo / HOME) with no area to leave — the camera
+    //    was already free, idle-drifting or dragged off to wherever, so there
+    //    is nothing to pull back *from* and this is the one fixed default view
+    //    every time: the start of the tour. If an area *was* focused, this
+    //    falls through to 5 instead: pulling back facing that area is the same
+    //    trip scrolling off the detail page makes.
+    if (wasReset && !(cameFrom && cameFrom !== "about" && PLANET_SECTION_KEYS.includes(cameFrom))) {
+      tourURef.current = 0;
+      flyToOrbit(home.azimuth, home.polar);
+      return;
+    }
+
+    // 4. About, read to the end. There is no flight to start: the column's own
     //    scroll flew this one, frame by frame, and the camera is already
-    //    sitting in the home framing at whatever angle the orbit had drifted
-    //    to (see the About branch of useFrame). Anything launched here would
-    //    be a second trip on top of an arrival that has already happened —
-    //    most visibly a turn back to About's own azimuth, undoing the reading.
-    //    The idle drift picks the angle up from where it stands, and the card
-    //    is told which area that leaves in front, since the free orbit below
-    //    only publishes on a change and this is not one.
+    //    sitting wherever About's idle rotation left it. Anything launched
+    //    here would be a second trip on top of an arrival that has already
+    //    happened. Reconcile the free orbit's targets to that landing spot —
+    //    off the tour path in general, the same way ending a drag leaves it —
+    //    and let the ordinary idle drift ease it back onto the path from
+    //    there, rather than snapping anywhere.
     if (cameFrom === "about" && aboutReturn.progress() >= 1) {
-      aboutOrbitRef.current = null;
-      azimuthTargetRef.current = controls.azimuthAngle;
-      const landedOn = facingSection(controls.azimuthAngle);
+      azimuthTargetRef.current = aboutAzimuthRef.current;
+      polarTargetRef.current = ABOUT_POLAR;
+      azimuthRef.current = aboutAzimuthRef.current;
+      polarRef.current = ABOUT_POLAR;
+      tourURef.current = PLANET_TOUR.nearestU(directionAt(aboutAzimuthRef.current, ABOUT_POLAR));
+      const landedOn = facingSectionOnPlanet(directionAt(aboutAzimuthRef.current, ABOUT_POLAR));
       facingRef.current = landedOn;
       setFacing(landedOn);
       return;
     }
 
-    // 4. Left an area — by scrolling off the detail page, or by the logo /
-    //    HOME while one was focused (2 falls through to here for that case).
-    //    Either way: back out to the overview distance, but turned so the area
-    //    just read about is the thing facing the camera, not spun round to a
-    //    fixed angle that has nothing to do with where the camera already was.
-    if (cameFrom && sectionTargets[cameFrom]) {
-      const azimuth = sectionAzimuth(cameFrom);
-      flyTo(homePose(azimuth), azimuth);
+    // 5. Left an area — by scrolling off the detail page, or by the logo /
+    //    HOME while one was focused (3 falls through to here for that case).
+    //    Either way: back out to the tour, turned so the area just read about
+    //    is the thing facing the camera, and resume the tour from there.
+    if (cameFrom && cameFrom !== "about" && PLANET_SECTION_KEYS.includes(cameFrom)) {
+      const u = sectionU(cameFrom);
+      tourURef.current = u;
+      const { azimuth, polar } = orbitAnglesOf(PLANET_TOUR.direction(u));
+      flyToOrbit(azimuth, polar);
       return;
     }
 
-    // 5. First mount. The Canvas only gets to set a camera *position*, never
+    // 6. First mount. The Canvas only gets to set a camera *position*, never
     //    a target, so without this the orbit would run at whatever radius the
-    //    initial position happened to imply while still aiming at the origin —
-    //    which tilted the view down far enough to cut the top off the tallest
-    //    tower. Snap (no transition) so the first frame is already correct.
-    azimuthTargetRef.current = HOME_ANGLE;
-    snapFocalOffset();
-    controls.setLookAt(...homePose(HOME_ANGLE), false);
+    //    initial position happened to imply while still aiming at the origin.
+    //    Snap (no transition) so the first frame is already correct.
+    azimuthTargetRef.current = home.azimuth;
+    polarTargetRef.current = home.polar;
+    azimuthRef.current = home.azimuth;
+    polarRef.current = home.polar;
+    snapFocalOffset(focalOffsetX(ORBIT_RADIUS, camera.fov, camera.aspect, ORBIT_CARD_SHARE));
+    controls.setLookAt(...orbitPose(home.azimuth, home.polar, ORBIT_RADIUS), false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, homeNonce, scene, camera]);
 
@@ -553,119 +556,90 @@ function CameraController() {
       return;
     }
 
-    // The camera is only ever driven here in the free home view — and in
-    // About, which keeps slowly turning since it has no card to hold still
-    // for. Every other focused section stays exactly where its flight parked
-    // it, so nothing writes to the camera between flights there — one owner
-    // at a time.
-    //
-    // This used to also run a scroll-linked lerp from the building framing
-    // back to the home framing, every frame, for the entire time the detail
-    // page was open. That was invisible (the page covers the canvas) and it
-    // was the last camera bug: the branch was chosen from `activeSection`,
-    // React state, while its input came from a ref written synchronously on
-    // scroll. goHome() changed the ref first and the state a render later, so
-    // a frame in between ran the lerp at progress 0 and snapped the camera
-    // back onto the building before the flight home even started.
+    // The camera is only ever driven here in the free orbit — and in About,
+    // which keeps slowly turning since it has no card to hold still for.
+    // Every other focused section stays exactly where its flight parked it,
+    // so nothing writes to the camera between flights there — one owner at a
+    // time.
     if (activeSection) {
-      const orbit = aboutOrbitRef.current;
-      if (activeSection === "about" && orbit && !inFlight()) {
+      if (activeSection === "about") {
         // A plain accumulator, not damped: nothing else ever writes this
         // azimuth (input is locked out while a section is focused), so there
         // is no jump here to smooth away, unlike the idle drift below.
-        orbit.azimuth += sceneClock.delta(delta) * AUTO_ORBIT_SPEED;
-        const pose = framePose(orbit.target, orbit.azimuth, orbit.distance, ABOUT_TILT, orbit.sideways);
+        aboutAzimuthRef.current += sceneClock.delta(delta) * AUTO_ORBIT_SPEED;
+        const pose = orbitPose(aboutAzimuthRef.current, ABOUT_POLAR, ABOUT_ORBIT_RADIUS);
 
-        // Reading the column home. Past its half way mark the framing walks
-        // from About's distant, steeply tilted one to the free view's, so the
-        // island closes in as the text goes up and the last line leaving the
-        // screen is the same instant as the arrival — rather than the reading
-        // finishing and an animation then playing.
-        //
-        // Scroll-linked, not a flight: the reader owns the clock, which is
-        // what lets them scroll back up and have the camera go back out with
-        // them. Both ends are rebuilt from the live azimuth every frame rather
-        // than captured when the trip began, so the orbit keeps turning right
-        // through the approach instead of freezing the moment they cross the
-        // half way mark. (An earlier scroll-linked lerp here was the last
-        // camera bug on this page: it chose its branch from React state while
-        // reading a ref written on scroll, and a frame in between snapped the
-        // camera back. This one cannot — the trip only ever runs while About
-        // is the focused section, and finishing it is the one thing that
-        // unfocuses About.)
+        // Reading the column home. Past its half way mark the framing pulls
+        // straight in from About's own distant radius towards the free
+        // orbit's, at the *same* azimuth and polar — deliberately not
+        // re-tilting towards wherever the tour happens to sit, which would
+        // mean deciding a "correct" polar for every azimuth along the way.
+        // Landing off the tour path this way is not a special case: it is
+        // exactly the state a drag leaves the camera in, and the ordinary
+        // idle drift (below) eases it back onto the path from there, the same
+        // way it does after any free look.
+        const homeward = orbitPose(aboutAzimuthRef.current, ABOUT_POLAR, ORBIT_RADIUS);
         const t = easeInOutCubic(aboutReturn.progress());
-        controls.setLookAt(
-          ...(t > 0 ? glidePose(pose, homePose(orbit.azimuth), t) : pose),
-          false
-        );
-        // The home view's sideways push is a focal offset rather than part of
-        // the pose (see homeFocalOffsetX), so it has to travel on the same
-        // curve to arrive with it. Written every frame, including at t = 0
-        // where it is About's own zero: scrolling back up has to take the push
-        // away again, and a branch that only ever set it would leave the last
-        // value it reached standing.
-        controls.setFocalOffset(homeFocalOffsetX(camera.fov, camera.aspect) * t, 0, 0, false);
+        controls.setLookAt(...(t > 0 ? glidePose(pose, homeward, t) : pose), false);
+
+        const aboutOffsetX = focalOffsetX(ABOUT_ORBIT_RADIUS, camera.fov, camera.aspect, ABOUT_CARD_SHARE);
+        const orbitOffsetX = focalOffsetX(ORBIT_RADIUS, camera.fov, camera.aspect, ORBIT_CARD_SHARE);
+        controls.setFocalOffset(aboutOffsetX + (orbitOffsetX - aboutOffsetX) * t, 0, 0, false);
 
         // Where the idle drift picks up once the column is gone. Without this
         // it would resume from whatever target was left over from before
         // About was opened, and turn the camera to it the moment it landed.
-        azimuthTargetRef.current = orbit.azimuth;
+        azimuthTargetRef.current = aboutAzimuthRef.current;
+        polarTargetRef.current = ABOUT_POLAR;
       }
       return;
     }
 
+    // Advance the tour position: the wheel already writes tourURef.current
+    // directly (see useViewInput), so all that is left here is the part that
+    // has no discrete event to hang off — idle drift. A drag shadows tourURef
+    // continuously instead of driving it, so it is excluded the same way it
+    // always was.
     if (!draggingRef.current && !inFlight()) {
-      // Idle drift, and the diorama's clock is what decides whether "idle"
-      // still means "moving" — paused, the step is zero and the target stops
-      // growing, while dragging still works because the damp below is fed the
-      // real delta.
-      azimuthTargetRef.current += sceneClock.delta(delta) * AUTO_ORBIT_SPEED;
+      const duPerSecond = AUTO_ORBIT_SPEED / PLANET_TOUR.length;
+      tourURef.current = wrap01(tourURef.current + sceneClock.delta(delta) * duPerSecond);
+    }
+
+    // Whether the wheel or idle drift moved tourURef, or a drag moved the
+    // targets directly, the targets are re-derived from the tour position
+    // whenever a drag is not actively driving them — this is what pulls the
+    // camera back onto the tour path after a drag ends or About lands off it.
+    if (!draggingRef.current) {
+      const { azimuth, polar } = orbitAnglesOf(PLANET_TOUR.direction(tourURef.current));
+      azimuthTargetRef.current += wrapAngle(azimuth - azimuthTargetRef.current);
+      polarTargetRef.current = polar;
     }
 
     if (inFlight()) return;
 
-    // controls.azimuthAngle gets rewrapped into (-π, π] every frame (it's
-    // recovered via atan2 inside setPosition below), but azimuthTargetRef
-    // is a plain accumulator that keeps growing past ±π as drag/wheel/
-    // auto-orbit deltas pile up. Left alone, damp() would chase the raw
-    // numeric gap between a wrapped value and an unbounded one — often
-    // many multiples of 2π — instead of the short physical distance,
-    // which is what made rotation "run away" after enough spinning.
-    // Re-centering the target within one turn of the current angle first
-    // keeps every damp step on the shortest path.
-    const current = controls.azimuthAngle;
+    // Damp the actual, rendered azimuth/polar towards their targets — inertia
+    // and smooth flowing rotation, the same shape a drag or a wheel flick has
+    // always had. `wrapAngle` re-centres the target within one turn of the
+    // current azimuth first, the same reason it always did: azimuthTargetRef
+    // is a plain accumulator that can drift many turns from where
+    // `azimuthRef` currently sits, and left alone `damp()` would chase that
+    // raw numeric gap instead of the short physical distance.
+    const current = azimuthRef.current;
     const target = current + wrapAngle(azimuthTargetRef.current - current);
     azimuthTargetRef.current = target;
+    azimuthRef.current = THREE.MathUtils.damp(current, target, 5, delta);
+    polarRef.current = THREE.MathUtils.damp(polarRef.current, polarTargetRef.current, 5, delta);
 
-    // Interpolate for inertia and smooth flowing rotation.
-    //
-    // rotateAzimuthTo swings around whatever the camera is currently looking
-    // at, keeping its distance and height. That matters now that closing the
-    // detail page leaves the camera parked on a building: rebuilding the
-    // position from HOME_RADIUS/HOME_HEIGHT, as this used to, would have
-    // yanked it back out to the island overview on the very next frame.
-    const azimuth = THREE.MathUtils.damp(current, target, 5, delta);
-    controls.rotateAzimuthTo(azimuth, false);
+    controls.setLookAt(...orbitPose(azimuthRef.current, polarRef.current, ORBIT_RADIUS), false);
+    controls.setFocalOffset(focalOffsetX(ORBIT_RADIUS, camera.fov, camera.aspect, ORBIT_CARD_SHARE), 0, 0, false);
 
     // Publish which area is in front. Only on a change — this runs every frame,
     // and a setState per frame would re-render the whole overlay at 60Hz on the
     // thread drawing the diorama.
-    //
-    // Deliberately ungated. This used to hold the choice still whenever the
-    // camera was turning faster than 1 rad/s, on the grounds that the trail's
-    // far end jumps to the new marker while that marker's own highlight is
-    // still easing in, so a quick flick left the line ending on a small pale
-    // dot. That was since fixed at the source — the spotlight dot no longer
-    // eases (see AreaMarkers) — and all the gate did afterwards was strand the
-    // card, the highlight and the trail on an area that had already turned off
-    // the screen, for as long as the scroll kept going. A boundary is crossed
-    // at most five times a revolution, which is leafing through the areas
-    // rather than strobing, and the card is keyed on `activeSection` so a new
-    // area swaps its text without remounting or replaying the fade.
-    const facing = facingSection(azimuth);
-    if (facing !== facingRef.current) {
-      facingRef.current = facing;
-      setFacing(facing);
+    const facingNow = facingSectionOnPlanet(directionAt(azimuthRef.current, polarRef.current));
+    if (facingNow !== facingRef.current) {
+      facingRef.current = facingNow;
+      setFacing(facingNow);
     }
   });
 
@@ -673,42 +647,43 @@ function CameraController() {
     <CameraControls
       ref={controlsRef}
       // Built-in pointer input is off — rotation is fully driven by our own
-      // drag/swipe handler (useDragOrbit) and the auto-orbit above.
+      // drag/swipe handler (useViewInput) and the auto-orbit above.
       // `enabled=false` only gates user input; setPosition/setLookAt calls
       // still work normally.
       enabled={false}
       minDistance={3}
-      // Stage 2 of docs/planet-migration.md: raised from 45 so the ring
-      // camera (still using the old azimuth/home-pose mechanism, unchanged in
-      // this stage) can actually reach HOME_DISTANCE and ABOUT_DISTANCE on
-      // the much bigger planet, with margin.
-      maxDistance={280}
-      maxPolarAngle={Math.PI / 2 - 0.05}
+      maxDistance={ABOUT_ORBIT_RADIUS + 20}
+      // Opened all the way rather than clamped here: setLookAt rebuilds
+      // _spherical from the camera's position every frame and never consults
+      // minPolarAngle/maxPolarAngle (those only gate rotateTo), so a clamp
+      // here would do nothing — see ORBIT_MIN_POLAR/ORBIT_MAX_POLAR, enforced
+      // in this component's own useFrame instead.
+      minPolarAngle={0}
+      maxPolarAngle={Math.PI}
       makeDefault
     />
   );
 }
 
 export default function Scene({ obscured = false }: { obscured?: boolean }) {
+  const home = orbitAnglesOf(PLANET_TOUR.direction(0));
   return (
     <Canvas
       shadows
-      // Taken from homePose rather than written out, so the very first frame —
-      // the one before CameraController's effect gets to place the camera — is
-      // already on the orbit circle. As two hand-typed 18.4s it silently meant
-      // "radius 26 at 45°", and stayed meaning that when the radius changed.
-      camera={{ position: homePose(HOME_ANGLE).slice(0, 3) as [number, number, number], fov: 45 }}
+      // Taken from orbitPose rather than written out, so the very first frame
+      // — the one before CameraController's effect gets to place the camera —
+      // is already on the orbit.
+      camera={{ position: orbitPose(home.azimuth, home.polar, ORBIT_RADIUS).slice(0, 3) as [number, number, number], fov: 45 }}
       dpr={[1, 2]}
       frameloop={obscured ? "demand" : "always"}
     >
       <color attach="background" args={["#fff3d1"]} />
       {/*
        * Stage 2 of docs/planet-migration.md: near/far pushed out from 30/70
-       * so the much bigger planet (world radius 33.6, camera as far as
-       * ABOUT_DISTANCE ≈ 94.6) doesn't fog out mid-measurement — this range
-       * is a temporary shim to keep stage 2's screenshots readable, not a
-       * tuned value. Fog is slated to come off entirely in stage 5 (there is
-       * no atmosphere in space); the colour/lighting pass belongs there too.
+       * so the much bigger planet doesn't fog out mid-measurement — this
+       * range is a temporary shim, not a tuned value. Fog is slated to come
+       * off entirely in stage 5 (there is no atmosphere in space); the
+       * colour/lighting pass belongs there too.
        */}
       <fog attach="fog" args={["#fff3d1", 100, 260]} />
 
@@ -725,8 +700,8 @@ export default function Scene({ obscured = false }: { obscured?: boolean }) {
         // could see for four times the shadow-pass cost.
         shadow-mapSize={[1024, 1024]}
         // Stage 2: widened from ±30/far 90 to cover the planet's own radius
-        // (33.6) plus the tallest building. A temporary shim like the fog
-        // above — revisit once stage 5 settles the lighting for real.
+        // plus the tallest building. A temporary shim like the fog above —
+        // revisit once stage 5 settles the lighting for real.
         shadow-camera-left={-48}
         shadow-camera-right={48}
         shadow-camera-top={48}

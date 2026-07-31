@@ -1,5 +1,6 @@
 import type { SectionType } from "@/types";
 import { PLANET_SECTION_KEYS, sectionPosition } from "./planet/sections";
+import { tangentBasis, type Direction } from "./planet/planetLayout";
 
 /**
  * Where the world sits and where the camera looks from.
@@ -10,149 +11,69 @@ import { PLANET_SECTION_KEYS, sectionPosition } from "./planet/sections";
  * a renderer. Diorama places the buildings from this; Scene aims the camera
  * with it — previously the two held separate copies that a comment asked you
  * to keep in sync by hand.
+ *
+ * **Stage 4 of docs/planet-migration.md.** Everything about a single fixed
+ * `HOME_ANGLE` and a world-+Y-based `framePose` is gone. The camera is now a
+ * satellite at a fixed straight-line distance from the planet's own centre
+ * (`ORBIT_RADIUS`), free to sit at any azimuth *and* polar angle rather than
+ * one azimuth at a pinned height — and a section's close-up (`sectionPose`)
+ * is built from the building's own local frame (`tangentBasis`), which is
+ * what lets it aim correctly at a building away from the equator instead of
+ * diving underground.
  */
 
 /**
  * World positions of each section building, on the planet's surface.
  *
- * **Stage 2 of docs/planet-migration.md.** These now come from
- * `scene/planet/sections.ts`'s latitude/longitude table rather than being
- * authored here directly as flat XZ triples. Everything below this line —
- * `sectionAzimuth`, `facingSection`, `SECTIONS_BY_AZIMUTH`, `homePose` and the
- * whole ring camera — is untouched and keeps working on these new values
- * unmodified, because `sectionAzimuth` reads only `atan2(x, z)`, which
- * `latLonToDirection`'s convention makes exactly equal to a section's
- * longitude regardless of its latitude (see planetLayout.ts). The ring camera
- * itself is deliberately not rewritten yet — that is stage 4.
+ * These come from `scene/planet/sections.ts`'s latitude/longitude table
+ * rather than being authored here directly as flat XZ triples — see
+ * `sectionPosition()` there.
  */
 export const BUILDING_POSITIONS = Object.fromEntries(
   PLANET_SECTION_KEYS.map((key) => [key, sectionPosition(key)])
 ) as Record<NonNullable<SectionType>, [number, number, number]>;
 
-/** How high up each building the camera aims — roughly its mid-height. */
-const FOCUS_HEIGHT: Record<NonNullable<SectionType>, number> = {
-  about: 1.5,
-  products: 3.5,
-  skills: 3,
-  experience: 2,
-  contact: 2.5,
-};
-
-/** Look-at point for each section: building centre, raised to mid-height. */
-export const sectionTargets = Object.fromEntries(
-  (Object.keys(BUILDING_POSITIONS) as (keyof typeof BUILDING_POSITIONS)[]).map((key) => [
-    key,
-    [BUILDING_POSITIONS[key][0], FOCUS_HEIGHT[key], BUILDING_POSITIONS[key][2]],
-  ])
-) as Record<NonNullable<SectionType>, [number, number, number]>;
+/**
+ * Straight-line distance from the camera to the planet's centre, in the free
+ * orbit — the satellite's fixed altitude.
+ *
+ * Carried over as the exact hypotenuse of stage 2's `HOME_RADIUS` (158.6) and
+ * `HOME_HEIGHT` (45.8) rather than retuned: those were measured against the
+ * planet's own silhouette (see docs/planet-migration.md, "手順2の結果"), and
+ * that measurement is still the best evidence for how far back the camera
+ * needs to sit — stage 4 changes *what the camera can do*, not how big the
+ * planet looks. `HOME_RADIUS`/`HOME_HEIGHT` themselves are gone: a single
+ * fixed polar angle no longer describes the free orbit once polar can move.
+ */
+export const ORBIT_RADIUS = Math.hypot(158.6, 45.8);
 
 /**
- * The free diorama view, set from measured world bounds rather than guessed.
+ * How far from the poles the camera is allowed to go, in either the free
+ * orbit or a drag — radians of polar angle, measured from `+Y` the way
+ * `camera-controls`' own `phi` is.
  *
- * **This history is the old flat island's.** `HOME_RADIUS`/`HOME_HEIGHT`
- * themselves have since been retuned for the planet (stage 2 of
- * docs/planet-migration.md, see the comment on `HOME_RADIUS`), but the *shape*
- * of the reasoning — aim at the middle of the content rather than the ground,
- * hold a fixed tilt as the radius moves, measure the worst angle of a full
- * turn rather than one screenshot — is exactly what stage 2 also used, so it
- * stays here rather than being deleted.
- *
- * Measured extents: the island spanned roughly ±14 in XZ and reached y = 12.2
- * at the tip of the Products tower's antenna, with its underside at y = -7.3.
- *
- * The old values (radius 24, aiming at y = 1) tilted the view down 22.6°,
- * which against a 45° vertical fov put the top edge of the frame within a
- * tenth of a degree of horizontal — so anything above the camera's own eye
- * height was off-screen, and the tower always had its top cut off. Aiming at
- * the middle of the content rather than at the ground fixes it: at y = 3.5 the
- * tilt is 16.1°, which clears the tower and still keeps the island's underside
- * inside the bottom edge.
- *
- * The radius grew from 26 to 27.5 when the island was pushed right to clear the
- * card (see `HOME_CARD_SHARE`). At 26 the push left the island's right edge at
- * 98.2% of the frame's width at the worst angle of a full turn — touching the
- * edge, and certain to cross it at some angle between the twelve sampled.
- * Backing off 5.8% brings the worst angle to 95.3%, a margin that holds all the
- * way round, and costs less of the island's size than it sounds: it covers
- * 33-36% of the frame against 37-40% before.
- *
- * The height moves with the radius rather than staying put, to hold the tilt at
- * 16.1°: it is `HOME_TARGET_Y + HOME_RADIUS · tan(16.1°)`. Raising the radius
- * alone would have flattened the diorama's three-quarter view into something
- * closer to an elevation. Pinned by a test, since nothing else says the two
- * numbers belong together.
+ * `camera.up` is pinned to `+Y`; near a pole the view direction runs nearly
+ * parallel to it and `lookAt`'s degenerate case decides the roll arbitrarily.
+ * `setLookAt` rebuilds `_spherical` from the camera's position every frame
+ * and never consults `CameraControls`' own `minPolarAngle`/`maxPolarAngle` —
+ * those only gate `rotateTo` — so the clamp has to live here instead of being
+ * handed to the library.
  */
-/**
- * Stage 2 of docs/planet-migration.md: retuned from 27.5 for the planet's
- * world radius of 33.6 (`PLANET_RADIUS` in scene/planet/shell.ts), which
- * replaced the old island's measured extent of roughly ±14. The old radius
- * sat at 2.04x that extent (a close-but-clearly-an-overview framing); this
- * keeps the same ratio against the new one, then backs out from the same
- * 16.1° tilt used below. Provisional — the exact figure is meant to be
- * checked against a real screenshot, the same way the old value's own
- * comment describes doing for the island.
- */
-export const HOME_RADIUS = 158.6;
-export const HOME_HEIGHT = 45.8;
-/**
- * Aim at the planet's own centre, not at a point above the ground.
- *
- * The old island aimed above its own base (3.5) because its content sat
- * asymmetrically — more of it above the ground than below. A sphere has no
- * such asymmetry: whichever direction the camera sits at, the same shape sits
- * on the far side, so centring on the world's own centre is the natural
- * choice rather than a compromise.
- */
-export const HOME_TARGET_Y = 0;
-export const HOME_ANGLE = Math.PI / 4;
+export const ORBIT_MIN_POLAR = 0.15;
+export const ORBIT_MAX_POLAR = Math.PI - 0.15;
 
 /**
- * Straight-line distance from the home camera to the point it aims at.
- *
- * The home view is stated as a radius and a height rather than as a distance
- * and a tilt, so the hypotenuse has to be recovered before anything can be
- * measured against the width of the frame at the island's own depth. Derived,
- * not typed in, so it cannot fall out of step with the two above.
+ * Fraction of the frame's width the free orbit gives up to the card on the
+ * left. Carried over unchanged from stage 2's `HOME_CARD_SHARE` — a
+ * dimensionless fraction, unaffected by which of `ORBIT_RADIUS`'s azimuth or
+ * polar the camera currently sits at.
  */
-export const HOME_DISTANCE = Math.hypot(HOME_RADIUS, HOME_HEIGHT - HOME_TARGET_Y);
+export const ORBIT_CARD_SHARE = 0.22;
 
 /**
- * Fraction of the frame's width the home view gives up to the card on the left.
- *
- * Smaller than `CARD_SHARE`, which the sections use: a section is a single
- * building cropped in on, where the home view has to hold the whole world —
- * a sphere whose silhouette already fills most of the frame — so the same
- * push would run its right edge off the screen.
- *
- * **The measurements below are the old island's**, kept only as the record of
- * *why* a value this size and not some other, and carried over unchanged
- * because it is a dimensionless fraction rather than a world-unit distance —
- * nothing about `HOME_RADIUS` growing for the planet changes what share of
- * the frame a card needs. It has not yet been re-measured against the sphere
- * (stage 2 of docs/planet-migration.md); if the push looks wrong on screen,
- * measure it the same way — worst angle of a full turn, confetti excluded —
- * before retuning the number.
- *
- * The island's centre travelled half of this as a fraction of the full frame
- * width (the share is measured against the *half* width), so 0.22 moved it
- * from the middle to a measured 61.7-63.8% across a full turn — against the
- * reference's 61%. That also put its left edge no further left than 32.0%,
- * clear of the card's right edge at 27.8%, which is what the request was
- * actually about.
- *
- * Set from the *worst* angle of a full turn rather than one screenshot: the
- * island was a disc with a tower on it, so its silhouette breathed as it
- * turned. Sampling that is easy to get wrong — the first pass measured the
- * leftmost and rightmost non-background pixel and read 83% of frame width,
- * but the scene has confetti drifting out to the frame edges and that was
- * mostly what it had found. Counting only columns more than a tenth of the
- * frame deep left the island alone, and put its real width at 57%.
- */
-export const HOME_CARD_SHARE = 0.22;
-
-/**
- * How steeply the camera looks down when framing a single area, in radians.
- * Matches the diorama's three-quarter feel rather than dropping to eye level.
+ * How steeply the camera looks down when framing a single area, in radians —
+ * the angle `sectionPose` tilts away from a building's own surface normal,
+ * towards its local north.
  */
 export const SECTION_TILT = 0.34;
 
@@ -164,8 +85,8 @@ export const FRAME_MARGIN = 1.35;
  *
  * Takes whichever half-angle is tighter, so a tall narrow viewport is fitted
  * on width and a wide one on height — the reason this is computed rather than
- * fixed is that a single hardcoded distance frames the 12-unit Products tower
- * and the 4-unit library equally badly.
+ * fixed is that a single hardcoded distance frames the tallest tower and the
+ * smallest building equally badly.
  *
  * (`fitToBox` from camera-controls looks like the built-in answer to this, but
  * it rounds the camera's angles to the nearest 90° first, snapping to a
@@ -185,87 +106,33 @@ export function frameDistance(radius: number, fovDegrees: number, aspect: number
 export const CARD_SHARE = 0.3;
 
 /**
- * About's framing departs from every other section's, but only in angle —
- * not in what it orbits. Every other section pivots tightly on its own
- * building; About has no card to clear and no single subject to crop in on,
- * so it keeps turning round the same axis the free/home view does (the
- * vertical line through the island's centre) rather than the small "about"
- * building itself. Framing it as a subject to close in on, the way this originally
- * shipped, pivoted the idle rotation on that building instead of the island —
- * a different axis from every other view on the site, which read as the
- * building holding still while the world spun around it.
- */
-export const ABOUT_TILT = 0.62;
-
-/**
- * How far About's orbit sits from the axis, horizontally.
- *
- * Its own value rather than `HOME_RADIUS`: sharing the *axis* is what keeps
- * the rotation reading like every other view on the site, and that only
- * requires the circle be centred on the same vertical line — not that it be
- * the same size. Pulling the radius out here is what lets the diorama be
- * framed to sit fully inside the frame without ever moving the pivot off that
- * shared line.
- *
- * **Stage 2 of docs/planet-migration.md**: kept at the same ratio to
- * `HOME_RADIUS` it held before the planet (32/27.5 ≈ 1.164, so 66 × 1.164 ≈
- * 77), rather than re-measured from scratch — a worst-angle screenshot
- * measurement, the way the figure below this was originally set, is only
- * worth doing once About's own camera framing is rewritten for the sphere
- * (stage 4; `framePose`'s world-Y tilt does not aim correctly at a building
- * away from the equator). Until then this only has to keep the relation the
- * tests pin: further out and higher than the home view.
- *
- * The paragraph below is the old island's own measurement, kept as the record
- * of *why* a worst-angle measurement is the right method — not as this
- * number's current justification.
- *
- * Set from the *widest* angle, not a single screenshot. The island was a disc
- * with a tower and signs on it, so its silhouette breathed as it turned —
- * sampled across a turn it ran 45.8%..50.0% of frame width, and framing to
- * the average left the widest angles sliced off the right edge (measured
- * 99.9%). Backing off until the worst angle clears is the only setting that
- * holds for every frame of the rotation rather than for the one that was shot.
- */
-export const ABOUT_RADIUS = 185;
-
-/**
- * Where along the shared axis About aims.
- *
- * **Stage 2**: still below the new `HOME_TARGET_Y` (0), which is all the
- * tests require, and left untouched rather than re-solved for the planet —
- * see the note on `ABOUT_RADIUS` for why About's own framing waits for stage
- * 4. The reasoning below is the old island's.
- *
- * Below `HOME_TARGET_Y`, which pushes the island *up* the frame: the camera
- * centres on whatever it aims at, so a lower aim point lifts everything above
- * it into view. The home view aimed at 3.5 to clear the Products tower, but at
- * About's steeper tilt that same aim buried the island's underside off the
- * bottom edge — measured at 99.9% of frame height, against 90.4% in the
- * reference, i.e. cropped rather than sitting complete in its own space.
- *
- * Solved rather than guessed: one frame-height here spans `2 · ABOUT_DISTANCE
- * · tan(fov/2)` world units, and a drop in the aim point travels
- * `cos(ABOUT_TILT)` of that on screen — which put the island's measured centre
- * within a point of the reference's 52.7% on the first try.
- */
-export const ABOUT_TARGET_Y = -1.7;
-
-/** The hypotenuse: back off along the tilt so the horizontal leg is the radius. */
-export const ABOUT_DISTANCE = ABOUT_RADIUS / Math.cos(ABOUT_TILT);
-
-/**
- * A larger share than the cards get, since the text column beside it is a
- * whole page rather than a small card.
- *
- * Not pushed far enough to sit the island's left edge exactly on the
- * reference's 52%: this island is a wide flat disc where the reference's is a
- * tall dense cluster (measured 48.9% of frame width against 45.5%), so the
- * extra push that matched the left edge ran the right edge off at 99.9%.
- * What the reference is actually doing — object whole, clear of the text — is
- * matched better by the gap: 2.9% of frame width here against its 3.1%.
+ * A larger share than a normal section gets, since About's text column beside
+ * it is a whole page rather than a small card.
  */
 export const ABOUT_CARD_SHARE = 0.42;
+
+/**
+ * How steeply About looks down — measured the same way `SECTION_TILT` is, but
+ * About has no single building to crop in on (its column has no card to
+ * clear), so it keeps turning round the planet's own axis at a wider, more
+ * distant framing instead of a normal section's tight one.
+ */
+const ABOUT_TILT = 0.62;
+
+/**
+ * About's own orbit — polar angle and straight-line radius from the planet's
+ * centre, in the same units `orbitPose` takes.
+ *
+ * Converted rather than re-measured from stage 2's `ABOUT_RADIUS` (185, a
+ * *horizontal* distance from the vertical axis) and `ABOUT_TILT`: `orbitPose`
+ * wants a polar angle and a straight-line radius, which is exactly what a
+ * horizontal-radius-and-tilt pair resolves to (`radius / cos(tilt)` is the
+ * hypotenuse, `π/2 - tilt` is the down-tilt restated as an angle from `+Y`).
+ * The visual framing this produces is therefore identical to stage 2's,
+ * carried into the new coordinate system rather than retuned.
+ */
+export const ABOUT_POLAR = Math.PI / 2 - ABOUT_TILT;
+export const ABOUT_ORBIT_RADIUS = 185 / Math.cos(ABOUT_TILT);
 
 /**
  * How far to aim to the side of the subject so it clears the card.
@@ -286,22 +153,101 @@ export function aimOffset(
 }
 
 /**
- * Camera placement looking at `target` from `azimuth`, backed off by
- * `distance`. A positive `sideways` aims left of the subject, which is what
- * pushes the subject to the right of the frame, out from under the card.
+ * The sideways push that clears the card, as a `CameraControls` focal offset
+ * in world units — negative, since the offset moves the *camera* along its
+ * own right axis, which swings whatever it is looking at the other way across
+ * the frame, and the card sits on the left so the subject has to go right.
+ *
+ * One function for the free orbit, a section, and About, unified — where
+ * stage 2 had two different mechanisms (a focal offset for the free view, a
+ * shifted look-at target — `framePose`'s own `sideways` — for a section). A
+ * focal offset is applied by `camera-controls` *after* it decomposes the
+ * orbit, so `_spherical` and `_target` are untouched regardless of which
+ * regime is asking for one; a shifted target is not — it is also what the
+ * orbit pivots on, which is only safe for a section because a section's
+ * camera is parked rather than turning. Now that every regime can be mid-turn
+ * (the free orbit always is; About always is; a section briefly is, while its
+ * flight lands), only the focal offset is safe everywhere, so everything
+ * uses it.
  */
-export function framePose(
-  target: readonly [number, number, number],
+export function focalOffsetX(distance: number, fovDegrees: number, aspect: number, share: number): number {
+  return -aimOffset(distance, fovDegrees, aspect, share);
+}
+
+/**
+ * Camera placement for the free orbit — a satellite at `radius` from
+ * `target` (the planet's own centre, by default), at a given azimuth and
+ * polar angle. `azimuth`/`polar` follow the same convention `orbitAnglesOf`
+ * inverts and `camera-controls`' own `azimuthAngle`/`polarAngle` use: polar
+ * measured down from `+Y`, azimuth as `atan2(x, z)`.
+ *
+ * `target` is a parameter, not always the origin, for the same reason
+ * `surfacePoint` in planetLayout.ts takes a centre: a second planet is
+ * plausible later, and every orbit in the scene would have to be found and
+ * rewritten to add it if this baked the origin in now.
+ */
+export function orbitPose(
   azimuth: number,
-  distance: number,
-  tilt: number = SECTION_TILT,
-  sideways = 0
+  polar: number,
+  radius: number = ORBIT_RADIUS,
+  target: readonly [number, number, number] = [0, 0, 0]
 ): Pose {
   const [tx, ty, tz] = target;
-  const [dx, dz] = azimuthToXZ(azimuth, distance * Math.cos(tilt));
-  // The camera's right in world XZ is a quarter turn round from its azimuth.
-  const [rx, rz] = azimuthToXZ(azimuth + Math.PI / 2, sideways);
-  return [tx + dx, ty + distance * Math.sin(tilt), tz + dz, tx - rx, ty, tz - rz];
+  const [x, z] = azimuthToXZ(azimuth, radius * Math.sin(polar));
+  const y = radius * Math.cos(polar);
+  return [tx + x, ty + y, tz + z, tx, ty, tz];
+}
+
+/**
+ * The azimuth and polar angle of a direction from the origin — `orbitPose`'s
+ * inverse. Used to turn a point on the tour path, or a building's own
+ * direction, into the angles the free-orbit state (`viewRef` in Scene.tsx) is
+ * kept in.
+ */
+export function orbitAnglesOf(direction: readonly [number, number, number]): {
+  azimuth: number;
+  polar: number;
+} {
+  const [x, y, z] = direction;
+  const radius = Math.hypot(x, y, z) || 1;
+  return {
+    azimuth: Math.atan2(x, z),
+    polar: Math.acos(Math.min(1, Math.max(-1, y / radius))),
+  };
+}
+
+/**
+ * Camera placement for a close-up of a section's building.
+ *
+ * The sphere-native successor to `framePose()`, built from the building's own
+ * local frame (`tangentBasis`) rather than world azimuth and `+Y` — the
+ * reason `framePose` could send the camera underground for a building away
+ * from the equator, and `sectionPose` cannot: every axis it uses is the
+ * building's own, so there is no latitude for it to disagree with.
+ *
+ * Mirrors `framePose`'s own construction with local axes in place of global
+ * ones — `forward` (the building's local north) stands in for the azimuth
+ * direction, `up` (the building's own outward normal) stands in for world
+ * `+Y` — so `distance` still means exactly what it meant there: the
+ * straight-line camera-to-target distance `frameDistance()` computes,
+ * regardless of the building's latitude. The sideways push that used to be
+ * `framePose`'s own `sideways` parameter is gone — see `focalOffsetX`.
+ */
+export function sectionPose(target: readonly [number, number, number], distance: number, tilt: number = SECTION_TILT): Pose {
+  // tangentBasis normalizes its own input, so target's magnitude never needs
+  // recovering here — only its direction from the origin matters.
+  const { up, forward } = tangentBasis(target as Direction);
+  const [tx, ty, tz] = target;
+  const cos = Math.cos(tilt);
+  const sin = Math.sin(tilt);
+  return [
+    tx + forward[0] * distance * cos + up[0] * distance * sin,
+    ty + forward[1] * distance * cos + up[1] * distance * sin,
+    tz + forward[2] * distance * cos + up[2] * distance * sin,
+    tx,
+    ty,
+    tz,
+  ];
 }
 
 /**
@@ -327,8 +273,8 @@ export function easeInOutCubic(t: number): number {
  * Interpolated as an *orbit* — radius, tilt and azimuth about the look-at
  * point, with the look-at point itself travelling in a straight line — rather
  * than by lerping the two camera positions. A straight line between two points
- * on a sphere is a chord: pulling back from a building to the island overview
- * that way would dip the camera closer to the town half way through before
+ * on a sphere is a chord: pulling back from a building to the planet overview
+ * that way would dip the camera closer to the world half way through before
  * finally retreating, since the midpoint of the chord sits inside the arc.
  *
  * (`CameraControls.lerp()` does interpolate spherically and would otherwise be
@@ -397,9 +343,6 @@ export function wrapAngle(angle: number): number {
  */
 export type Pose = [number, number, number, number, number, number];
 
-/** Every focusable area, in the order they sit in the world. */
-export const SECTIONS = Object.keys(BUILDING_POSITIONS) as NonNullable<SectionType>[];
-
 /** Gap between the top of a building and the dot floating over it. */
 export const MARKER_CLEARANCE = 1.1;
 
@@ -459,94 +402,8 @@ export function markerScaleForScreenRadius(
 }
 
 /**
- * The orbit azimuth that puts a section's area between the camera and the
- * centre of the island — i.e. squarely in front of you, seen from the
- * overview distance. Same `atan2(x, z)` convention as azimuthToXZ.
- */
-export function sectionAzimuth(section: NonNullable<SectionType>): number {
-  const [tx, , tz] = sectionTargets[section];
-  return Math.atan2(tx, tz);
-}
-
-/**
- * Which area is front-and-centre at a given orbit azimuth — the one whose
- * own azimuth the camera is closest to, measured the short way round.
- *
- * This is the single source of truth for "which spot am I looking at". The
- * card reads it rather than being set alongside the camera: two places both
- * deciding, and having to agree, is what turns a rotation into a fight.
- */
-export function facingSection(azimuth: number): NonNullable<SectionType> {
-  let best = SECTIONS[0];
-  let bestDistance = Infinity;
-
-  for (const section of SECTIONS) {
-    const distance = Math.abs(wrapAngle(sectionAzimuth(section) - azimuth));
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = section;
-    }
-  }
-  return best;
-}
-
-/**
- * The areas in the order the camera meets them going round, rather than the
- * order they happen to be declared in. Swiping the card steps through this, so
- * "next" means the next spot you would reach by turning, not the next key in
- * an object.
- */
-export const SECTIONS_BY_AZIMUTH = [...SECTIONS].sort(
-  (a, b) => sectionAzimuth(a) - sectionAzimuth(b)
-);
-
-/**
- * The area one step round from `from`. Wraps, so stepping past the last spot
- * continues onto the first rather than stopping.
- */
-export function adjacentSection(
-  from: NonNullable<SectionType>,
-  step: number
-): NonNullable<SectionType> {
-  const order = SECTIONS_BY_AZIMUTH;
-  const index = order.indexOf(from);
-  if (index === -1) return order[0];
-  const count = order.length;
-  return order[(((index + step) % count) + count) % count];
-}
-
-/** Where the camera sits in the free diorama view, at a given orbit azimuth. */
-export function homePose(azimuth: number): Pose {
-  const [x, z] = azimuthToXZ(azimuth, HOME_RADIUS);
-  return [x, HOME_HEIGHT, z, 0, HOME_TARGET_Y, 0];
-}
-
-/**
- * How far to truck the home camera along its own right axis so the island sits
- * clear of the card, as a CameraControls focal offset in world units.
- *
- * Negative: the offset moves the *camera* rightward, so the island it is
- * looking at swings the other way across the frame — and the card is on the
- * left, so the island has to go right.
- *
- * This is deliberately not the `sideways` argument to `framePose()`, which the
- * sections use. That one shifts the look-at *target*, and the target is also
- * what the orbit pivots on: shifting it would set the island turning about a
- * point off its own centre, tracing a circle across the screen over one
- * revolution instead of holding still. It would also move `azimuthAngle`'s
- * frame of reference by a constant, so `facingSection()` would name an area
- * next to the one actually in front. A focal offset has neither problem —
- * camera-controls applies it after decomposing the orbit, leaving `_spherical`
- * and `_target` untouched. The sections get away with the target shift only
- * because they are parked, and About because it rebuilds its pose every frame.
- */
-export function homeFocalOffsetX(fovDegrees: number, aspect: number): number {
-  return -aimOffset(HOME_DISTANCE, fovDegrees, aspect, HOME_CARD_SHARE);
-}
-
-/**
- * Whether the frame's dimensions actually changed — i.e. whether the focal
- * offset above, which is a share of the frame's width, has to be recomputed.
+ * Whether the frame's dimensions actually changed — i.e. whether a focal
+ * offset, which is a share of the frame's width, has to be recomputed.
  *
  * By value, and not by the identity of the object holding them, which is the
  * whole reason this is a named function with a test. `useThree`'s `size` is

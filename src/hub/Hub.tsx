@@ -10,7 +10,7 @@ import CardLeaderLine from "./CardLeaderLine";
 import AreaCard from "./AreaCard";
 import HubHeader from "./HubHeader";
 import HubDock from "./HubDock";
-import { adjacentSection, facingSection, HOME_ANGLE } from "@/scene/worldLayout";
+import { adjacentOnTour, TOUR_ORDER } from "@/scene/planet/tour";
 import Sheet from "@/detail/Sheet";
 import { exitDirectionFor, type ExitDirection } from "@/detail/detailSheet";
 import { X } from "lucide-react";
@@ -101,7 +101,9 @@ export default function Hub() {
     // was in front *before* this one was opened — and the card and the trail,
     // which both read it, pointed at the wrong spot until the flight landed.
     if (resetCamera) {
-      setFacing(facingSection(HOME_ANGLE));
+      // The tour's own starting point (u = 0) is what HOME actually flies to
+      // — see the destination effect's "reset" branch in Scene.tsx.
+      setFacing(TOUR_ORDER[0]);
       goHome();
     } else {
       if (activeSection) setFacing(activeSection);
@@ -199,7 +201,7 @@ export default function Hub() {
               focused={!!activeSection}
               anchorRef={anchorDotRef}
               onOpen={() => openPage(card)}
-              onStep={(step) => turnTo(adjacentSection(card, step))}
+              onStep={(step) => turnTo(adjacentOnTour(card, step))}
             />
           )}
         </div>

@@ -5,13 +5,12 @@ import { useFrame } from "@react-three/fiber";
 import { useCursor } from "@react-three/drei";
 import * as THREE from "three";
 import {
-  SECTIONS,
   MARKER_CLEARANCE,
   MARKER_DOT_FILL,
   MARKER_DOT_RIM,
   markerScaleForScreenRadius,
 } from "./worldLayout";
-import { sectionDirection } from "./planet/sections";
+import { PLANET_SECTION_KEYS, sectionDirection } from "./planet/sections";
 import { publishMarkerScreen } from "./markerScreen";
 import { sceneClock } from "./sceneClock";
 import { useAppState } from "@/state/AppStateContext";
@@ -149,7 +148,7 @@ export default function AreaMarkers() {
       const centre = new THREE.Vector3();
       let complete = true;
 
-      SECTIONS.forEach((section, i) => {
+      PLANET_SECTION_KEYS.forEach((section, i) => {
         const building = state.scene.getObjectByName(section);
         const sprite = sprites.current[i];
         if (!building || !sprite) {
@@ -184,7 +183,7 @@ export default function AreaMarkers() {
     // end opened turning one way and closed turning the other.
     camera.updateMatrixWorld();
 
-    SECTIONS.forEach((section, i) => {
+    PLANET_SECTION_KEYS.forEach((section, i) => {
       const sprite = sprites.current[i];
       if (!sprite) return;
 
@@ -242,7 +241,7 @@ export default function AreaMarkers() {
     });
 
     // Hand the facing marker's screen position to the DOM leader line.
-    const index = SECTIONS.indexOf(spotlight);
+    const index = PLANET_SECTION_KEYS.indexOf(spotlight);
     const anchor = anchors.current[index];
     if (!anchor) return;
     projected.copy(anchor).project(camera);
@@ -270,7 +269,7 @@ export default function AreaMarkers() {
 
   return (
     <>
-      {SECTIONS.map((section, i) => (
+      {PLANET_SECTION_KEYS.map((section, i) => (
         <sprite
           key={section}
           ref={(el) => {
