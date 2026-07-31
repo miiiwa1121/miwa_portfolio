@@ -174,7 +174,7 @@ export default function Hub() {
           <main> and stopped hit-testing entirely, which silently killed every
           click and hover in the scene — buildings included. Everything meant
           to sit over it carries its own higher z-index. */}
-      <div className="fixed inset-0 w-full h-full z-0 bg-[#fff3d1]">
+      <div className="fixed inset-0 w-full h-full z-0 bg-[#070a14]">
         <Scene obscured={sceneObscured} />
       </div>
 

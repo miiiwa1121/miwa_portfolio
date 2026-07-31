@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { CameraControls } from "@react-three/drei";
+import { CameraControls, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import Diorama from "./Diorama";
 import {
@@ -677,40 +677,63 @@ export default function Scene({ obscured = false }: { obscured?: boolean }) {
       dpr={[1, 2]}
       frameloop={obscured ? "demand" : "always"}
     >
-      <color attach="background" args={["#fff3d1"]} />
       {/*
-       * Stage 2 of docs/planet-migration.md: near/far pushed out from 30/70
-       * so the much bigger planet doesn't fog out mid-measurement — this
-       * range is a temporary shim, not a tuned value. Fog is slated to come
-       * off entirely in stage 5 (there is no atmosphere in space); the
-       * colour/lighting pass belongs there too.
+       * Stage 5 of docs/planet-migration.md: space, not atmosphere. Fog is
+       * gone outright — there is nothing for light to scatter off between
+       * here and the planet — and the flat cream backdrop (a stand-in since
+       * stage 2) is a near-black navy instead. Kept in sync with the canvas
+       * wrapper's own bg-[#070a14] in Hub.tsx, so there is no flash of the
+       * old colour before WebGL paints.
        */}
-      <fog attach="fog" args={["#fff3d1", 100, 260]} />
+      <color attach="background" args={["#070a14"]} />
+      {/*
+       * radius is the inner edge of the shell the points scatter across, and
+       * has to clear the camera's farthest reach (About's maxDistance,
+       * ABOUT_ORBIT_RADIUS + 20 ≈ 247) or the far side of the sphere would
+       * poke through the star shell as the camera pulls back for About.
+       * speed=0 keeps the twinkle shader frozen: Stars reads
+       * state.clock.elapsedTime directly rather than sceneClock, so any
+       * nonzero speed would be the one thing on screen the pause button
+       * can't stop (see CLAUDE.md's "自分から動くものは sceneClock から").
+       */}
+      <Stars radius={320} depth={150} count={3000} factor={3} saturation={0} fade speed={0} />
 
-      {/* Warm sunlight */}
-      <ambientLight intensity={0.85} />
-      <hemisphereLight args={["#fff7e0", "#f6d9a8", 0.6]} />
+      {/* Sunlight from one side, a dim cool starlight fill from the other —
+          low ambient is what lets the two sides of the sphere read as day
+          and night instead of one flat wash. */}
+      <ambientLight intensity={0.2} />
+      <hemisphereLight args={["#fff7e0", "#1c2440", 0.45]} />
       <directionalLight
         position={[18, 34, 14]}
-        intensity={1.35}
+        intensity={1.5}
         color="#fff3d6"
         castShadow
         // Halved from 2048. The shadows here are large soft shapes cast by
         // blocky geometry, where the extra resolution bought detail nobody
         // could see for four times the shadow-pass cost.
         shadow-mapSize={[1024, 1024]}
-        // Stage 2: widened from ±30/far 90 to cover the planet's own radius
-        // plus the tallest building. A temporary shim like the fog above —
-        // revisit once stage 5 settles the lighting for real.
-        shadow-camera-left={-48}
-        shadow-camera-right={48}
-        shadow-camera-top={48}
-        shadow-camera-bottom={-48}
-        shadow-camera-near={1}
-        shadow-camera-far={140}
+        /*
+         * Stage 5: retuned for the current (halved-diameter) planet. The
+         * ±48/1..140 shim from stage 2 was sized for the pre-halving radius
+         * (33.6) and was never retightened when that became permanent — an
+         * orthographic camera's left/right/top/bottom bound the true
+         * projected size of what it frames, so the box only has to be the
+         * scene's own bounding radius: SMOOTH_PLANET_RADIUS (16.8) + the
+         * tallest building's peak above its own anchor (the pink tower's
+         * antenna tip, voxel y=30 at VS=0.42 ≈ 12.9) ≈ 29.7, rounded up to
+         * ±34 for margin. near/far are that same ±34 slid along the light's
+         * own distance from the origin (hypot(18,34,14) ≈ 40.9): 40.9∓34 ≈
+         * 6.9/74.9, rounded outward to 5/78.
+         */
+        shadow-camera-left={-34}
+        shadow-camera-right={34}
+        shadow-camera-top={34}
+        shadow-camera-bottom={-34}
+        shadow-camera-near={5}
+        shadow-camera-far={78}
         shadow-bias={-0.0005}
       />
-      <directionalLight position={[-20, 16, -18]} intensity={0.4} color="#dff0ff" />
+      <directionalLight position={[-20, 16, -18]} intensity={0.6} color="#dff0ff" />
 
       <Diorama />
 
