@@ -1,6 +1,6 @@
 import type { SectionType } from "@/types";
 import { latLonToDirection, surfacePoint, tangentBasis, type Direction, type Point3 } from "./planetLayout";
-import { groundRadiusVoxels, PLANET_VOXEL_SIZE } from "./shell";
+import { PLANET_RADIUS } from "./shell";
 
 /**
  * Where each section's building stands on the planet, and which way it faces.
@@ -62,16 +62,35 @@ export function sectionDirection(section: NonNullable<SectionType>): Direction {
 }
 
 /**
- * How far the ground itself sits from the planet's centre under a section, in
- * world units — the terrain's real height at that point, not the mean radius.
+ * The world's radius as currently rendered — half of the voxel shell's own
+ * `PLANET_RADIUS` (33.6).
  *
- * Reads `groundRadiusVoxels` (the same function the crust is generated from)
- * rather than assuming the mean: a building planted at the mean radius would
- * float over a hill or sink into a hollow wherever the terrain and the
- * building's footing disagreed about where "the ground" was.
+ * **This is a live experiment, requested in place of stage 2's voxel ground**
+ * (see the devlog entry after stage 2): a plain smooth sphere, at half the
+ * diameter, in `Planet.tsx`. `shell.ts`'s voxel machinery — `planetVoxels()`,
+ * `groundRadiusVoxels()`, the terrain relief — is untouched and still fully
+ * tested; it simply isn't what is drawn right now. Reverting means pointing
+ * `Planet.tsx` back at `planetVoxels()` and this constant back at
+ * `groundRadiusVoxels()`.
+ */
+export const SMOOTH_PLANET_RADIUS = PLANET_RADIUS / 2;
+
+/**
+ * How far the ground itself sits from the planet's centre under a section, in
+ * world units.
+ *
+ * A constant, not a function of direction: the current ground is a smooth
+ * sphere with no relief, so every point on it is the same distance from the
+ * centre. (The voxel ground's version of this read `groundRadiusVoxels` to
+ * follow the terrain's real height — see `SMOOTH_PLANET_RADIUS` for how to
+ * get back to that.) `section` is still the argument every caller expects,
+ * even though nothing here reads it yet — a smooth sphere is one case among
+ * several this function has already had, not a promise the next one won't
+ * vary by direction again.
  */
 export function sectionGroundRadius(section: NonNullable<SectionType>): number {
-  return groundRadiusVoxels(sectionDirection(section)) * PLANET_VOXEL_SIZE;
+  void section;
+  return SMOOTH_PLANET_RADIUS;
 }
 
 /**

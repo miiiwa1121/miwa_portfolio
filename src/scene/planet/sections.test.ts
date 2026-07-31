@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PLANET_SECTIONS,
   PLANET_SECTION_KEYS,
+  SMOOTH_PLANET_RADIUS,
   sectionBasis,
   sectionDirection,
   sectionGroundRadius,
@@ -9,7 +10,7 @@ import {
 } from "./sections";
 import { MAX_TOUR_LATITUDE } from "./tour";
 import { angleBetween, dot, normalize } from "./planetLayout";
-import { groundRadiusVoxels, PLANET_VOXEL_SIZE } from "./shell";
+import { PLANET_RADIUS } from "./shell";
 
 const length = (v: readonly [number, number, number]) => Math.hypot(v[0], v[1], v[2]);
 
@@ -28,14 +29,18 @@ describe("sectionDirection", () => {
 });
 
 describe("sectionGroundRadius", () => {
-  it("agrees with groundRadiusVoxels at the section's own direction, in world units", () => {
-    for (const s of PLANET_SECTION_KEYS) {
-      const expected = groundRadiusVoxels(sectionDirection(s)) * PLANET_VOXEL_SIZE;
-      expect(sectionGroundRadius(s)).toBeCloseTo(expected, 9);
-    }
+  // The current ground is a smooth sphere (see SMOOTH_PLANET_RADIUS's own
+  // docstring) — every section sits at the same radius, not a per-direction
+  // terrain height.
+  it("is the same constant for every section", () => {
+    for (const s of PLANET_SECTION_KEYS) expect(sectionGroundRadius(s)).toBe(SMOOTH_PLANET_RADIUS);
   });
 
-  it("is positive for every section — nothing is authored underwater", () => {
+  it("is half the voxel shell's own radius", () => {
+    expect(SMOOTH_PLANET_RADIUS).toBeCloseTo(PLANET_RADIUS / 2, 9);
+  });
+
+  it("is positive", () => {
     for (const s of PLANET_SECTION_KEYS) expect(sectionGroundRadius(s)).toBeGreaterThan(0);
   });
 });

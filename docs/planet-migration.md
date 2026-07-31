@@ -202,7 +202,7 @@ CLAUDE.md の飛行まわりの不変条件（自前の時計、`easeInOutCubic`
 
 | 対象 | 内容 | 状態 |
 | --- | --- | --- |
-| [Planet.tsx](../src/scene/Planet.tsx)（新規） | `planetVoxels()` を1つの `VoxelModel` に渡すだけ | **済** |
+| [Planet.tsx](../src/scene/Planet.tsx)（新規） | ~~`planetVoxels()` を1つの `VoxelModel` に渡すだけ~~ **確定で差し替え**: ボクセルではなく通常の `SphereGeometry`＋テクスチャ。半径も `PLANET_RADIUS`（33.6）の半分 `SMOOTH_PLANET_RADIUS`（16.8）に。`planetVoxels()` 自体とそのテストは無傷のまま残しているが、使われていない。詳細は下の「惑星の土台は通常の球体、直径は元の半分」 | **済** |
 | [worldLayout.ts](../src/scene/worldLayout.ts) | `BUILDING_POSITIONS` を `sectionPosition()` から生成。`HOME_RADIUS`/`HOME_HEIGHT`/`HOME_TARGET_Y`/`ABOUT_RADIUS` を惑星の大きさに合わせて再計測 | **済**（`facingSection`/`orbitPose`/`sectionPose` の法線ベース化は手順4） |
 | [ProceduralObjects.tsx](../src/scene/ProceduralObjects.tsx) | `Anchor` に `quaternion`、各建物に `foundation()` の台座 | **済**（ヨー角は現状すべて0のまま。看板の向きを変える必要が出たら） |
 | [AreaMarkers.tsx](../src/scene/AreaMarkers.tsx) | `box.max.y + clearance` を法線方向の `outwardExtent()` へ | **済** |
@@ -264,6 +264,26 @@ UI（HTML オーバーレイ・詳細ページ）の宇宙化は**別ブラン�
 ### 装飾を止めた理由の裏付け
 
 紙吹雪・観覧車・木・街灯・雲・住人・トラムは Diorama から外した。半径15の平らな島に合わせたXZ円軌道・y=0.2の接地は、半径33.6の球では原理的に成立しない。全部やり直すのが手順6の仕事なので、今つけて後で二度手間にするより、外したままにするのが早い。
+
+## 惑星の土台は通常の球体、直径は元の半分（確定）
+
+手順3に入る前に、ユーザーから2つの見た目の変更を試すよう頼まれ、スクリーンショットで確認したうえで**この方向で進めることが確定した**——**惑星の直径を半分に**、**ボクセルではなく通常の球体**。以降の手順（3〜6）はこの土台を前提に進める。
+
+### 何を変えたか
+
+- `scene/planet/sections.ts` に `SMOOTH_PLANET_RADIUS = PLANET_RADIUS / 2`（16.8）を追加し、`sectionGroundRadius()` はこれを返す定数関数にした。**`shell.ts` の起伏つきボクセル地形（`planetVoxels()` / `groundRadiusVoxels()`）は一切触っていない**——今描画に使われていないだけで、テストごと生きている。戻すときは `Planet.tsx` を `planetVoxels()` に、`sectionGroundRadius` を `groundRadiusVoxels` に向け直すだけでよい
+- `Planet.tsx` を、`VoxelModel` ではなく `THREE.SphereGeometry`（64×32分割）＋キャンバスで焼いたテクスチャに差し替えた。テクスチャは `planetRelief()` を直接読んで大陸・海の形は元のボクセル地形と同じに保ちつつ、色は `pick()` の粒ごとのばらつきを使わずバンド単色にした（連続座標に離散ハッシュを使うと、なめらかな面の上ではノイズが砂嵐のように出るため）
+- **テクスチャのUV変換は three.js の `SphereGeometry` 自身の頂点生成式をそのまま複製した**（`x=-cos(φ)·sin(θ), y=cos(θ), z=sin(φ)·sin(θ)`）。自前の `latLonToDirection` 規約と突き合わせて変換するのではなく——`planetRelief` は生の方向ベクトルを受け取るだけで、どの経緯度規約で作られたかを気にしないので、メッシュ自身の式と一致させることだけが噛み合わせの条件になる
+
+### 見た目
+
+惑星はカメラ距離を変えていないぶん、画面の中で二回り小さくなった（半径を半分にしたのだから当然で、意図的に触っていない——「直径を半分に」以外のことを勝手に足さないため）。近づいて見ると、なめらかな球にボクセルの建物が刺さっている構図になり、地形のブロック感がなくなった代わりに**建物の平らな台座の底面が、球の際（球の輪郭に近い場所）でわずかにシルエットからはみ出す**——ボクセル地形なら段差の中に埋もれて隠れていたのが、なめらかな球には隠す段差が無いため。**まだ直していない**——手順3で雑居ビルが増え、密度を測り直すタイミングで一緒に見る。
+
+### まだ手を付けていないこと
+
+- **カメラの距離・`HOME_RADIUS` 系は再調整していない。** 惑星が半分になったぶん画面上で小さくなったままで、頼まれたのは「直径を半分に」だけだったのでそこは触っていない。詰め直すなら別途の頼み事として扱う
+- **建物の台座が球の際でシルエットからはみ出す**（上述）
+- `docs/tech.md` の「主な特徴的な実装」はまだボクセル土台の説明のまま。段階が完全に固まってから移す方針（手順7）は変えていない
 
 ## 見えているリスク
 
