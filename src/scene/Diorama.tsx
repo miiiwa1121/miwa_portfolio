@@ -14,6 +14,8 @@ import { BUILDING_POSITIONS } from "./worldLayout";
 import { PLANET_SECTION_KEYS, sectionBasis } from "./planet/sections";
 import AreaMarkers from "./AreaMarkers";
 import FillerCity from "./FillerCity";
+import { Clouds, FerrisWheel, Stardust, StreetLamps, Trees, Villagers } from "./Decorations";
+import { VoxelBus } from "./VoxelBus";
 
 /**
  * Each building's rotation: turns its local +Y to stand along the planet's
@@ -79,16 +81,22 @@ export default function Diorama() {
       {/* The unnamed crowd of small buildings — stage 3 of docs/planet-migration.md. */}
       <FillerCity />
 
-      {/*
-       * Decorations (Ferris wheel, trees, lamps, clouds, villagers, tram) and
-       * the confetti are still switched off here. Every one of them was tuned
-       * for the old flat island — a fixed y=0.2 ground, XZ circles for the
-       * tram's and villagers' paths, confetti falling in -Y and respawning at
-       * a fixed height — none of which holds on a sphere. Re-scattering them
-       * properly (walking a great circle, drifting along the surface, star
-       * dust instead of falling confetti) is stage 6's job; leaving them on
-       * here would mean tuning their positions twice.
-       */}
+      {/* The plaza (see scene/planet/decor.ts for where PARK_CENTRE lands and
+          why) and its own small crowd — stage 6. */}
+      <FerrisWheel />
+      <Trees />
+      <StreetLamps />
+      <Villagers />
+
+      {/* Riding the same closed path the camera's tour does, at ground level. */}
+      <VoxelBus />
+
+      {/* Ambient motion, both switched off close to the ground on purpose:
+          clouds float at a fixed height above the surface, stardust orbits
+          the planet's own centre at a much larger radius, and neither has to
+          know anything about buildings or terrain underneath it. */}
+      <Clouds />
+      <Stardust />
     </group>
   );
 }

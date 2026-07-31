@@ -79,7 +79,8 @@ function hashInt(seed: number, min: number, max: number): number {
   return Math.min(max, Math.floor(hashRange(seed, min, max + 1)));
 }
 
-function tooClose(direction: Direction, radius: number, obstacles: Obstacle[]): boolean {
+/** Whether `direction`, with its own `radius`, would overlap any of `obstacles`. */
+export function tooClose(direction: Direction, radius: number, obstacles: Obstacle[]): boolean {
   return obstacles.some((o) => angleBetween(direction, o.direction) < o.angularRadius + radius);
 }
 

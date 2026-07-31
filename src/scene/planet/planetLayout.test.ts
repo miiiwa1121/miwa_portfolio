@@ -13,6 +13,7 @@ import {
   slerpDirection,
   surfacePoint,
   tangentBasis,
+  tangentOf,
   type Direction,
 } from "./planetLayout";
 import { azimuthToXZ } from "../worldLayout";
@@ -297,6 +298,45 @@ describe("tangentBasis", () => {
       expect(dot(right, up)).toBeCloseTo(0);
       expect(dot(up, forward)).toBeCloseTo(0);
     }
+  });
+});
+
+describe("tangentOf", () => {
+  it("returns a unit vector", () => {
+    const n = latLonToDirection(12, 40);
+    const v = tangentOf([0.3, 0.9, -0.2], n);
+    expect(length(v)).toBeCloseTo(1);
+  });
+
+  it("is perpendicular to the normal", () => {
+    const n = latLonToDirection(-30, 200);
+    for (const v of [[1, 0, 0], [0.2, 0.4, 0.6], [-1, -1, 2]] as Direction[]) {
+      expect(dot(tangentOf(v, n), n)).toBeCloseTo(0);
+    }
+  });
+
+  it("leaves an already-tangent vector pointing the same way", () => {
+    const n = latLonToDirection(8, 75);
+    const { forward } = tangentBasis(n);
+    const result = tangentOf(forward, n);
+    expect(angleBetween(result, forward)).toBeCloseTo(0);
+  });
+
+  it("keeps the sideways component when a vector leans partly radial", () => {
+    const n: Direction = [0, 1, 0];
+    // Mostly "up" (radial) with a bit of +X — only the +X should survive.
+    const result = tangentOf([0.1, 5, 0], n);
+    expect(result[0]).toBeCloseTo(1);
+    expect(result[1]).toBeCloseTo(0);
+    expect(result[2]).toBeCloseTo(0);
+  });
+
+  it("falls back to a perpendicular axis for a purely radial vector, rather than NaN", () => {
+    const n = latLonToDirection(50, 10);
+    const result = tangentOf(n, n);
+    expect(Number.isNaN(result[0] + result[1] + result[2])).toBe(false);
+    expect(length(result)).toBeCloseTo(1);
+    expect(dot(result, n)).toBeCloseTo(0);
   });
 });
 

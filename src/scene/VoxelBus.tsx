@@ -7,8 +7,17 @@ import VoxelModel, { Voxel } from "./voxel/VoxelModel";
 import { fillBox, put } from "./voxel/builders";
 import { PALETTE } from "./voxel/palette";
 import { sceneClock } from "./sceneClock";
+import { PLANET_TOUR } from "./planet/tour";
+import { surfacePoint, tangentOf, type Direction } from "./planet/planetLayout";
+import { SMOOTH_PLANET_RADIUS } from "./planet/sections";
 
 const VS = 0.34;
+const GROUND_RADIUS = SMOOTH_PLANET_RADIUS;
+
+/** How far ahead along the tour the tram's own facing is sampled from — small
+ * enough that `tangentOf`'s projection is a good stand-in for the path's true
+ * derivative, large enough not to lose precision to floating point. */
+const FACING_EPSILON = 0.0005;
 
 function tramVoxels(): Voxel[] {
   const out: Voxel[] = [];
@@ -40,18 +49,43 @@ function tramVoxels(): Voxel[] {
   return out;
 }
 
+/**
+ * A tram that rides the same closed path the camera's tour does, at ground
+ * level — "a road under the tour", per docs/planet-migration.md, rather than
+ * a second route to keep in sync with it by hand. Wherever `PLANET_TOUR`
+ * goes, the tram already goes too.
+ */
 export function VoxelBus() {
   const groupRef = useRef<THREE.Group>(null);
   const voxels = useMemo(() => tramVoxels(), []);
-  const radius = 6.6; // matches the island ring road
-  const speed = 0.22;
+  // Fraction of the whole tour covered per second. The tour's own arc length
+  // is a handful of radians (see tour.ts), so this is a slow lap — a couple
+  // of minutes — not a fixed real-world speed.
+  const speed = 0.015;
 
   useFrame((state) => {
-    if (!groupRef.current) return;
-    const a = sceneClock.time(state.clock.elapsedTime) * speed;
-    groupRef.current.position.set(Math.cos(a) * radius, 0.35, Math.sin(a) * radius);
-    // orient along the tangent of the circle
-    groupRef.current.rotation.y = -a + Math.PI / 2;
+    const group = groupRef.current;
+    if (!group) return;
+
+    const u = sceneClock.time(state.clock.elapsedTime) * speed;
+    const now = PLANET_TOUR.direction(u);
+    const ahead = PLANET_TOUR.direction(u + FACING_EPSILON);
+    const step: Direction = [ahead[0] - now[0], ahead[1] - now[1], ahead[2] - now[2]];
+    const forward = tangentOf(step, now);
+    const up = now;
+    const right: Direction = [
+      up[1] * forward[2] - up[2] * forward[1],
+      up[2] * forward[0] - up[0] * forward[2],
+      up[0] * forward[1] - up[1] * forward[0],
+    ];
+
+    const matrix = new THREE.Matrix4().makeBasis(
+      new THREE.Vector3(...right),
+      new THREE.Vector3(...up),
+      new THREE.Vector3(...forward)
+    );
+    group.quaternion.setFromRotationMatrix(matrix);
+    group.position.set(...surfacePoint(now, GROUND_RADIUS, 0.3));
   });
 
   return (

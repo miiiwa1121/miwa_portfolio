@@ -183,6 +183,29 @@ export function tangentBasis(
 }
 
 /**
+ * The part of `v` that lies in the tangent plane at `normal`, normalized.
+ *
+ * What turns "which way is this thing moving" into "which way should it
+ * face while standing on the sphere": a walker's raw step (`next - now`, or
+ * any other vector that is not already tangent) generally has a small radial
+ * component too, which `tangentBasis`'s own `forward`/`right` cannot absorb —
+ * they are unit vectors in a fixed plane, not a projection. This is that
+ * projection, kept separate so it can be tested against any input rather
+ * than only against the closed forms that happen to already be tangent.
+ *
+ * Zero (falling back to `anyPerpendicular`) when `v` is purely radial —
+ * pointing straight at or away from `normal` — the same "never NaN" contract
+ * `normalize` keeps, for the same reason: a caller building an orientation
+ * out of this cannot afford a degenerate axis.
+ */
+export function tangentOf(v: Direction, normal: Direction): Direction {
+  const n = normalize(normal);
+  const d = dot(v, n);
+  const projected: Direction = [v[0] - d * n[0], v[1] - d * n[1], v[2] - d * n[2]];
+  return Math.hypot(...projected) < 1e-9 ? anyPerpendicular(n) : normalize(projected);
+}
+
+/**
  * A direction `angularDistance` radians from `centre`, in compass direction
  * `bearing` (radians, measured from `tangentBasis(centre).forward` — "north"
  * — towards `.right` — "east").
