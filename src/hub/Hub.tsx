@@ -10,6 +10,7 @@ import CardLeaderLine from "./CardLeaderLine";
 import AreaCard from "./AreaCard";
 import HubHeader from "./HubHeader";
 import HubDock from "./HubDock";
+import type { ZoomStage } from "./ZoomControl";
 import { adjacentOnTour, TOUR_ORDER } from "@/scene/planet/tour";
 import Sheet from "@/detail/Sheet";
 import { exitDirectionFor, type ExitDirection } from "@/detail/detailSheet";
@@ -37,7 +38,21 @@ const OPEN_SETTLE_MS = 450;
 const OBSCURE_DELAY_MS = 900;
 
 export default function Hub() {
-  const { activeSection, setActiveSection, pageOpen, openPage, closePage, goHome, facing, setFacing, turnTo, paused, togglePaused } = useAppState();
+  const {
+    activeSection,
+    setActiveSection,
+    pageOpen,
+    openPage,
+    closePage,
+    goHome,
+    facing,
+    setFacing,
+    turnTo,
+    paused,
+    togglePaused,
+    orbitZoom,
+    goToOrbit,
+  } = useAppState();
   const { language, toggleLanguage } = useLanguage();
   const { openTerminal } = useTerminal();
   const isJa = language === "ja";
@@ -47,6 +62,18 @@ export default function Hub() {
   // through the areas.
   const card = activeSection ?? facing;
   const openedAt = useRef(0);
+
+  // What the zoom control highlights: any focused section (including About)
+  // reads as its own "building" stage, same as a pinch reaching the closest
+  // step — otherwise it's whichever free-orbit altitude orbitZoom names.
+  const zoomStage: ZoomStage = activeSection ? "building" : orbitZoom;
+  const handleZoomSelect = (stage: ZoomStage) => {
+    if (stage === "building") {
+      setActiveSection(facing);
+    } else {
+      goToOrbit(stage);
+    }
+  };
 
   // The dotted trail starts from a dot on the card's corner. The trail measures
   // that element itself, so its size and position are stated once, in the
@@ -174,7 +201,13 @@ export default function Hub() {
           <main> and stopped hit-testing entirely, which silently killed every
           click and hover in the scene — buildings included. Everything meant
           to sit over it carries its own higher z-index. */}
-      <div className="fixed inset-0 w-full h-full z-0 bg-[#070a14]">
+      {/* touch-none: without it, a two-finger gesture here is read by the
+          browser as native pinch-zoom (or pan) before useViewInput's own
+          pointer handlers see it — the pointers get cancelled out from under
+          the pinch-to-orbit-zoom logic. Paired with the page's own
+          maximumScale/userScalable in layout.tsx, which stops the same
+          gesture from zooming the page anywhere outside the canvas. */}
+      <div className="fixed inset-0 w-full h-full z-0 bg-[#070a14] touch-none">
         <Scene obscured={sceneObscured} />
       </div>
 
@@ -188,6 +221,8 @@ export default function Hub() {
           togglePaused={togglePaused}
           onLogoClick={() => closeToHome("down", true)}
           onNavClick={handleNav}
+          zoomStage={zoomStage}
+          onZoomSelect={handleZoomSelect}
         />
 
         {/* Middle: contextual card (orbit mode only, and not while the

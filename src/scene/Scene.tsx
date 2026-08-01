@@ -8,6 +8,7 @@ import Diorama from "./Diorama";
 import {
   frameDistance,
   focalOffsetX,
+  focalOffsetY,
   FRAME_MARGIN,
   frameSizeChanged,
   orbitPose,
@@ -16,7 +17,9 @@ import {
   wrapAngle,
   glidePose,
   easeInOutCubic,
-  ORBIT_RADIUS,
+  NEAR_ORBIT_RADIUS,
+  NEAR_VERTICAL_SHARE,
+  orbitRadiusForZoom,
   ORBIT_MIN_POLAR,
   ORBIT_MAX_POLAR,
   ORBIT_CARD_SHARE,
@@ -26,6 +29,7 @@ import {
   ABOUT_ORBIT_RADIUS,
   ABOUT_CARD_SHARE,
   type Pose,
+  type OrbitZoom,
 } from "./worldLayout";
 import { PLANET_TOUR, sectionU, facingSectionOnPlanet } from "./planet/tour";
 import { PLANET_SECTION_KEYS, sectionDirection } from "./planet/sections";
@@ -37,6 +41,13 @@ import { useAppState, type SectionType } from "@/state/AppStateContext";
 const DRAG_SENSITIVITY = 0.002; // radians per px of pointer drag, both axes
 const WHEEL_SENSITIVITY = 0.0004; // radians (of great-circle arc) per unit of wheel deltaY
 const AUTO_ORBIT_SPEED = 0.032; // radians (of great-circle arc) per second of idle drift
+
+// How far apart two fingers must move, in px, before a pinch is read as a
+// deliberate request to switch the free orbit's altitude — not a continuous
+// dial, a single discrete step per gesture (see worldLayout.ts's `OrbitZoom`).
+// Crossed once per two-finger gesture; the fingers have to lift and come back
+// down for a second switch, rather than firing repeatedly on a long pinch.
+const PINCH_THRESHOLD_PX = 60;
 
 // How long the wheel must be quiet before a stream that began while the orbit
 // was locked is trusted again. Longer than the gaps within a momentum tail,
@@ -96,6 +107,11 @@ function wrap01(u: number): number {
   return ((u % 1) + 1) % 1;
 }
 
+/** Straight-line distance between two tracked pointers, in screen px. */
+function pointerDistance(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
 /**
  * Only in the free orbit does dragging or the wheel move the camera (there is
  * nothing to scroll there otherwise). Whenever a section is focused — card or
@@ -111,6 +127,12 @@ function wrap01(u: number): number {
  * a scroll that starts mid-drag continues from nearby rather than reverting
  * to wherever the tour was left. The wheel instead advances `tourURef`
  * directly; it has no reason to leave the path at all.
+ *
+ * A second finger switches the gesture entirely: rather than a single-pointer
+ * drag, the two points' separation is watched for a pinch past
+ * `PINCH_THRESHOLD_PX`, which asks `onPinchZoom` for the free orbit's other
+ * altitude (see worldLayout.ts's `OrbitZoom`) — a discrete step, not a
+ * continuous dial, fired once per two-finger gesture.
  */
 function useViewInput(
   azimuthTargetRef: React.RefObject<number>,
@@ -118,12 +140,23 @@ function useViewInput(
   tourURef: React.RefObject<number>,
   draggingRef: React.RefObject<boolean>,
   orbitLockedRef: React.RefObject<boolean>,
-  flightRef: React.RefObject<unknown>
+  flightRef: React.RefObject<unknown>,
+  onPinchZoom: (zoom: OrbitZoom) => void
 ) {
   useEffect(() => {
     let down = false;
     let lastX = 0;
     let lastY = 0;
+
+    // Pointers currently on the glass, keyed by pointerId — what turns a
+    // second finger landing mid-drag into a pinch instead of both fingers'
+    // moves being read as one confused single-pointer drag.
+    const activePointers = new Map<number, { x: number; y: number }>();
+    let pinchStartDist: number | null = null;
+    // True once this two-finger gesture has already fired a zoom switch —
+    // the fingers have to lift and come back down for another one, rather
+    // than a long pinch repeatedly re-crossing the threshold.
+    let pinchConsumed = false;
 
     // A camera flight owns the camera outright; gestures during one would be
     // fighting it, and would land as a jump the moment it finished.
@@ -135,14 +168,48 @@ function useViewInput(
 
     const onPointerDown = (e: PointerEvent) => {
       if (locked() || isInteractive(e.target)) return;
-      down = true;
-      lastX = e.clientX;
-      lastY = e.clientY;
-      draggingRef.current = true;
+      activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (activePointers.size === 2) {
+        // A second finger arrived mid-drag: hand the gesture over to the
+        // pinch entirely rather than letting the single-pointer drag below
+        // keep reading whichever finger's events happen to interleave.
+        down = false;
+        draggingRef.current = false;
+        const [a, b] = [...activePointers.values()];
+        pinchStartDist = pointerDistance(a, b);
+        pinchConsumed = false;
+      } else if (activePointers.size === 1) {
+        down = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        draggingRef.current = true;
+      }
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if (!down || locked()) return;
+      if (locked()) return;
+      if (activePointers.has(e.pointerId)) {
+        activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      }
+
+      if (activePointers.size >= 2) {
+        const [a, b] = [...activePointers.values()];
+        const dist = pointerDistance(a, b);
+        if (pinchStartDist !== null && !pinchConsumed) {
+          const spread = dist - pinchStartDist;
+          if (spread > PINCH_THRESHOLD_PX) {
+            onPinchZoom("near"); // fingers spreading apart — zoom in, closer
+            pinchConsumed = true;
+          } else if (spread < -PINCH_THRESHOLD_PX) {
+            onPinchZoom("far"); // fingers pinching together — zoom out, further
+            pinchConsumed = true;
+          }
+        }
+        return; // a pinch in progress never also reads as a single-pointer drag
+      }
+
+      if (!down) return;
       const dx = e.clientX - lastX;
       const dy = e.clientY - lastY;
       lastX = e.clientX;
@@ -163,9 +230,20 @@ function useViewInput(
       resync();
     };
 
-    const endDrag = () => {
-      down = false;
-      draggingRef.current = false;
+    const endDrag = (e: PointerEvent) => {
+      activePointers.delete(e.pointerId);
+      if (activePointers.size < 2) {
+        pinchStartDist = null;
+        pinchConsumed = false;
+      }
+      if (activePointers.size === 0) {
+        down = false;
+        draggingRef.current = false;
+      }
+      // A finger lifting out of a pinch, with one still down, does not
+      // resume a single-pointer drag from whatever `lastX`/`lastY` happen to
+      // be stale at — that finger's own drag only starts at its next
+      // `pointerdown`.
     };
 
     // A hard flick that dismisses the detail page keeps emitting wheel events
@@ -208,7 +286,7 @@ function useViewInput(
       window.removeEventListener("pointercancel", endDrag);
       window.removeEventListener("wheel", onWheel);
     };
-  }, [azimuthTargetRef, polarTargetRef, tourURef, draggingRef, orbitLockedRef, flightRef]);
+  }, [azimuthTargetRef, polarTargetRef, tourURef, draggingRef, orbitLockedRef, flightRef, onPinchZoom]);
 }
 
 /**
@@ -254,12 +332,23 @@ function ScenePause() {
 
 function CameraController() {
   const controlsRef = useRef<CameraControls>(null);
-  const { activeSection, pageOpen, homeNonce, facing, setFacing, turnRequest, paused } = useAppState();
+  const { activeSection, pageOpen, homeNonce, facing, setFacing, turnRequest, paused, orbitZoom, setOrbitZoom } =
+    useAppState();
   const scene = useThree((state) => state.scene);
   const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
   const size = useThree((state) => state.size);
 
   const home = orbitAnglesOf(PLANET_TOUR.direction(0));
+  // Which of the free orbit's two altitudes is currently in effect — read
+  // fresh each render, same as `camera`/`activeSection` below, rather than
+  // kept in a ref: nothing here needs its value to survive a render, only to
+  // be current whenever `useFrame`'s closure (recreated every render) reads it.
+  const currentOrbitRadius = orbitRadiusForZoom(orbitZoom);
+  // The "near" altitude leans the planet towards the bottom-right of the
+  // frame (reference/image5.png); "far" sits centred (aside from the
+  // horizontal card clearance every altitude gets). Computed the same way
+  // `currentOrbitRadius` is — fresh each render, for `useFrame`'s closure.
+  const currentOffsetY = orbitZoom === "near" ? focalOffsetY(currentOrbitRadius, camera.fov, NEAR_VERTICAL_SHARE) : 0;
 
   // The free orbit's true state — see docs/planet-migration.md, "カメラの状態設計".
   // `azimuthTargetRef`/`polarTargetRef` are raw targets that jump the instant
@@ -281,6 +370,7 @@ function CameraController() {
   const draggingRef = useRef(false);
   const prevSectionRef = useRef<SectionType>(null);
   const prevNonceRef = useRef(homeNonce);
+  const prevOrbitZoomRef = useRef(orbitZoom);
   const facingRef = useRef(facing);
 
   // About keeps orbiting slowly even though it isn't the free orbit — it has
@@ -308,6 +398,8 @@ function CameraController() {
     to: Pose;
     fromOffsetX: number;
     toOffsetX: number;
+    fromOffsetY: number;
+    toOffsetY: number;
     elapsed: number;
     duration: number;
     /**
@@ -329,16 +421,19 @@ function CameraController() {
    * it is now — including part way through a flight it is superseding, which
    * is what keeps a second destination chosen mid-flight from snapping.
    */
-  const startGlide = (to: Pose, toOffsetX: number, duration: number) => {
+  const startGlide = (to: Pose, toOffsetX: number, toOffsetY: number, duration: number) => {
     const controls = controlsRef.current;
     if (!controls) return;
     const position = controls.getPosition(scratchPosition, false);
     const target = controls.getTarget(scratchTarget, false);
+    const currentOffset = controls.getFocalOffset(scratchOffset, false);
     glideRef.current = {
       from: [position.x, position.y, position.z, target.x, target.y, target.z],
       to,
-      fromOffsetX: controls.getFocalOffset(scratchOffset, false).x,
+      fromOffsetX: currentOffset.x,
       toOffsetX,
+      fromOffsetY: currentOffset.y,
+      toOffsetY,
       elapsed: 0,
       duration,
       primed: false,
@@ -353,10 +448,10 @@ function CameraController() {
     orbitLockedRef.current = pageOpen || !!activeSection;
   }, [pageOpen, activeSection]);
 
-  useViewInput(azimuthTargetRef, polarTargetRef, tourURef, draggingRef, orbitLockedRef, glideRef);
+  useViewInput(azimuthTargetRef, polarTargetRef, tourURef, draggingRef, orbitLockedRef, glideRef, setOrbitZoom);
 
-  const snapFocalOffset = (offsetX: number) => {
-    controlsRef.current?.setFocalOffset(offsetX, 0, 0, false);
+  const snapFocalOffset = (offsetX: number, offsetY: number = 0) => {
+    controlsRef.current?.setFocalOffset(offsetX, offsetY, 0, false);
   };
 
   // The push is a fraction of the frame's *width*, so a resize changes it. Snap
@@ -375,10 +470,19 @@ function CameraController() {
     const glide = glideRef.current;
     const offsetX = activeSection
       ? glide?.toOffsetX ?? 0 // a section's own offset depends on that section's distance, not on the frame alone; leave it be outside a flight
-      : focalOffsetX(ORBIT_RADIUS, camera.fov, camera.aspect, ORBIT_CARD_SHARE);
-    if (glide) glide.toOffsetX = offsetX;
-    else if (!activeSection) snapFocalOffset(offsetX);
-  }, [size, activeSection, camera]);
+      : focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, ORBIT_CARD_SHARE);
+    // The vertical lean doesn't depend on the frame's width the way the card
+    // clearance does (see focalOffsetY's own comment), so a resize never
+    // actually changes it — carried along regardless, so this never clobbers
+    // it back to 0 the way omitting it from snapFocalOffset's call would.
+    const offsetY = activeSection ? glide?.toOffsetY ?? 0 : currentOffsetY;
+    if (glide) {
+      glide.toOffsetX = offsetX;
+      glide.toOffsetY = offsetY;
+    } else if (!activeSection) {
+      snapFocalOffset(offsetX, offsetY);
+    }
+  }, [size, activeSection, camera, currentOrbitRadius, currentOffsetY]);
 
   // Pausing means "stop now", not "coast to a halt". The damp below is still
   // carrying the camera towards a target the idle drift left a fraction of a
@@ -411,6 +515,8 @@ function CameraController() {
     prevSectionRef.current = activeSection;
     const wasReset = homeNonce !== prevNonceRef.current;
     prevNonceRef.current = homeNonce;
+    const wasZoomChange = orbitZoom !== prevOrbitZoomRef.current;
+    prevOrbitZoomRef.current = orbitZoom;
 
     // Whether the detail page was covering the canvas when this flight was
     // asked for, which is what decides how long it gets. Read before the ref
@@ -419,13 +525,14 @@ function CameraController() {
     const wasCovered = prevPageOpenRef.current;
     const duration = wasCovered ? RETURN_SECONDS : FLIGHT_SECONDS;
 
-    /** Point the free orbit's targets at `azimuth`/`polar` and fly there. */
+    /** Point the free orbit's targets at `azimuth`/`polar` and fly there, at whichever altitude `orbitZoom` currently names. */
     const flyToOrbit = (azimuth: number, polar: number) => {
       azimuthTargetRef.current = azimuthRef.current + wrapAngle(azimuth - azimuthRef.current);
       polarTargetRef.current = polar;
       startGlide(
-        orbitPose(azimuth, polar, ORBIT_RADIUS),
-        focalOffsetX(ORBIT_RADIUS, camera.fov, camera.aspect, ORBIT_CARD_SHARE),
+        orbitPose(azimuth, polar, currentOrbitRadius),
+        focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, ORBIT_CARD_SHARE),
+        currentOffsetY,
         duration
       );
     };
@@ -441,7 +548,7 @@ function CameraController() {
         const target: [number, number, number] = [sphere.center.x, sphere.center.y, sphere.center.z];
         const distance = frameDistance(sphere.radius * FRAME_MARGIN, camera.fov, camera.aspect);
         const pose = sectionPose(target, distance, SECTION_TILT);
-        startGlide(pose, focalOffsetX(distance, camera.fov, camera.aspect, CARD_SHARE), duration);
+        startGlide(pose, focalOffsetX(distance, camera.fov, camera.aspect, CARD_SHARE), 0, duration);
       }
       return;
     }
@@ -457,6 +564,7 @@ function CameraController() {
       startGlide(
         orbitPose(aboutAzimuthRef.current, ABOUT_POLAR, ABOUT_ORBIT_RADIUS),
         focalOffsetX(ABOUT_ORBIT_RADIUS, camera.fov, camera.aspect, ABOUT_CARD_SHARE),
+        0,
         duration
       );
       return;
@@ -506,7 +614,16 @@ function CameraController() {
       return;
     }
 
-    // 6. First mount. The Canvas only gets to set a camera *position*, never
+    // 6. The free orbit's altitude changed (a pinch, or the zoom control's far/
+    //    near stage) while already resting in the orbit — nothing was entered
+    //    or left, so glide to the very same azimuth/polar, just at the new
+    //    radius, and leave tourURef untouched (this isn't a tour move).
+    if (wasZoomChange && !activeSection) {
+      flyToOrbit(azimuthRef.current, polarRef.current);
+      return;
+    }
+
+    // 7. First mount. The Canvas only gets to set a camera *position*, never
     //    a target, so without this the orbit would run at whatever radius the
     //    initial position happened to imply while still aiming at the origin.
     //    Snap (no transition) so the first frame is already correct.
@@ -514,10 +631,10 @@ function CameraController() {
     polarTargetRef.current = home.polar;
     azimuthRef.current = home.azimuth;
     polarRef.current = home.polar;
-    snapFocalOffset(focalOffsetX(ORBIT_RADIUS, camera.fov, camera.aspect, ORBIT_CARD_SHARE));
-    controls.setLookAt(...orbitPose(home.azimuth, home.polar, ORBIT_RADIUS), false);
+    snapFocalOffset(focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, ORBIT_CARD_SHARE), currentOffsetY);
+    controls.setLookAt(...orbitPose(home.azimuth, home.polar, currentOrbitRadius), false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSection, homeNonce, scene, camera]);
+  }, [activeSection, homeNonce, orbitZoom, scene, camera]);
 
   // Declared after the effect above so that effect always reads the *previous*
   // value. Its own effect rather than a line inside that one, because the page
@@ -548,7 +665,7 @@ function CameraController() {
       controls.setLookAt(...glidePose(glide.from, glide.to, eased), false);
       controls.setFocalOffset(
         glide.fromOffsetX + (glide.toOffsetX - glide.fromOffsetX) * eased,
-        0,
+        glide.fromOffsetY + (glide.toOffsetY - glide.fromOffsetY) * eased,
         0,
         false
       );
@@ -578,13 +695,18 @@ function CameraController() {
         // exactly the state a drag leaves the camera in, and the ordinary
         // idle drift (below) eases it back onto the path from there, the same
         // way it does after any free look.
-        const homeward = orbitPose(aboutAzimuthRef.current, ABOUT_POLAR, ORBIT_RADIUS);
+        const homeward = orbitPose(aboutAzimuthRef.current, ABOUT_POLAR, currentOrbitRadius);
         const t = easeInOutCubic(aboutReturn.progress());
         controls.setLookAt(...(t > 0 ? glidePose(pose, homeward, t) : pose), false);
 
         const aboutOffsetX = focalOffsetX(ABOUT_ORBIT_RADIUS, camera.fov, camera.aspect, ABOUT_CARD_SHARE);
-        const orbitOffsetX = focalOffsetX(ORBIT_RADIUS, camera.fov, camera.aspect, ORBIT_CARD_SHARE);
-        controls.setFocalOffset(aboutOffsetX + (orbitOffsetX - aboutOffsetX) * t, 0, 0, false);
+        const orbitOffsetX = focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, ORBIT_CARD_SHARE);
+        controls.setFocalOffset(
+          aboutOffsetX + (orbitOffsetX - aboutOffsetX) * t,
+          currentOffsetY * t, // About itself has no vertical lean (0), blending towards the orbit's own
+          0,
+          false
+        );
 
         // Where the idle drift picks up once the column is gone. Without this
         // it would resume from whatever target was left over from before
@@ -630,8 +752,13 @@ function CameraController() {
     azimuthRef.current = THREE.MathUtils.damp(current, target, 5, delta);
     polarRef.current = THREE.MathUtils.damp(polarRef.current, polarTargetRef.current, 5, delta);
 
-    controls.setLookAt(...orbitPose(azimuthRef.current, polarRef.current, ORBIT_RADIUS), false);
-    controls.setFocalOffset(focalOffsetX(ORBIT_RADIUS, camera.fov, camera.aspect, ORBIT_CARD_SHARE), 0, 0, false);
+    controls.setLookAt(...orbitPose(azimuthRef.current, polarRef.current, currentOrbitRadius), false);
+    controls.setFocalOffset(
+      focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, ORBIT_CARD_SHARE),
+      currentOffsetY,
+      0,
+      false
+    );
 
     // Publish which area is in front. Only on a change — this runs every frame,
     // and a setState per frame would re-render the whole overlay at 60Hz on the
@@ -672,8 +799,14 @@ export default function Scene({ obscured = false }: { obscured?: boolean }) {
       shadows
       // Taken from orbitPose rather than written out, so the very first frame
       // — the one before CameraController's effect gets to place the camera —
-      // is already on the orbit.
-      camera={{ position: orbitPose(home.azimuth, home.polar, ORBIT_RADIUS).slice(0, 3) as [number, number, number], fov: 45 }}
+      // is already on the orbit, at the free orbit's default altitude
+      // (NEAR_ORBIT_RADIUS — CameraController's own mount effect has no
+      // AppStateContext to consult yet either, so "near" is the one this
+      // very first paint can assume rather than read).
+      camera={{
+        position: orbitPose(home.azimuth, home.polar, NEAR_ORBIT_RADIUS).slice(0, 3) as [number, number, number],
+        fov: 45,
+      }}
       dpr={[1, 2]}
       frameloop={obscured ? "demand" : "always"}
     >
@@ -696,7 +829,7 @@ export default function Scene({ obscured = false }: { obscured?: boolean }) {
        * nonzero speed would be the one thing on screen the pause button
        * can't stop (see CLAUDE.md's "自分から動くものは sceneClock から").
        */}
-      <Stars radius={320} depth={150} count={3000} factor={3} saturation={0} fade speed={0} />
+      <Stars radius={320} depth={150} count={6500} factor={30} saturation={0} fade speed={0} />
 
       {/* Sunlight from one side, a dim cool starlight fill from the other —
           low ambient is what lets the two sides of the sphere read as day

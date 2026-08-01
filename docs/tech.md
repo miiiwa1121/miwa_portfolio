@@ -56,9 +56,14 @@
 - **極のクランプは自前で持つ。** `setLookAt` は毎フレーム `_spherical` を位置から組み直すだけで、`minPolarAngle`/`maxPolarAngle` を見ない（`rotateTo` と `_normalizeRotations` だけがそこを見る）。`camera-controls` 側は `[0, π]` に開けて争わせず、`ORBIT_MIN_POLAR`/`ORBIT_MAX_POLAR`（`0.15`/`π−0.15`）を毎フレーム自分でクランプする。
 - **カードを避ける横寄せは `focalOffsetX()` に一本化されている。** 自由回転・セクション・About のすべてが同じ関数を通る——「セクションへ寄るときは焦点オフセットを明示的に0に戻す」のような二本立ての規則は要らない。
 - **飛行は自前の時計とイージングで回す。** 毎フレーム `glidePose(from, to, easeInOutCubic(t))` を組んで `setLookAt(..., false)` に渡す。`setLookAt(..., true)` の `smoothTime` ダンピングは出だしが最速で、詳細ページのシートが退く短い間に飛行がほぼ終わってしまう。`lerp()` も使わない（±πをまたぐと長い方へ回る、`wrapAngle()` を通す）。**飛行の初回フレームには `delta` を加算しない**——`delta` は前フレームからの経過で、飛行はフレームの**間**に始まる。`frameloop="demand"` の裏では毎秒1フレームなので、加算すると1フレームで飛行が終わる。
-- **カメラの行き先を決める effect は `Scene.tsx` に1つだけ**、経路は6つ（セクションへ寄る／Aboutへ寄る／リセットでツアー先頭へ／Aboutを読み切った＝何も飛ばさず着地先へ合わせる／セクションを離れてツアー再開／初回マウント）。ここを分散させない。
+- **カメラの行き先を決める effect は `Scene.tsx` に1つだけ**、経路は7つ（セクションへ寄る／Aboutへ寄る／リセットでツアー先頭へ／Aboutを読み切った＝何も飛ばさず着地先へ合わせる／セクションを離れてツアー再開／**自由回転のズーム段階が変わった**／初回マウント）。ここを分散させない。
+- **自由回転には2つの固定高度がある**（`worldLayout.ts` の `OrbitZoom` = `"near"` | `"far"`）。`"near"`（`NEAR_ORBIT_RADIUS`、50）が新しいデフォルトで、参考写真（`reference/image7.png`——実写ではなく、円1個だけを重ねて配置とサイズだけを示したモックアップ）に画角を合わせた中間距離。`"far"`（`ORBIT_RADIUS`、100）はピンチで開く／ズームコントロールの「俯瞰」段を選んだときだけ入る一時的な状態——3段階の距離感が求められた回で、それぞれ「今の中間視点」「新しい参考写真」「建物ズームの参考写真」に合わせて一段ずつ寄せ直され、`ORBIT_RADIUS` はそのとき単に「以前の `NEAR_ORBIT_RADIUS` の値」に付け替えられた（旧140.32の式は退役）。`NEAR_ORBIT_RADIUS` 自体もその後 `reference/image5.png` を根拠に70へ決めたが、実写は配置の読み取りに向かず狙いより遠い値になっていたため、モックアップの `image7.png` を根拠に50へ再調整した。AppStateContext の `orbitZoom` が真実で、`orbitRadiusForZoom(orbitZoom)` がどちらの半径かを解決する——`Scene.tsx` 側で `ORBIT_RADIUS` を直接書いていた箇所（`flyToOrbit`・アイドル描画テール・リサイズ effect・About の帰りのブレンド先）は全部これ経由になっている。
+  - **切り替えの入力は2つ**: 2本指ピンチ（`useViewInput` が `pointerId` ごとにポインタを追跡し、2点になった時点で単指ドラッグを打ち切ってピンチ判定に切り替える。つまむ/開くが `PINCH_THRESHOLD_PX` を超えた瞬間に1回だけ発火し、指を離すまで再発火しない——連続ズームではなく離散的な1段階の切り替え）と、ヘッダーのズームコントロール（`hub/ZoomControl.tsx`、一時停止ボタンの隣。ホバー/タップで縦のバーが開き、俯瞰・標準・正面の建物（`facing` へ `setActiveSection`）の3段目盛りを直接クリックできる）。
+    - **ピンチがロジックとして正しくても、ブラウザ側に先取りされると届かない。** `pointermove` を受け取る前提として、キャンバスの祖先（`Hub.tsx` の固定div）に `touch-action: none`（Tailwind の `touch-none`）が要る——無いと2本指ジェスチャーはページのネイティブなピンチズームとして横取りされる。合わせて `app/layout.tsx` の `viewport` export（`maximumScale: 1`, `userScalable: false`）でページ全体の拡縮そのものを止めておく。どちらか一方だけでは不十分。
+  - **戻りは常に `"near"`。** HOME/ロゴ（`goHome`）・セクションを閉じる（`closePage`）・セクションを開く（`openPage`、About の帰りのブレンド先を入場時点から合わせておくため）・URL 同期（`applyUrl`、`openPage`/`closePage` を経由せず直接 setter を呼ぶので個別に必要）のすべてが `setOrbitZoom("near")` を呼ぶ。`"far"` はズームコントロールで明示的に選んだときだけ入り、うっかり据え置かれることがない。
+  - **`"near"` だけ、惑星を画面の右下寄りに構図する。** `focalOffsetX`（横方向、カード避け）に加えて `focalOffsetY`（縦方向）を足し、`"far"`・セクション・About では常に0。`aimOffsetY`/`focalOffsetY` は `aimOffset`/`focalOffsetX` の縦版で、符号の理屈も同じ（負のオフセットがカメラを自分のローカル軸に沿って動かし、見ている対象を画面の反対側へ振る）。`NEAR_VERTICAL_SHARE`（0.78）は `reference/image5.png` に合わせて実測した0.86を出発点に、「もう少しだけ上に」という追加要望でヘッドレスの実測を挟みながら弱めた値。飛行中もこの縦オフセットを補間できるよう、`glideRef`/`startGlide`/`snapFocalOffset` は X・Y を組で持つ。
 - **About はホームと同じく惑星の中心を軸に回る**（`orbitPose(aboutAzimuthRef, ABOUT_POLAR, ABOUT_ORBIT_RADIUS)`）。建物のバウンディング球を軸にしていた旧 `framePose` 方式と違い、原点まわりの周回なので、着地後にゆっくり回り続ける自動回転もただ `aboutAzimuthRef` を進めるだけで済む。
-- **About の帰りはスクロールが握り、専用の帰還先計算を持たない。** 進捗0.5〜1を `easeInOutCubic` した `t` で `glidePose(aboutPose, orbitPose(同じ方位, ABOUT_POLAR, ORBIT_RADIUS), t)` を毎フレーム組む——**同じ方位・Aboutと同じ極角のまま**着地させる。これは「ドラッグでツアーを外れた」のと同じ状態で、自由回転がもともと持つ「無操作でツアーへ引き戻される」ドリフトがそのまま片付けてくれるので、「今の方位に一番近いツアー上の緯度」を別途計算する専用コードが要らない。着地後に飛行を足すこともしない——`onFinish` は `closePage` だけを呼び、行き先の effect はその分岐で何もせず抜ける。
+- **About の帰りはスクロールが握り、専用の帰還先計算を持たない。** 進捗0.5〜1を `easeInOutCubic` した `t` で `glidePose(aboutPose, orbitPose(同じ方位, ABOUT_POLAR, currentOrbitRadius), t)` を毎フレーム組む——**同じ方位・Aboutと同じ極角のまま**着地させる。これは「ドラッグでツアーを外れた」のと同じ状態で、自由回転がもともと持つ「無操作でツアーへ引き戻される」ドリフトがそのまま片付けてくれるので、「今の方位に一番近いツアー上の緯度」を別途計算する専用コードが要らない。着地後に飛行を足すこともしない——`onFinish` は `closePage` だけを呼び、行き先の effect はその分岐で何もせず抜ける。
 
 ### エリアのマーカーと点線
 
@@ -80,11 +85,10 @@
 - **住人・トラムの「今どちらを向いているか」は、動く経路の種類によって解き方を変えている。**
   - 住人は `offsetDirection(centre, bearing, r)` という閉じた式の上を歩くので、`bearing` に関する微分も閉じた式で書ける（`walkerFacing()`）——`r` にすら依存しない。
   - トラムは `PLANET_TOUR.direction(u)`（弧長再パラメータ化されたスプライン）という閉じた微分を持たない経路の上を走るので、`direction(u+ε) - direction(u)` を接平面へ射影する数値的な方法をとる（`tangentOf()`、`scene/planet/planetLayout.ts`）。トラムは**ツアー経路そのものを走る**——「軌道の真下に道を通す」という狙いを、別経路を作って同期させるのではなく経路そのものを共有することで満たしている。
-- **星屑**（`scene/dust.ts`）は各粒が自分だけの軸のまわりを永遠に公転する（`rotateAboutAxis` を毎フレーム1回）。落ちて着地する紙吹雪と違い、公転は原理的に自分の軌道（`radius`）を外れないので、外れたときに上へ戻す処理そのものが要らない。
 
 ### ジオラマの時計
 
-自分から動くもの（観覧車・トラム・雲・住人・星屑・マーカーの脈動・アイドル自動回転）は、レンダラの時刻ではなく `scene/sceneClock.ts` を読む。ヘッダーの停止ボタンはこの時計を凍らせるだけで、全部が同じフレームに止まる。停止していた時間は加算されるのではなく**割り引かれる**ので、再生は止めた瞬間の続きから始まる。停止中もカメラは手で回せる——ダンピングには実 delta を渡し、自動回転の加算だけこの時計を通しているため。
+自分から動くもの（観覧車・トラム・雲・住人・マーカーの脈動・アイドル自動回転）は、レンダラの時刻ではなく `scene/sceneClock.ts` を読む。ヘッダーの停止ボタンはこの時計を凍らせるだけで、全部が同じフレームに止まる。停止していた時間は加算されるのではなく**割り引かれる**ので、再生は止めた瞬間の続きから始まる。停止中もカメラは手で回せる——ダンピングには実 delta を渡し、自動回転の加算だけこの時計を通しているため。
 
 **唯一の例外は背景の星**（drei の `<Stars>`）。またたきのシェーダー時計を `sceneClock` ではなく `state.clock.elapsedTime` から直接読んでいるため（ソースで確認済み）、`speed={0}` で完全に静止させている——動かして使うと、停止ボタンで止まらない唯一のオブジェクトになる。
 
@@ -107,8 +111,8 @@
 - **URL**: 開いているセクションをハッシュ（`#products` 等）に反映し、戻るボタンとリンク共有に対応。ただしセクションの中身はクライアント描画のため、プリレンダーされた HTML には含まれない。
 
 ## テスト
-- **Vitest**（node環境）。React も three.js も含まない純粋ロジックのみを対象にしているため、DOMもレンダラも不要で全体が1秒未満で走る（327件）。最も重いのは惑星の球殻の生成と水密性の検査。**ループの中で `expect` を数千回呼ばない** — 数万個のブロックを1個ずつ検証すると、惑星を生成するより検証の方が高くつく。集計してから1回だけ検証する。
-- 対象: カメラの姿勢計算と飛行の補間（`scene/worldLayout.ts`）、球面の幾何・接空間の基底（`scene/planet/planetLayout.ts`）、各セクションの経緯度（`scene/planet/sections.ts`）、ツアー経路（`scene/planet/tour.ts`）、惑星の球殻と地形（`scene/planet/shell.ts`）、雑居ビルの散布（`scene/planet/city.ts`）、プラザと装飾の配置（`scene/planet/decor.ts`）、星屑のシミュレーション（`scene/dust.ts`）、ジオラマの時計（`scene/sceneClock.ts`）、決定論的ハッシュ（`scene/voxel/rng.ts`）、制作実績のフィルタ（`detail/products/catalog.ts`）、プロジェクトデータの言語解決（`data/project.ts`）、URL の解釈（`state/sectionUrl.ts`）、詳細ページの退場方向（`detail/detailSheet.ts`）、カードのホイール送り（`hub/cardWheel.ts`）、自己紹介の読了判定とスクロール連動の帰還（`hub/about/aboutScroll.ts`）。
+- **Vitest**（node環境）。React も three.js も含まない純粋ロジックのみを対象にしているため、DOMもレンダラも不要で全体が1秒未満で走る（326件）。最も重いのは惑星の球殻の生成と水密性の検査。**ループの中で `expect` を数千回呼ばない** — 数万個のブロックを1個ずつ検証すると、惑星を生成するより検証の方が高くつく。集計してから1回だけ検証する。
+- 対象: カメラの姿勢計算と飛行の補間（`scene/worldLayout.ts`）、球面の幾何・接空間の基底（`scene/planet/planetLayout.ts`）、各セクションの経緯度（`scene/planet/sections.ts`）、ツアー経路（`scene/planet/tour.ts`）、惑星の球殻と地形（`scene/planet/shell.ts`）、雑居ビルの散布（`scene/planet/city.ts`）、プラザと装飾の配置（`scene/planet/decor.ts`）、ジオラマの時計（`scene/sceneClock.ts`）、決定論的ハッシュ（`scene/voxel/rng.ts`）、制作実績のフィルタ（`detail/products/catalog.ts`）、プロジェクトデータの言語解決（`data/project.ts`）、URL の解釈（`state/sectionUrl.ts`）、詳細ページの退場方向（`detail/detailSheet.ts`）、カードのホイール送り（`hub/cardWheel.ts`）、自己紹介の読了判定とスクロール連動の帰還（`hub/about/aboutScroll.ts`）。
 - 新しいテストは**変異テストで検証する運用**にしている。意図的なバグを仕込んで落ちることを確認しないと、緑であることに意味がないため。
 
 ```bash

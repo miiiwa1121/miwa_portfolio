@@ -1,12 +1,11 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import VoxelModel, { Voxel } from "./voxel/VoxelModel";
 import { fillBox, put } from "./voxel/builders";
 import { PALETTE, pick } from "./voxel/palette";
-import { spawnDust, stepDust, type DustPart } from "./dust";
 import { sceneClock } from "./sceneClock";
 import { PARK_CENTRE, scatterAround, walkerFacing } from "./planet/decor";
 import { normalize, offsetDirection, surfacePoint, tangentBasis, type Direction } from "./planet/planetLayout";
@@ -225,68 +224,6 @@ export function Clouds() {
         </group>
       ))}
     </>
-  );
-}
-
-// ---------------------------------------------------------------
-// Drifting stardust
-// ---------------------------------------------------------------
-// Scratch transform reused for every instance matrix write. It is never
-// rendered and never read across frames, so one module-level instance is
-// enough — and keeps useFrame from mutating a value React owns.
-const scratch = new THREE.Object3D();
-
-export function Stardust({ count = 90 }: { count?: number }) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const palette = useMemo(() => ["#ffffff", "#fff7e0", "#dff0ff", "#ffe9c7"], []);
-
-  const partsRef = useRef<DustPart[]>([]);
-
-  useLayoutEffect(() => {
-    partsRef.current = spawnDust(count);
-
-    const mesh = meshRef.current;
-    if (!mesh) return;
-    const c = new THREE.Color();
-    for (let i = 0; i < count; i++) mesh.setColorAt(i, c.set(palette[i % palette.length]));
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [count, palette]);
-
-  useFrame((state, delta) => {
-    const mesh = meshRef.current;
-    const parts = partsRef.current;
-    if (!mesh || parts.length === 0) return;
-
-    // Frozen, every speck would be written to the same matrix it already
-    // holds and the whole instance buffer re-uploaded for it — the one
-    // animation here with a per-frame cost worth skipping outright.
-    if (sceneClock.paused()) return;
-
-    stepDust(parts, delta);
-
-    const t = sceneClock.time(state.clock.elapsedTime);
-    for (let i = 0; i < parts.length; i++) {
-      const p = parts[i];
-      const pulse = 1 + Math.sin(t * 1.4 + p.twinkle) * 0.35;
-      scratch.position.set(p.x * p.radius, p.y * p.radius, p.z * p.radius);
-      scratch.rotation.set(p.twinkle, t * 0.3 + p.twinkle, 0);
-      scratch.scale.setScalar(pulse);
-      scratch.updateMatrix();
-      mesh.setMatrixAt(i, scratch.matrix);
-    }
-    mesh.instanceMatrix.needsUpdate = true;
-  });
-
-  return (
-    <instancedMesh
-      ref={meshRef}
-      args={[undefined as unknown as THREE.BufferGeometry, undefined as unknown as THREE.Material, count]}
-      castShadow={false}
-      receiveShadow={false}
-    >
-      <boxGeometry args={[0.16, 0.16, 0.16]} />
-      <meshBasicMaterial toneMapped={false} />
-    </instancedMesh>
   );
 }
 

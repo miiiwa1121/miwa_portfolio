@@ -7,21 +7,26 @@ import {
   CARD_SHARE,
   FRAME_MARGIN,
   MARKER_DOT_FILL,
+  NEAR_ORBIT_RADIUS,
+  NEAR_VERTICAL_SHARE,
   ORBIT_CARD_SHARE,
   ORBIT_MAX_POLAR,
   ORBIT_MIN_POLAR,
   ORBIT_RADIUS,
   SECTION_TILT,
   aimOffset,
+  aimOffsetY,
   azimuthToXZ,
   easeInOutCubic,
   focalOffsetX,
+  focalOffsetY,
   frameDistance,
   frameSizeChanged,
   glidePose,
   markerScaleForScreenRadius,
   orbitAnglesOf,
   orbitPose,
+  orbitRadiusForZoom,
   pixelsPerWorldUnit,
   sectionPose,
   wrapAngle,
@@ -158,6 +163,43 @@ describe("focalOffsetX", () => {
   });
 });
 
+describe("aimOffsetY", () => {
+  it("scales with distance, the same way aimOffset does", () => {
+    expect(aimOffsetY(40, 45, 0.86) / aimOffsetY(20, 45, 0.86)).toBeCloseTo(2);
+  });
+
+  it("grows with a wider vertical fov, at fixed distance and share", () => {
+    expect(aimOffsetY(20, 70, 0.86)).toBeGreaterThan(aimOffsetY(20, 45, 0.86));
+  });
+
+  it("gives nothing away at share 0", () => {
+    expect(aimOffsetY(20, 45, 0)).toBe(0);
+  });
+});
+
+describe("focalOffsetY", () => {
+  // A focal offset moves the camera along its own local axis, so pushing the
+  // subject downwards on screen means moving the camera upwards: negative —
+  // the mirror image of focalOffsetX's own reasoning.
+  it("is negative, so the subject lands below centre — the bottom-right lean", () => {
+    expect(focalOffsetY(NEAR_ORBIT_RADIUS, 45, NEAR_VERTICAL_SHARE)).toBeLessThan(0);
+  });
+
+  it("is exactly -aimOffsetY", () => {
+    expect(focalOffsetY(NEAR_ORBIT_RADIUS, 45, NEAR_VERTICAL_SHARE)).toBeCloseTo(
+      -aimOffsetY(NEAR_ORBIT_RADIUS, 45, NEAR_VERTICAL_SHARE)
+    );
+  });
+
+  it("is ~-16.2 at NEAR_ORBIT_RADIUS/NEAR_VERTICAL_SHARE's current values (50, 0.78) — see NEAR_VERTICAL_SHARE's own comment for the derivation history", () => {
+    expect(focalOffsetY(NEAR_ORBIT_RADIUS, 45, NEAR_VERTICAL_SHARE)).toBeCloseTo(-16.15, 1);
+  });
+
+  it("gives nothing away at share 0", () => {
+    expect(focalOffsetY(NEAR_ORBIT_RADIUS, 45, 0)).toBeCloseTo(0);
+  });
+});
+
 describe("orbitPose", () => {
   it("looks at the target (the planet's centre by default)", () => {
     expect(orbitPose(0.9, 1.2).slice(3)).toEqual([0, 0, 0]);
@@ -205,13 +247,39 @@ describe("orbitPose", () => {
 });
 
 describe("ORBIT_RADIUS", () => {
-  // Pins the derivation (the hypotenuse of stage 2's HOME_RADIUS and
-  // HOME_HEIGHT), not just "some positive number" — dropping the height
-  // entirely and using HOME_RADIUS alone (158.6) would still be a plausible
-  // positive radius, just the wrong one, silently flattening the free orbit's
-  // effective altitude.
-  it("is the hypotenuse of stage 2's HOME_RADIUS (158.6) and HOME_HEIGHT (45.8)", () => {
-    expect(ORBIT_RADIUS).toBeCloseTo(165.08, 2);
+  // Pins the value itself, not just "some positive number" — this constant
+  // was reassigned outright (to what NEAR_ORBIT_RADIUS used to be, see its
+  // own comment) rather than re-derived, so there is no formula left to
+  // pin the shape of; the literal is the whole story.
+  it("is 100 — reassigned to the previous NEAR_ORBIT_RADIUS value when the three stages moved a notch closer", () => {
+    expect(ORBIT_RADIUS).toBe(100);
+  });
+});
+
+describe("NEAR_ORBIT_RADIUS", () => {
+  // Pins the value itself, not just "closer than ORBIT_RADIUS" — that
+  // looser inequality would still pass at, say, 99, which would be a
+  // barely-noticeable step in from the far orbit rather than the framing
+  // walked in against reference/image7.png.
+  it("is 50 — walked in against reference/image7.png, see worldLayout.ts's own comment", () => {
+    expect(NEAR_ORBIT_RADIUS).toBe(50);
+  });
+
+  it("is strictly closer than the far orbit", () => {
+    expect(NEAR_ORBIT_RADIUS).toBeLessThan(ORBIT_RADIUS);
+  });
+});
+
+describe("NEAR_VERTICAL_SHARE", () => {
+  it("is 0.78 — nudged down from the 0.86 walked in against reference/image5.png, see the constant's own comment", () => {
+    expect(NEAR_VERTICAL_SHARE).toBe(0.78);
+  });
+});
+
+describe("orbitRadiusForZoom", () => {
+  it("maps far to ORBIT_RADIUS and near to NEAR_ORBIT_RADIUS", () => {
+    expect(orbitRadiusForZoom("far")).toBe(ORBIT_RADIUS);
+    expect(orbitRadiusForZoom("near")).toBe(NEAR_ORBIT_RADIUS);
   });
 });
 
@@ -571,7 +639,10 @@ describe("markerScaleForScreenRadius", () => {
 });
 
 describe("FRAME_MARGIN", () => {
-  it("is more than one, so a framed area never touches the frame's edge", () => {
-    expect(FRAME_MARGIN).toBeGreaterThan(1);
+  // Pinned, not just "positive" or "less than one" — those would still pass
+  // for a value nowhere near the framing walked in against
+  // reference/image6.png (see the constant's own comment).
+  it("is 0.75 — tight enough that a framed building overflows the frame, not slack around it", () => {
+    expect(FRAME_MARGIN).toBe(0.75);
   });
 });

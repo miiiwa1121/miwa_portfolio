@@ -14,7 +14,7 @@ import { BUILDING_POSITIONS } from "./worldLayout";
 import { PLANET_SECTION_KEYS, sectionBasis } from "./planet/sections";
 import AreaMarkers from "./AreaMarkers";
 import FillerCity from "./FillerCity";
-import { Clouds, FerrisWheel, Stardust, StreetLamps, Trees, Villagers } from "./Decorations";
+import { Clouds, FerrisWheel, StreetLamps, Trees, Villagers } from "./Decorations";
 import { VoxelBus } from "./VoxelBus";
 
 /**
@@ -91,12 +91,10 @@ export default function Diorama() {
       {/* Riding the same closed path the camera's tour does, at ground level. */}
       <VoxelBus />
 
-      {/* Ambient motion, both switched off close to the ground on purpose:
-          clouds float at a fixed height above the surface, stardust orbits
-          the planet's own centre at a much larger radius, and neither has to
-          know anything about buildings or terrain underneath it. */}
+      {/* Ambient motion, switched off close to the ground on purpose: clouds
+          float at a fixed height above the surface and don't need to know
+          anything about buildings or terrain underneath them. */}
       <Clouds />
-      <Stardust />
     </group>
   );
 }

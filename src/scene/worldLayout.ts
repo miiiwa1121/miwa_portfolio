@@ -35,17 +35,76 @@ export const BUILDING_POSITIONS = Object.fromEntries(
 
 /**
  * Straight-line distance from the camera to the planet's centre, in the free
- * orbit — the satellite's fixed altitude.
+ * orbit — the satellite's fixed altitude for the "far" (俯瞰) stage.
  *
- * Carried over as the exact hypotenuse of stage 2's `HOME_RADIUS` (158.6) and
- * `HOME_HEIGHT` (45.8) rather than retuned: those were measured against the
- * planet's own silhouette (see docs/planet-migration.md, "手順2の結果"), and
- * that measurement is still the best evidence for how far back the camera
- * needs to sit — stage 4 changes *what the camera can do*, not how big the
- * planet looks. `HOME_RADIUS`/`HOME_HEIGHT` themselves are gone: a single
- * fixed polar angle no longer describes the free orbit once polar can move.
+ * Was `Math.hypot(158.6, 45.8) * 0.85` (140.32, itself a scaled-down carry
+ * of stage 2's `HOME_RADIUS`/`HOME_HEIGHT` — see docs/planet-migration.md,
+ * "手順2の結果"). Reassigned to the exact figure `NEAR_ORBIT_RADIUS` had
+ * (100) when a third, closer default was requested and the three stages all
+ * moved in a notch: what used to be the sole altitude became "far", what
+ * used to be "near" became "far"'s new value, and "near" itself moved to a
+ * fresh, closer figure (see `NEAR_ORBIT_RADIUS`'s own comment). The old
+ * 140.32 lineage is retired along with it — there was no reason to keep
+ * deriving "far" from a formula once its value was simply "whatever near
+ * used to be".
  */
-export const ORBIT_RADIUS = Math.hypot(158.6, 45.8);
+export const ORBIT_RADIUS = 100;
+
+/**
+ * Which of the free orbit's two fixed altitudes the satellite is currently
+ * at — "far" is `ORBIT_RADIUS` itself (the original overview), "near" is
+ * `NEAR_ORBIT_RADIUS` (the closer default added afterwards). A third,
+ * unrelated closeness — framing a single building — is `sectionPose`, not a
+ * member of this type: it has no fixed radius of its own, and switching to
+ * it is a completely different kind of camera destination (parked on a
+ * building, not a satellite altitude), not a third `OrbitZoom` value.
+ */
+export type OrbitZoom = "near" | "far";
+
+/**
+ * The free orbit's closer altitude — the default view, added after
+ * `ORBIT_RADIUS` itself had already shipped as the sole altitude and was
+ * kept on as the "far" pullback a pinch/the zoom control can reach.
+ *
+ * Walked in by eye three times over, each against a different reference
+ * photo, never re-derived from `ORBIT_RADIUS`'s own `asin(R/D) = share·halfH`
+ * construction (that path was tried once for this constant and broke down at
+ * these closer distances/wider angles — see the devlog entry from that
+ * attempt): 100 against reference/image4.png, then 70 against
+ * reference/image5.png when the three stages each moved a notch closer and
+ * 100 became `ORBIT_RADIUS`'s new value. image5.png turned out to be a poor
+ * reference for *placement* though — a full render, busy enough that where
+ * exactly the planet's edges fell against the frame was hard to read off it
+ * with any confidence — so 70 undershot how large and how far
+ * down-and-right the planet was actually meant to sit. reference/image7.png
+ * (a plain circle over a screenshot of this site's own chrome, drawn
+ * specifically to answer "where do the edges go" unambiguously) replaced it
+ * and produced 50 instead — noticeably closer again.
+ */
+export const NEAR_ORBIT_RADIUS = 50;
+
+/**
+ * Share fed into `focalOffsetY` for the "near" altitude's downward lean —
+ * see that function's own comment for the original -25-at-distance-70
+ * derivation, against reference/image5.png. Carried across unchanged (still
+ * 0.86 in relative terms) when `NEAR_ORBIT_RADIUS` itself moved from 70 to
+ * 50 on reference/image7.png — a share is a fraction of the vertical
+ * half-FOV's tangent, not a world-unit offset, so it keeps the same
+ * *relative* screen-space lean at any distance, confirmed by eye rather than
+ * assumed. Nudged down from 0.86 to 0.78 afterwards ("もう少しだけ、球体を
+ * 上に出してください" — bring the sphere up a little), which eases the push
+ * without changing its direction: measured, the visible top of the dome
+ * rose from 38.4% down the frame to 34.6% (`focalOffsetY(50, 45, 0.86)` ≈
+ * -17.8 down to `focalOffsetY(50, 45, 0.78)` ≈ -16.2). Only "near" leans;
+ * "far" and every other camera destination (a section, About) sit on their
+ * own axis with no vertical push.
+ */
+export const NEAR_VERTICAL_SHARE = 0.78;
+
+/** `ORBIT_RADIUS` or `NEAR_ORBIT_RADIUS`, whichever `zoom` names. */
+export function orbitRadiusForZoom(zoom: OrbitZoom): number {
+  return zoom === "far" ? ORBIT_RADIUS : NEAR_ORBIT_RADIUS;
+}
 
 /**
  * How far from the poles the camera is allowed to go, in either the free
@@ -77,8 +136,20 @@ export const ORBIT_CARD_SHARE = 0.22;
  */
 export const SECTION_TILT = 0.34;
 
-/** Slack around a framed area so it never touches the edges of the frame. */
-export const FRAME_MARGIN = 1.35;
+/**
+ * How tightly `sectionPose` crops a framed building, as a factor on its
+ * bounding sphere's radius fed into `frameDistance`. Was `1.35` — slack that
+ * kept the building clear of the frame's edges — until a closer building-zoom
+ * was requested (reference/image6.png: the roof runs off both sides of the
+ * frame and the ground fills the bottom, not a building floating clear of
+ * every edge with room around it). Below 1 rather than above: `frameDistance`
+ * still computes the distance for a sphere of `radius * FRAME_MARGIN` to
+ * exactly fit the tighter axis, so shrinking the *input* radius pulls the
+ * camera in close enough that the building's true (unshrunk) size overflows
+ * the frame instead of fitting inside it — walked in by eye against that
+ * photo, the same way `NEAR_ORBIT_RADIUS` was.
+ */
+export const FRAME_MARGIN = 0.75;
 
 /**
  * How far back a camera needs to sit for a sphere of `radius` to fit.
@@ -172,6 +243,41 @@ export function aimOffset(
  */
 export function focalOffsetX(distance: number, fovDegrees: number, aspect: number, share: number): number {
   return -aimOffset(distance, fovDegrees, aspect, share);
+}
+
+/**
+ * How far below the subject's centre the "near" free orbit aims, leaning the
+ * planet towards the bottom-right of the frame instead of sitting centred —
+ * requested to match reference/image5.png. Only the vertical half of that
+ * lean: the existing rightward push (`focalOffsetX`, already active for card
+ * clearance at every altitude) supplies the rest, so "near" does not need a
+ * wider `share` of its own on the X axis too.
+ *
+ * Mirrors `aimOffset`, but against the vertical half-FOV rather than the
+ * horizontal — aspect plays no part, since the vertical FOV doesn't widen
+ * with it the way the horizontal one does.
+ */
+export function aimOffsetY(distance: number, fovDegrees: number, share: number): number {
+  const halfVertical = (fovDegrees * Math.PI) / 360;
+  return distance * Math.tan(halfVertical) * share;
+}
+
+/**
+ * How far below the planet's own centre the "near" altitude's own resting
+ * frame sits — the vertical half of `NEAR_ORBIT_RADIUS`'s bottom-right lean
+ * (see `aimOffsetY`). Negative for the same reason `focalOffsetX` is: the
+ * offset moves the camera along its own local axis, swinging whatever it
+ * looks at the other way across the frame — a positive offset here would
+ * push the subject *up*, and bottom-right needs it pushed down.
+ *
+ * `share` is walked in by eye against reference/image5.png the same way
+ * `NEAR_ORBIT_RADIUS` itself was — tried at -15 (too little lean), -40 (the
+ * planet fell almost entirely below the frame), before landing on -25 at
+ * `NEAR_ORBIT_RADIUS`'s distance of 70, which is what `NEAR_VERTICAL_SHARE`
+ * (0.86) reproduces.
+ */
+export function focalOffsetY(distance: number, fovDegrees: number, share: number): number {
+  return -aimOffsetY(distance, fovDegrees, share);
 }
 
 /**

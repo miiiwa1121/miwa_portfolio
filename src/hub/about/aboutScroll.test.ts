@@ -5,6 +5,7 @@ import {
   aboutReturn,
   aboutReturnProgress,
   aboutScrollProgress,
+  autoScrollStep,
   settleRetryDelay,
   shouldReturnHome,
   wheelScrollStep,
@@ -105,6 +106,28 @@ describe("wheelScrollStep", () => {
     for (const delta of [-500, -100, -1, 1, 16, 100, 2000]) {
       expect(Math.abs(wheelScrollStep(delta, 0, 950))).toBeLessThan(Math.abs(delta));
     }
+  });
+});
+
+describe("autoScrollStep", () => {
+  it("is zero for no elapsed time", () => {
+    expect(autoScrollStep(0)).toBe(0);
+  });
+
+  // Literals, not ABOUT_AUTO_SCROLL_SPEED: this is checking the multiplication
+  // itself happens, not restating whatever the constant is set to.
+  it("scales linearly with elapsed time below the clamp", () => {
+    expect(autoScrollStep(0.05)).toBeCloseTo(0.7, 9);
+    expect(autoScrollStep(0.1)).toBeCloseTo(1.4, 9);
+  });
+
+  // The case this exists for: a backgrounded tab's next rAF callback can
+  // arrive seconds after the last one, and advancing the column by that much
+  // in a single step would jump over lines — or past ABOUT_RETURN_AT — rather
+  // than simply keep the crawl playing at its usual pace.
+  it("clamps a large gap instead of jumping the column forward", () => {
+    expect(autoScrollStep(1)).toBeCloseTo(1.4, 9);
+    expect(autoScrollStep(5)).toBeCloseTo(1.4, 9);
   });
 });
 

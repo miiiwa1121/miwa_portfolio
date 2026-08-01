@@ -7,10 +7,10 @@
  * of what there is to read *is* finishing, so that is what returns.
  *
  * The scroll does not merely *trigger* the return, it *is* the return: past
- * the half way mark the same gesture that carries the text off the top of the
- * screen carries the camera back to the home framing, and the two land
- * together. See `aboutReturnProgress` below and the About branch of
- * `3d/Scene.tsx`'s frame loop.
+ * the half way mark the same gesture that carries the text away into its
+ * Star Wars-style crawl fade carries the camera back to the home framing, and
+ * the two land together. See `aboutReturnProgress` below and the About branch
+ * of `3d/Scene.tsx`'s frame loop.
  *
  * The arithmetic lives here rather than inline for the same reason the sheet's
  * does: the awkward cases are all about numbers (a column too short to scroll,
@@ -75,6 +75,42 @@ export function wheelScrollStep(
   const pixels =
     deltaMode === 1 ? deltaY * WHEEL_LINE_PX : deltaMode === 2 ? deltaY * viewportHeight : deltaY;
   return pixels * ABOUT_SCROLL_RATE;
+}
+
+/**
+ * How fast the column advances on its own, once open, in pixels of scroll
+ * per real second.
+ *
+ * A real crawl runs with nobody's hand on it — reaching for a wheel to move
+ * something styled after one would be a strange first ask of a reader. Slow
+ * on purpose: this is the piece of the page meant to be read, not scrolled
+ * past, and the wheel (`wheelScrollStep`) is still there for anyone who wants
+ * to go faster or back up to re-read a line. Started at 22, brought down to
+ * 14 on request.
+ */
+export const ABOUT_AUTO_SCROLL_SPEED = 14;
+
+/**
+ * The most one frame of auto-scroll is allowed to advance the column, in
+ * seconds of (already pause-discounted) time.
+ *
+ * Same reasoning as `MAX_FLIGHT_STEP` in `Scene.tsx`: a backgrounded tab's
+ * next `requestAnimationFrame` can arrive with a multi-second gap since the
+ * last one, and advancing the column by that much in one step would jump
+ * straight over lines — or over `ABOUT_RETURN_AT`; a reader stepping back to
+ * the tab could find the column already gone.
+ */
+const MAX_AUTO_SCROLL_STEP_SECONDS = 0.1;
+
+/**
+ * How far the column should auto-advance for one frame's real time step.
+ *
+ * Takes the step already run through `sceneClock.delta()` — zero while
+ * paused — so the caller doesn't need its own pause branch; a zero in is a
+ * zero out.
+ */
+export function autoScrollStep(deltaSeconds: number): number {
+  return Math.min(deltaSeconds, MAX_AUTO_SCROLL_STEP_SECONDS) * ABOUT_AUTO_SCROLL_SPEED;
 }
 
 /**

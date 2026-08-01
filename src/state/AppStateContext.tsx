@@ -3,6 +3,9 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
 import { hashForSection, sectionFromHash } from "./sectionUrl";
 import type { SectionType } from "@/types";
+import type { OrbitZoom } from "@/scene/worldLayout";
+
+export type { OrbitZoom };
 
 export type { SectionType };
 
@@ -46,6 +49,25 @@ interface AppStateContextType {
    */
   paused: boolean;
   togglePaused: () => void;
+  /**
+   * Which of the free orbit's two altitudes the satellite sits at while no
+   * section is focused — "near" (the default) or "far" (the original
+   * overview). Only ever changes while resting in the orbit; every way of
+   * leaving a section resets it back to "near", so "far" is always a
+   * deliberate, temporary choice (a pinch or the zoom control), never
+   * something you can get stuck in.
+   */
+  orbitZoom: OrbitZoom;
+  setOrbitZoom: (zoom: OrbitZoom) => void;
+  /**
+   * Ask the free orbit for a specific altitude, unfocusing whatever section
+   * was open to get there if one was. What the zoom control's far/near
+   * stages do — unlike `setOrbitZoom` alone (what a pinch does, only ever
+   * while already unfocused), this can also back out of a section, landing
+   * at the requested altitude instead of the "near" every other way of
+   * leaving a section resets to.
+   */
+  goToOrbit: (zoom: OrbitZoom) => void;
 }
 
 const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
@@ -57,6 +79,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [facing, setFacing] = useState<NonNullable<SectionType>>("products");
   const [turnRequest, setTurnRequest] = useState<{ section: NonNullable<SectionType>; nonce: number } | null>(null);
   const [paused, setPaused] = useState(false);
+  const [orbitZoom, setOrbitZoom] = useState<OrbitZoom>("near");
 
   const togglePaused = useCallback(() => setPaused((p) => !p), []);
 
@@ -67,6 +90,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     } else {
       setPageOpen(false);
     }
+    // Normalizes the eventual return-to-orbit altitude the moment a section
+    // is entered, not just when it's left. Needed for About specifically:
+    // its scroll-driven return blends towards this altitude for the whole
+    // time the column is open (Scene.tsx's `homeward` pose), not only at the
+    // instant it finishes, so leaving this until closePage() would mean the
+    // blend spends the entire read heading for the wrong altitude and then
+    // hops the last frame.
+    setOrbitZoom("near");
   }, []);
 
   const turnTo = useCallback((section: NonNullable<SectionType>) => {
@@ -76,6 +107,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const closePage = useCallback(() => {
     setActiveSection(null);
     setPageOpen(false);
+    setOrbitZoom("near");
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
 
@@ -83,6 +115,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     closePage();
     setHomeNonce((n) => n + 1);
   }, [closePage]);
+
+  /**
+   * What the zoom control's far/near stages call — unlike closePage()/
+   * goHome(), which always settle on "near", this can leave the visitor at
+   * "far" if that's what they asked for.
+   */
+  const goToOrbit = useCallback((zoom: OrbitZoom) => {
+    setActiveSection(null);
+    setPageOpen(false);
+    setOrbitZoom(zoom);
+  }, []);
 
   // --- The URL ---------------------------------------------------------
   // The open section is mirrored into the hash so the back button closes the
@@ -96,6 +139,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const section = sectionFromHash(window.location.hash);
       setActiveSection(section);
       setPageOpen(!!section && section !== "about");
+      // Bypasses openPage()/closePage() (it calls the raw setters above
+      // directly, to apply both section and page-open in one pass), so the
+      // same "always land at near" normalization those two carry has to be
+      // repeated here — otherwise the back button or a direct link could
+      // leave the visitor stranded at "far".
+      setOrbitZoom("near");
       // Going back to no section is a request to see the diorama again.
       if (fromHistory && !section) setHomeNonce((n) => n + 1);
       urlApplied.current = true;
@@ -130,7 +179,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppStateContext.Provider
-      value={{ activeSection, setActiveSection, pageOpen, setPageOpen, openPage, closePage, goHome, homeNonce, facing, setFacing, turnTo, turnRequest, paused, togglePaused }}
+      value={{ activeSection, setActiveSection, pageOpen, setPageOpen, openPage, closePage, goHome, homeNonce, facing, setFacing, turnTo, turnRequest, paused, togglePaused, orbitZoom, setOrbitZoom, goToOrbit }}
     >
       {children}
     </AppStateContext.Provider>

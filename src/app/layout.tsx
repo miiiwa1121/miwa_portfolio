@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/state/LanguageContext";
@@ -18,6 +18,18 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Miiiwa | Portfolio",
   description: "Miiiwaのポートフォリオサイト - 面白いを最優先！",
+};
+
+// userScalable: false — without it, a two-finger gesture over the planet
+// zooms the whole page (the browser's native pinch-zoom) rather than
+// reaching Scene.tsx's own pinch handler, which drives the free orbit's
+// near/far altitude instead. See Hub.tsx's touch-none on the canvas div for
+// the other half of the same fix.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({

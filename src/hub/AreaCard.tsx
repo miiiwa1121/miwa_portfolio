@@ -170,7 +170,7 @@ export default function AreaCard({
           className="absolute inset-0 rounded-3xl border border-black/5"
           style={{
             transform: `translateY(${offset}px) scaleX(${1 - (i + 1) * 0.045})`,
-            background: `rgba(255, 255, 255, ${0.72 - i * 0.22})`,
+            background: "#ffffff",
           }}
         />
       ))}
@@ -206,7 +206,7 @@ export default function AreaCard({
           exit="exit"
           whileHover={{ y: -4 }}
           transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.7 }}
-          className="relative z-10 bg-white/95 backdrop-blur-sm rounded-3xl p-6 sm:p-8 border border-black/5"
+          className="relative z-10 bg-white rounded-3xl p-6 sm:p-8 border border-black/5"
         >
           <p className="text-orange-500 font-black text-lg">
             {isJa ? card.jaTitle : card.enTitle}

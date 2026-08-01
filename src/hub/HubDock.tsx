@@ -32,7 +32,7 @@ export default function HubDock({ isJa, openTerminal, pageOpen, activeSection, o
           title={isJa ? "リンク" : "Links"}
           aria-expanded={toolsOpen}
           className={`w-11 h-11 rounded-full flex items-center justify-center hover:scale-110 transition-all border border-black/5 ${
-            toolsOpen ? "bg-orange-500 text-white" : "bg-white/85 backdrop-blur-md text-gray-800"
+            toolsOpen ? "bg-orange-500 text-white" : "bg-white text-gray-800"
           }`}
         >
           <Monitor size={20} />
@@ -44,7 +44,7 @@ export default function HubDock({ isJa, openTerminal, pageOpen, activeSection, o
               target="_blank"
               rel="noopener noreferrer"
               title="GitHub"
-              className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-800 hover:scale-110 transition-transform border border-black/5 shrink-0"
+              className="w-11 h-11 bg-white rounded-full flex items-center justify-center text-gray-800 hover:scale-110 transition-transform border border-black/5 shrink-0"
             >
               <GithubIcon size={20} />
             </a>
@@ -53,14 +53,14 @@ export default function HubDock({ isJa, openTerminal, pageOpen, activeSection, o
               target="_blank"
               rel="noopener noreferrer"
               title="X"
-              className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-gray-900 hover:scale-110 transition-transform border border-black/5 shrink-0"
+              className="w-11 h-11 bg-white rounded-full flex items-center justify-center text-gray-900 hover:scale-110 transition-transform border border-black/5 shrink-0"
             >
               <XIcon size={18} />
             </a>
             <button
               onClick={openTerminal}
               title="Terminal mode"
-              className="w-11 h-11 bg-white/85 backdrop-blur-md rounded-full flex items-center justify-center text-green-600 hover:scale-110 transition-transform border border-black/5 shrink-0"
+              className="w-11 h-11 bg-white rounded-full flex items-center justify-center text-green-600 hover:scale-110 transition-transform border border-black/5 shrink-0"
             >
               <Terminal size={20} />
             </button>
@@ -70,12 +70,17 @@ export default function HubDock({ isJa, openTerminal, pageOpen, activeSection, o
 
       {/* Floating About section for home screen — left side, frameless,
           mirrored by the camera flight in Scene.tsx pushing the about
-          building over to the right of the frame to clear it. Indented
-          well past the logo (reference/image2.png), not flush to the
-          edge, so it reads as a placed column rather than a margin note.
-          Full height, top edge to bottom edge: the text is meant to run
-          off both ends of the screen and be scrolled up through them. */}
-      <div className="absolute left-[15%] inset-y-0 pointer-events-none z-30">
+          building over to the right of the frame to clear it. Went
+          15% → 8% → -3% as the crawl's column doubled in width — the ask
+          each time was to balance the wide near-bottom lines against the
+          planet's usual spot on the right, and -3% is what actually lets
+          the widest (centered) lines touch the screen's left edge rather
+          than just approaching it, the way they already reach into the
+          planet on the right.
+          Full height, top edge to bottom edge: About tilts its own text
+          into a Star Wars-style crawl inside this box, entering from the
+          bottom edge and receding into distance rather than a masked fade. */}
+      <div className="absolute left-[-3%] inset-y-0 pointer-events-none z-30">
         <AnimatePresence>
           {!pageOpen && activeSection === "about" && (
             // `onAboutFinish` (closePage), not a fly-home. The scroll that
