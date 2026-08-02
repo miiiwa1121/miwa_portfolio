@@ -192,6 +192,11 @@ export default function AreaCard({
         <span
           ref={anchorRef}
           aria-hidden="true"
+          // Starts hidden and is shown by CardLeaderLine, which is the thing
+          // that knows whether there is a trail to leave from it. Fading
+          // rather than switching, so an area passing behind the card does
+          // not make the dot blink.
+          style={{ opacity: 0, transition: "opacity 240ms ease" }}
           className="absolute top-5 right-5 z-20 w-[9px] h-[9px] rounded-full bg-[rgba(66,38,18,0.75)]"
         />
       )}

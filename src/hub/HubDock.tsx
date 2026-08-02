@@ -68,19 +68,19 @@ export default function HubDock({ isJa, openTerminal, pageOpen, activeSection, o
         )}
       </div>
 
-      {/* Floating About section for home screen — left side, frameless,
-          mirrored by the camera flight in Scene.tsx pushing the about
-          building over to the right of the frame to clear it. Went
-          15% → 8% → -3% as the crawl's column doubled in width — the ask
-          each time was to balance the wide near-bottom lines against the
-          planet's usual spot on the right, and -3% is what actually lets
-          the widest (centered) lines touch the screen's left edge rather
-          than just approaching it, the way they already reach into the
-          planet on the right.
-          Full height, top edge to bottom edge: About tilts its own text
-          into a Star Wars-style crawl inside this box, entering from the
-          bottom edge and receding into distance rather than a masked fade. */}
-      <div className="absolute left-[-3%] inset-y-0 pointer-events-none z-30">
+      {/* Floating About section for home screen — frameless, straight over
+          the starfield.
+          **The whole frame, centred**, where this used to be a column pinned
+          to the left (15% → 8% → -3% as it was widened by hand). The crawl in
+          `reference/image9.jpg` is symmetrical about the frame's own middle
+          and its nearest lines run off *both* edges; a column parked to one
+          side cannot do that, and it also skewed the near lines — the
+          projection fans out around `perspective-origin`, so text sitting far
+          to one side of that axis got stretched across the frame rather than
+          simply enlarged. Centring is what removes the skew, not a gentler
+          angle. The camera still pushes the planet clear on the right
+          (ABOUT_CARD_SHARE), which is now what keeps the two apart. */}
+      <div className="absolute inset-0 pointer-events-none z-30">
         <AnimatePresence>
           {!pageOpen && activeSection === "about" && (
             // `onAboutFinish` (closePage), not a fly-home. The scroll that

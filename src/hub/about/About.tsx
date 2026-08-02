@@ -70,6 +70,9 @@ export default function About({ onFinish }: Props) {
   const openedAt = useRef(0);
   const finished = useRef(false);
   const columnRef = useRef<HTMLDivElement | null>(null);
+  // The prose block, not the scroller: the scroller carries no line-height of
+  // its own (it would report `normal`), and the pace is measured in lines.
+  const proseRef = useRef<HTMLDivElement | null>(null);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The camera starts where the column does. Published on the way in as well
@@ -129,9 +132,16 @@ export default function About({ onFinish }: Props) {
     let lastTime: number | null = null;
     const tick = (now: number) => {
       const element = columnRef.current;
-      if (element && lastTime !== null) {
+      const prose = proseRef.current;
+      if (element && prose && lastTime !== null) {
         const realDeltaSeconds = (now - lastTime) / 1000;
-        const step = autoScrollStep(sceneClock.delta(realDeltaSeconds));
+        // The pace is a rate in *lines* (see ABOUT_AUTO_SCROLL_LINES_PER_SECOND),
+        // so the prose block's own computed line height is what converts it to
+        // pixels. Read fresh each frame rather than measured once: it changes
+        // with the breakpoint, and a resize mid-read would otherwise leave the
+        // crawl running at the previous width's speed.
+        const lineHeight = parseFloat(getComputedStyle(prose).lineHeight);
+        const step = autoScrollStep(sceneClock.delta(realDeltaSeconds), lineHeight);
         if (step > 0) element.scrollTop += step;
       }
       lastTime = now;
@@ -266,18 +276,46 @@ export default function About({ onFinish }: Props) {
       // on its own — `perspective` isn't part of `transform` — but the
       // `rotateX` tilt does need to live somewhere framer-motion never writes
       // to, which is the inner div.
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
+      // In and out through the bottom edge, the direction the crawl itself
+      // travels — it used to slide in from the left, across the reading
+      // direction, which read as a panel arriving rather than as text rising
+      // out of the frame. Paired with the full-height leading spacer below,
+      // which is what puts the first line *at* the bottom edge to begin with.
+      initial={{ opacity: 0, y: 80 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 80 }}
       transition={{ duration: 0.5 }}
-      // `max-w-5xl`, not `max-w-lg` — doubled from the column's original
-      // reading-width cap so the near edge (which renders at exactly the
-      // container's own width, see below) reads as wide as the reference
-      // frame rather than as a paragraph column. The far end widens with it
-      // — the box is one rigid plane, so there is no way to widen only the
-      // near edge — but at the shrink this funnel already applies, the
-      // difference is not the part anyone is looking at.
-      className="pointer-events-none w-full max-w-5xl h-full [perspective:160px] [perspective-origin:50%_15%]"
+      // The whole frame, no width cap. `perspective-origin`'s X therefore
+      // lands on the frame's own centre line, which is what `image9.jpg` is
+      // symmetrical about — and, more practically, the axis the projection
+      // fans out from. A capped column pushed off to one side put every near
+      // line far from that axis, and the fan turned "large" into "stretched"
+      // (the complaint the previous pass answered by shrinking the angle,
+      // which cost the drama without fixing the cause).
+      // Three quarters of the frame, sat left of the planet — which the "near"
+      // orbit parks at the bottom-right (see NEAR_VERTICAL_SHARE). The margin
+      // is what it is because the *width* was the thing being changed: this
+      // keeps the column's centre where it already was (a third of the way
+      // across) so narrowing it pulls both edges in evenly rather than
+      // sliding the text sideways. The small negative still lets the widest
+      // lines clip the left edge, which is `image9.jpg`'s "nearest line runs
+      // off the frame" — the right edge is left alone, since that is where
+      // the planet is.
+      //
+      // Any overhang has to be on *this* box rather than on the text inside
+      // the scroller. `overflow-y: auto` forces `overflow-x` to compute to
+      // `auto` as well, so a child wider than the scroller is clipped in the
+      // scroller's own local space — before the perspective — which cut every
+      // line at the same two local x's and so truncated the far lines just as
+      // hard as the near ones. Overflowing the viewport instead lets the
+      // frame do the cutting.
+      //
+      // Being off-centre is safe. An earlier note here claimed the frame's
+      // centre line was what kept the near lines from fanning out — it was
+      // not. Cropped screenshots taken after centring but *before* the
+      // perspective was eased still showed the same skew; what actually fixed
+      // it was `perspective` going 160px → 420px (see the scroller below).
+      className="pointer-events-none w-[75%] -ml-[5%] h-full [perspective:420px] [perspective-origin:50%_15%]"
     >
       <div
         ref={columnRef}
@@ -328,20 +366,30 @@ export default function About({ onFinish }: Props) {
         // nearest line is cut off by both the bottom and side of the frame)
         // are both scaled far larger than body text anywhere else on the
         // site.
-        className="pointer-events-auto w-full h-full overflow-y-auto text-[#FFE81F] font-bold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [transform:rotateX(58deg)] [transform-origin:50%_100%] [mask-image:linear-gradient(to_bottom,transparent,black_12%)]"
+        className="pointer-events-auto w-full h-full overflow-y-auto text-[#FFE81F] font-bold [text-shadow:0_0_12px_#070a14,0_0_4px_#070a14,0_2px_3px_rgba(0,0,0,0.9)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [transform:rotateX(46deg)] [transform-origin:50%_100%] [mask-image:linear-gradient(to_bottom,transparent,black_12%)]"
       >
-        {/* Leading space so the column opens on empty screen — nothing
-            visible for a beat, the way a real crawl holds on black before
-            the first line arrives. `h-full` (the whole pivot-to-pivot
-            distance) is what this was originally, back when a wheel flick
-            was what closed that gap — once the column started auto-playing
-            at a deliberately slow, constant pace (`autoScrollStep()`), the
-            same spacer became a wait nobody asked for: at 14px/s, 900px of
-            spacer is a full minute of nothing before the heading appears,
-            long enough to read as broken rather than as a beat. `h-[8%]`
-            keeps the "starts hidden, climbs in" shape at a pace that still
-            reads as a pause. */}
-        <div aria-hidden className="h-[8%]" />
+        {/*
+         * Leading space exactly one scroller tall, which is what makes the
+         * first line arrive **at the bottom edge of the frame** rather than
+         * already halfway up it.
+         *
+         * The scroller shows document `[scrollTop, scrollTop + clientHeight]`
+         * mapped onto the tilted plane, with the *bottom* of that band on the
+         * pivot (full size) and the top at the vanishing point. So at
+         * `scrollTop = 0` a spacer of `h-full` puts the heading precisely on
+         * the pivot: it enters from below and climbs, which is the whole
+         * shape of a crawl.
+         *
+         * This was `h-[8%]` for a while, and the reasoning recorded for that
+         * was wrong: the complaint it answered was that the heading "took a
+         * minute to appear", but the heading was never hidden — it was on the
+         * bottom edge the whole time, and what took a minute was its climb to
+         * somewhere comfortably readable, at 14px/s. The pace is a rate in
+         * lines now (`ABOUT_AUTO_SCROLL_LINES_PER_SECOND`), roughly 70px/s at
+         * a desktop breakpoint, so that same climb is about six seconds and
+         * the full-height spacer costs nothing.
+         */}
+        <div aria-hidden className="h-full" />
 
         {/* Clear of the header. Padding rather than a margin on the scroller,
             so it scrolls away with the text instead of holding a permanent
@@ -361,10 +409,35 @@ export default function About({ onFinish }: Props) {
             smaller. Centered text has no such offset: a line's own middle
             already sits on the axis everything shrinks toward, so it only
             gets smaller, never skewed. */}
-        <h2 className="pt-28 text-6xl sm:text-7xl font-black tracking-tight mb-8 text-center">
+        <h2 className="pt-28 text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight mb-10 text-center">
           {isJa ? "自己紹介" : "About Me"}
         </h2>
-        <div className="space-y-8 text-[#FFE81F] leading-snug text-3xl sm:text-4xl text-center">
+        {/*
+         * Sized by characters-per-line rather than by a comfortable reading
+         * size, which is the measurement `reference/image9.jpg` actually
+         * supports: its lines hold 13-15 characters and a character in the
+         * middle of the frame stands about a tenth of the frame's height.
+         * Since the box is 128% of the viewport, "13-15 per line" fixes the
+         * type size at roughly `viewportWidth * 1.28 / 14` — hence a step per
+         * breakpoint rather than one figure, because that ratio is the thing
+         * being held constant, not the pixel size.
+         *
+         * It was `text-3xl sm:text-4xl` (30/36px). The funnel renders the
+         * middle of the frame at about 60% of the declared size, so 36px was
+         * being read at 22px at best and single digits further up — the whole
+         * column below reading size, which is what made the crawl a texture
+         * rather than a paragraph.
+         */}
+        {/* One step down from the `text-4xl … xl:text-[6.5rem]` first fitted
+            to image9.jpg. The reference frame has nothing in it but stars;
+            this one has a planet to share the screen with, and at the larger
+            size the near lines reached it however far left the column was
+            pushed. Same shape, same 3-4 lines to a paragraph — just enough
+            smaller to clear the disc. */}
+        <div
+          ref={proseRef}
+          className="space-y-10 text-3xl sm:text-4xl lg:text-6xl xl:text-7xl text-[#FFE81F] leading-snug text-center"
+        >
           {paragraphs.map((paragraph, i) => (
             <p key={i}>{paragraph}</p>
           ))}

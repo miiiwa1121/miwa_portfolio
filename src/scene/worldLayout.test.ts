@@ -13,6 +13,7 @@ import {
   ORBIT_MAX_POLAR,
   ORBIT_MIN_POLAR,
   ORBIT_RADIUS,
+  ORBIT_UP,
   SECTION_TILT,
   aimOffset,
   aimOffsetY,
@@ -29,10 +30,12 @@ import {
   orbitRadiusForZoom,
   pixelsPerWorldUnit,
   sectionPose,
+  sectionUp,
   wrapAngle,
   type Pose,
 } from "./worldLayout";
-import { PLANET_SECTION_KEYS } from "./planet/sections";
+import { PLANET_SECTION_KEYS, sectionPosition } from "./planet/sections";
+import { angleBetween, dot, normalize, tangentBasis, type Direction } from "./planet/planetLayout";
 import type { SectionType } from "@/types";
 
 describe("azimuthToXZ", () => {
@@ -178,21 +181,26 @@ describe("aimOffsetY", () => {
 });
 
 describe("focalOffsetY", () => {
+  // Still exercised at a nonzero share even though the site now ships 0 (see
+  // NEAR_VERTICAL_SHARE): the function is correct and kept, and a test that
+  // only ever fed it the shipped constant would say nothing about it at all
+  // once that constant went to zero.
+  //
   // A focal offset moves the camera along its own local axis, so pushing the
   // subject downwards on screen means moving the camera upwards: negative —
   // the mirror image of focalOffsetX's own reasoning.
-  it("is negative, so the subject lands below centre — the bottom-right lean", () => {
-    expect(focalOffsetY(NEAR_ORBIT_RADIUS, 45, NEAR_VERTICAL_SHARE)).toBeLessThan(0);
+  it("is negative, so the subject lands below centre", () => {
+    expect(focalOffsetY(NEAR_ORBIT_RADIUS, 45, 0.78)).toBeLessThan(0);
   });
 
   it("is exactly -aimOffsetY", () => {
-    expect(focalOffsetY(NEAR_ORBIT_RADIUS, 45, NEAR_VERTICAL_SHARE)).toBeCloseTo(
-      -aimOffsetY(NEAR_ORBIT_RADIUS, 45, NEAR_VERTICAL_SHARE)
+    expect(focalOffsetY(NEAR_ORBIT_RADIUS, 45, 0.78)).toBeCloseTo(
+      -aimOffsetY(NEAR_ORBIT_RADIUS, 45, 0.78)
     );
   });
 
-  it("is ~-16.2 at NEAR_ORBIT_RADIUS/NEAR_VERTICAL_SHARE's current values (50, 0.78) — see NEAR_VERTICAL_SHARE's own comment for the derivation history", () => {
-    expect(focalOffsetY(NEAR_ORBIT_RADIUS, 45, NEAR_VERTICAL_SHARE)).toBeCloseTo(-16.15, 1);
+  it("is ~-16.2 at distance 50, share 0.78 — the lean the site used to ship", () => {
+    expect(focalOffsetY(50, 45, 0.78)).toBeCloseTo(-16.15, 1);
   });
 
   it("gives nothing away at share 0", () => {
@@ -271,8 +279,40 @@ describe("NEAR_ORBIT_RADIUS", () => {
 });
 
 describe("NEAR_VERTICAL_SHARE", () => {
-  it("is 0.78 — nudged down from the 0.86 walked in against reference/image5.png, see the constant's own comment", () => {
-    expect(NEAR_VERTICAL_SHARE).toBe(0.78);
+  /**
+   * One lap of the tour, sampled in a real browser at 1440x900 — the facing
+   * marker's screen y with no lean at all, and how close it ever came to the
+   * camera. Fixtures rather than a formula on purpose: the whole point is that
+   * `facing` wanders across the planet's disc in a way no closed form here
+   * predicts, and guessing at it is what let the lean ship.
+   */
+  const MEASURED = { lowestY: 861, closestDepth: 19.6, frameHeight: 900 };
+
+  it("puts the planet's centre 81.8% down the frame, where reference/image7.png does", () => {
+    // The planet's centre is the camera's look-at target, so the focal offset
+    // lands it exactly `0.5 + share/2` down the frame. Written against the
+    // measured 0.818 rather than against the constant, so the constant cannot
+    // drift away from the reference without this failing — which is how 0.78
+    // (centre at 89%) survived as "the image7 value" for a release.
+    expect(0.5 + NEAR_VERTICAL_SHARE / 2).toBeCloseTo(0.818, 3);
+  });
+
+  it("is knowingly past the point where the facing marker stays in frame", () => {
+    // **Not a defect — a decision, pinned so it cannot be undone by accident.**
+    // A focal offset of `share·radius·tan(halfFov)` along the camera's own +Y
+    // moves the subject down the screen by `share·radius·H/(2·depth)` px (the
+    // fov cancels). Charged at the closest depth measured over a full lap.
+    //
+    // At this lean the described area spends most of a lap below the frame, so
+    // the card's dotted trail hides itself (`markerOnScreen`). The composition
+    // from reference/image7.png was chosen over the trail after measuring that
+    // the two cannot coexist at any altitude — see NEAR_VERTICAL_SHARE's own
+    // comment and docs/review.md A-3. If this ever starts passing, someone has
+    // flattened the lean; that is a product change, not a cleanup.
+    const push =
+      (NEAR_VERTICAL_SHARE * NEAR_ORBIT_RADIUS * MEASURED.frameHeight) /
+      (2 * MEASURED.closestDepth);
+    expect(MEASURED.lowestY + push).toBeGreaterThan(MEASURED.frameHeight);
   });
 });
 
@@ -349,28 +389,51 @@ describe("sectionPose", () => {
     }
   });
 
-  it("keeps the same tilt whatever the distance", () => {
-    // Angle between the camera offset and the target's own outward normal
-    // should not depend on how far back the camera sits. The offset is
-    // forward*cos(tilt) + up*sin(tilt), so its angle *from up* is π/2 - tilt
-    // (tilt 0 puts the offset entirely along forward, perpendicular to up;
-    // tilt π/2 puts it entirely along up).
-    const angleAt = (d: number) => {
+  it("stands the camera SECTION_TILT above the building's own horizon, at any distance", () => {
+    // Stated the way `SECTION_TILT`'s own docstring states it — the *elevation
+    // above the local ground*, measured with a literal 19.5°, rather than by
+    // restating `sectionPose`'s own `forward*cos + up*sin` back at itself.
+    //
+    // The previous version of this test asserted `π/2 - SECTION_TILT` from the
+    // normal, which is the same number said backwards: it could only ever
+    // agree with whatever the implementation did, and so it agreed with a
+    // broken one for as long as that one shipped. If the two factors are ever
+    // swapped, 19.5° becomes 70.5° and this fails on the literal.
+    const elevationAt = (d: number) => {
       const [px, py, pz] = sectionPose(target, d);
       const offset: [number, number, number] = [px - target[0], py - target[1], pz - target[2]];
       const normal = target.map((v) => v / Math.hypot(...target)) as [number, number, number];
-      const dot = offset[0] * normal[0] + offset[1] * normal[1] + offset[2] * normal[2];
-      return Math.acos(dot / Math.hypot(...offset));
+      const alongNormal = offset[0] * normal[0] + offset[1] * normal[1] + offset[2] * normal[2];
+      return (Math.asin(alongNormal / Math.hypot(...offset)) * 180) / Math.PI;
     };
-    expect(angleAt(10)).toBeCloseTo(angleAt(30));
-    expect(angleAt(10)).toBeCloseTo(Math.PI / 2 - SECTION_TILT);
+    expect(elevationAt(10)).toBeCloseTo(19.5, 1);
+    expect(elevationAt(30)).toBeCloseTo(19.5, 1);
   });
 
-  it("looks down at the subject rather than up at it, for an equatorial building", () => {
-    const equatorial: [number, number, number] = [10, 0, 0];
-    const pose = sectionPose(equatorial, 15);
-    expect(pose[1]).toBeGreaterThan(pose[4]);
+  it("stands on the side the building's signage faces", () => {
+    // Every building carries its `VoxelText` on its local +Z, which is
+    // `tangentBasis(...).forward` (see `PLANET_SECTIONS`' note on yaw). A
+    // camera on the other side of the building reads that lettering through
+    // its own back, i.e. mirrored — which is exactly what shipped, though for
+    // a different reason (see the `sectionUp` suite below). Pinning the side
+    // here means the two halves of "the sign faces the camera" each have a
+    // test of their own.
+    for (const key of PLANET_SECTION_KEYS) {
+      const centre = sectionPosition(key);
+      const pose = sectionPose(centre, 20);
+      const offset: Direction = [pose[0] - centre[0], pose[1] - centre[1], pose[2] - centre[2]];
+      const { forward } = tangentBasis(centre as Direction);
+      expect(dot(normalize(offset), forward)).toBeGreaterThan(0.5);
+    }
   });
+
+  // Deliberately *not* replaced by a "looks down rather than up" check on
+  // world Y, which is what used to sit here. For an equatorial building the
+  // local north tangent *is* world +Y, so `pose[1] > pose[4]` came out true
+  // by putting the camera straight overhead in world terms — the degenerate
+  // arrangement that produced the mirrored signage. It passed because the
+  // shot was broken, not in spite of it. What "the right way up" actually
+  // means is now stated against the building's own frame, above and below.
 
   // The reason sectionPose exists rather than reusing framePose: a building
   // away from the equator has to be approached along *its own* local up, not
@@ -404,6 +467,91 @@ describe("sectionPose", () => {
     const heightAlong = (pose: Pose) =>
       (pose[0] - target[0]) * normal[0] + (pose[1] - target[1]) * normal[1] + (pose[2] - target[2]) * normal[2];
     expect(heightAlong(steep)).toBeGreaterThan(heightAlong(shallow));
+  });
+});
+
+/**
+ * The half of a section close-up that `sectionPose` does not carry: the roll.
+ *
+ * These are written against what goes wrong when it is missing, not against
+ * how `sectionUp` computes it — the whole reason the previous suite could stay
+ * green through a shipped, visibly broken shot is that it restated the
+ * implementation instead of the requirement.
+ */
+describe("sectionUp — the roll a section close-up is rendered with", () => {
+  /** Unit vector from the camera towards what it is looking at. */
+  const viewDirection = (pose: Pose): Direction =>
+    normalize([pose[3] - pose[0], pose[4] - pose[1], pose[5] - pose[2]]);
+
+  /**
+   * How close a camera's view direction may come to its own up vector before
+   * `lookAt` has no defined roll left to compute. The free orbit keeps 8.6°
+   * (`ORBIT_MIN_POLAR`); a section has no such clamp, so it has to be safe by
+   * construction instead.
+   */
+  const SAFE_DEGREES = 30;
+
+  const degreesBetween = (a: Direction, b: Direction) => (angleBetween(a, b) * 180) / Math.PI;
+
+  it("keeps the view direction clear of the camera's own up, at every section", () => {
+    for (const key of PLANET_SECTION_KEYS) {
+      const centre = sectionPosition(key);
+      const view = viewDirection(sectionPose(centre, 20));
+      const away = degreesBetween(view, sectionUp(centre));
+      expect(Math.min(away, 180 - away)).toBeGreaterThan(SAFE_DEGREES);
+    }
+  });
+
+  it("would NOT be clear if the world's +Y were used instead — three sections are degenerate", () => {
+    // The bug itself, pinned so it cannot come back by someone "simplifying"
+    // sectionUp to ORBIT_UP. `products`, `skills` and `experience` all sit at
+    // longitudes where the building's local north runs nearly along world +Y,
+    // which put the view direction 10-19° off `camera.up` and handed the roll
+    // to lookAt's degenerate case — the mirrored voxel signage.
+    const degenerate = PLANET_SECTION_KEYS.filter((key) => {
+      const view = viewDirection(sectionPose(sectionPosition(key), 20));
+      const away = degreesBetween(view, ORBIT_UP);
+      return Math.min(away, 180 - away) <= SAFE_DEGREES;
+    });
+    expect(degenerate).toEqual(["products", "skills", "experience"]);
+  });
+
+  it("is the building's own outward normal, and a unit vector", () => {
+    for (const key of PLANET_SECTION_KEYS) {
+      const centre = sectionPosition(key);
+      const up = sectionUp(centre);
+      expect(Math.hypot(...up)).toBeCloseTo(1);
+      // Outward, not inward: pointing the same way as the building's own
+      // position from the planet's centre.
+      expect(dot(up, normalize(centre as Direction))).toBeCloseTo(1);
+    }
+  });
+
+  it("differs from the world's up at every section — none of them stand at a pole", () => {
+    for (const key of PLANET_SECTION_KEYS) {
+      expect(degreesBetween(sectionUp(sectionPosition(key)), ORBIT_UP)).toBeGreaterThan(30);
+    }
+  });
+
+  it("puts the building's own vertical on the screen's vertical", () => {
+    // `camera.up` decides which world direction paints straight up the frame.
+    // Handing it the building's normal is what makes a building stand upright
+    // however far from the equator it is — with world +Y, `products` (whose
+    // normal is nearly world +Z) rendered 84° over, i.e. lying on its side.
+    for (const key of PLANET_SECTION_KEYS) {
+      const centre = sectionPosition(key);
+      const pose = sectionPose(centre, 20);
+      const view = viewDirection(pose);
+      const buildingUp = normalize(centre as Direction);
+
+      /** The part of `v` that survives projection onto the image plane. */
+      const onScreen = (v: Direction): Direction => {
+        const along = dot(v, view);
+        return normalize([v[0] - along * view[0], v[1] - along * view[1], v[2] - along * view[2]]);
+      };
+
+      expect(degreesBetween(onScreen(buildingUp), onScreen(sectionUp(centre)))).toBeLessThan(1);
+    }
   });
 });
 

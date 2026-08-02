@@ -22,6 +22,32 @@ export type MarkerScreenPoint = {
   visible: boolean;
 };
 
+/**
+ * Whether a projected marker is somewhere the trail can usefully point at.
+ *
+ * Pulled out of `AreaMarkers`' frame loop and given a name so it can be
+ * tested, because **this is a rule that fails silently**: when it says no, the
+ * trail simply hides, which looks exactly like a scene that has no trail. It
+ * spent a release answering no on every frame of the default view — the
+ * camera's downward lean (`NEAR_VERTICAL_SHARE`) had pushed the facing area
+ * below the bottom of the frame, 16 of 20 sampled points around a full lap —
+ * and nothing anywhere went red, because nothing had ever asked whether it
+ * said yes.
+ *
+ * `depth` is the projected z: at or past 1 the marker is behind the camera,
+ * where the projection flips sign and would fling the trail off in the
+ * opposite direction.
+ */
+export function markerOnScreen(
+  x: number,
+  y: number,
+  depth: number,
+  width: number,
+  height: number
+): boolean {
+  return depth < 1 && x >= 0 && x <= width && y >= 0 && y <= height;
+}
+
 const current: MarkerScreenPoint = { x: 0, y: 0, radius: 0, visible: false };
 const listeners = new Set<(point: MarkerScreenPoint) => void>();
 

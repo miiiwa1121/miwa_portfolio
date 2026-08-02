@@ -2,7 +2,7 @@
 
 import Section from "./Section";
 import { motion } from "framer-motion";
-import { Mail, MessageSquare } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { useLanguage } from "@/state/LanguageContext";
 
@@ -27,22 +27,22 @@ export default function Contact() {
               : "I'm always open to discussing product development, feedback on my portfolio, or just having a chat! Feel free to reach out."}
           </p>
           
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-            <Link 
-              href="https://x.com/miiiwa3330" 
-              target="_blank" 
+          {/*
+           * X の DM ひとつ。かつてここには "Email Me" が並んでいたが、
+           * リンク先が `mailto:contact@example.com` — 雛形のまま公開されていた。
+           * 押しても誰にも届かないボタンは、無いより悪い（一番押してほしい
+           * CTA が行き止まりになる）。本物のアドレスを載せるかどうかは
+           * 別の判断なので、決まるまでは導線を1本に絞ってある。
+           */}
+          <div className="flex justify-center">
+            <Link
+              href="https://x.com/miiiwa3330"
+              target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-3 w-full sm:w-auto px-8 py-4 rounded-full bg-orange-500 hover:bg-orange-600 text-white font-bold shadow-[0_4px_0_var(--primary-strong)] active:shadow-none active:translate-y-1 transition-all"
             >
               <MessageSquare size={20} />
               DM on X
-            </Link>
-            <Link
-              href="mailto:contact@example.com"
-              className="flex items-center justify-center gap-3 w-full sm:w-auto px-8 py-4 rounded-full bg-white text-gray-800 font-bold border border-black/10 hover:border-orange-500 hover:text-orange-500 hover:scale-105 transition-all"
-            >
-              <Mail size={20} />
-              Email Me
             </Link>
           </div>
         </motion.div>

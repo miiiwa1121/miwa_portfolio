@@ -14,6 +14,8 @@ import {
   orbitPose,
   orbitAnglesOf,
   sectionPose,
+  sectionUp,
+  ORBIT_UP,
   wrapAngle,
   glidePose,
   easeInOutCubic,
@@ -33,6 +35,7 @@ import {
 } from "./worldLayout";
 import { PLANET_TOUR, sectionU, facingSectionOnPlanet } from "./planet/tour";
 import { PLANET_SECTION_KEYS, sectionDirection } from "./planet/sections";
+import { slerpDirection, type Direction } from "./planet/planetLayout";
 import { sceneClock } from "./sceneClock";
 import { aboutReturn } from "@/hub/about/aboutScroll";
 import { useAppState, type SectionType } from "@/state/AppStateContext";
@@ -400,6 +403,17 @@ function CameraController() {
     toOffsetX: number;
     fromOffsetY: number;
     toOffsetY: number;
+    /**
+     * The roll, carried along with the position.
+     *
+     * A flight between the free orbit and a section crosses between two
+     * different "up"s — the world's +Y and the building's own normal (see
+     * `sectionUp`) — and they can be most of a right angle apart. Snapping at
+     * either end would spin the frame in a single tick; slerping alongside the
+     * eased position turns it over the length of the trip instead.
+     */
+    fromUp: Direction;
+    toUp: Direction;
     elapsed: number;
     duration: number;
     /**
@@ -417,11 +431,42 @@ function CameraController() {
   const prevPageOpenRef = useRef(pageOpen);
 
   /**
+   * Which way is up for the camera right now.
+   *
+   * Kept here rather than read back off `camera.up`, for the same reason
+   * `viewRef` is not read back off `CameraControls.azimuthAngle`: this is the
+   * value we write every frame, and reading it back would only ever tell us
+   * what we last said.
+   */
+  const upRef = useRef<Direction>(ORBIT_UP);
+
+  /**
+   * Hand `up` to the camera before a `setLookAt`.
+   *
+   * `updateCameraUp()` first, always: camera-controls decomposes the position
+   * it is given into a spherical about `camera.up` (via `_yAxisUpSpace`, which
+   * only `updateCameraUp` rebuilds), and re-composes it the same way before
+   * calling `camera.lookAt(target)`. Writing `camera.up` without it would leave
+   * the decomposition happening in the previous frame's up-space.
+   */
+  const applyUp = (controls: CameraControls, up: Direction) => {
+    const current = upRef.current;
+    // Skipped when nothing moved, which is every frame outside a flight —
+    // `updateCameraUp` rebuilds two quaternions, and the orbit and About both
+    // sit on `ORBIT_UP` indefinitely. Safe as a no-op on the very first frame
+    // too: camera-controls' own constructor has already synced (0, 1, 0).
+    if (current[0] === up[0] && current[1] === up[1] && current[2] === up[2]) return;
+    upRef.current = up;
+    camera.up.set(up[0], up[1], up[2]);
+    controls.updateCameraUp();
+  };
+
+  /**
    * Send the camera to `pose` over `duration` seconds, starting from wherever
    * it is now — including part way through a flight it is superseding, which
    * is what keeps a second destination chosen mid-flight from snapping.
    */
-  const startGlide = (to: Pose, toOffsetX: number, toOffsetY: number, duration: number) => {
+  const startGlide = (to: Pose, toOffsetX: number, toOffsetY: number, duration: number, toUp: Direction) => {
     const controls = controlsRef.current;
     if (!controls) return;
     const position = controls.getPosition(scratchPosition, false);
@@ -434,6 +479,8 @@ function CameraController() {
       toOffsetX,
       fromOffsetY: currentOffset.y,
       toOffsetY,
+      fromUp: upRef.current,
+      toUp,
       elapsed: 0,
       duration,
       primed: false,
@@ -533,7 +580,10 @@ function CameraController() {
         orbitPose(azimuth, polar, currentOrbitRadius),
         focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, ORBIT_CARD_SHARE),
         currentOffsetY,
-        duration
+        duration,
+        // Back onto the satellite orbit, so back to the world's own up —
+        // whatever building's normal the camera may have been rolled to.
+        ORBIT_UP
       );
     };
 
@@ -548,7 +598,17 @@ function CameraController() {
         const target: [number, number, number] = [sphere.center.x, sphere.center.y, sphere.center.z];
         const distance = frameDistance(sphere.radius * FRAME_MARGIN, camera.fov, camera.aspect);
         const pose = sectionPose(target, distance, SECTION_TILT);
-        startGlide(pose, focalOffsetX(distance, camera.fov, camera.aspect, CARD_SHARE), 0, duration);
+        startGlide(
+          pose,
+          focalOffsetX(distance, camera.fov, camera.aspect, CARD_SHARE),
+          0,
+          duration,
+          // The building's own normal, not the world's +Y — the whole shot is
+          // built in this building's tangent frame, and the roll is the half
+          // of it that used to be left behind in world coordinates. See
+          // `sectionUp` for what that cost.
+          sectionUp(target)
+        );
       }
       return;
     }
@@ -565,7 +625,10 @@ function CameraController() {
         orbitPose(aboutAzimuthRef.current, ABOUT_POLAR, ABOUT_ORBIT_RADIUS),
         focalOffsetX(ABOUT_ORBIT_RADIUS, camera.fov, camera.aspect, ABOUT_CARD_SHARE),
         0,
-        duration
+        duration,
+        // About pivots on the planet's centre like the free orbit does, so it
+        // keeps the world's up rather than any one building's.
+        ORBIT_UP
       );
       return;
     }
@@ -632,6 +695,7 @@ function CameraController() {
     azimuthRef.current = home.azimuth;
     polarRef.current = home.polar;
     snapFocalOffset(focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, ORBIT_CARD_SHARE), currentOffsetY);
+    applyUp(controls, ORBIT_UP);
     controls.setLookAt(...orbitPose(home.azimuth, home.polar, currentOrbitRadius), false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, homeNonce, orbitZoom, scene, camera]);
@@ -662,6 +726,9 @@ function CameraController() {
       else glide.primed = true;
       const progress = Math.min(1, glide.elapsed / glide.duration);
       const eased = easeInOutCubic(progress);
+      // Before the pose, not after: setLookAt decomposes the position it is
+      // handed into the up-space that is current at that moment.
+      applyUp(controls, slerpDirection(glide.fromUp, glide.toUp, eased));
       controls.setLookAt(...glidePose(glide.from, glide.to, eased), false);
       controls.setFocalOffset(
         glide.fromOffsetX + (glide.toOffsetX - glide.fromOffsetX) * eased,
@@ -697,6 +764,9 @@ function CameraController() {
         // way it does after any free look.
         const homeward = orbitPose(aboutAzimuthRef.current, ABOUT_POLAR, currentOrbitRadius);
         const t = easeInOutCubic(aboutReturn.progress());
+        // Both ends of About's own trip pivot on the planet's centre, so the
+        // roll never leaves the world's up here — no slerp to run.
+        applyUp(controls, ORBIT_UP);
         controls.setLookAt(...(t > 0 ? glidePose(pose, homeward, t) : pose), false);
 
         const aboutOffsetX = focalOffsetX(ABOUT_ORBIT_RADIUS, camera.fov, camera.aspect, ABOUT_CARD_SHARE);
@@ -752,6 +822,7 @@ function CameraController() {
     azimuthRef.current = THREE.MathUtils.damp(current, target, 5, delta);
     polarRef.current = THREE.MathUtils.damp(polarRef.current, polarTargetRef.current, 5, delta);
 
+    applyUp(controls, ORBIT_UP);
     controls.setLookAt(...orbitPose(azimuthRef.current, polarRef.current, currentOrbitRadius), false);
     controls.setFocalOffset(
       focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, ORBIT_CARD_SHARE),

@@ -78,17 +78,30 @@ export function wheelScrollStep(
 }
 
 /**
- * How fast the column advances on its own, once open, in pixels of scroll
- * per real second.
+ * How fast the column advances on its own, once open, in **lines of text per
+ * real second**.
  *
  * A real crawl runs with nobody's hand on it — reaching for a wheel to move
  * something styled after one would be a strange first ask of a reader. Slow
  * on purpose: this is the piece of the page meant to be read, not scrolled
  * past, and the wheel (`wheelScrollStep`) is still there for anyone who wants
- * to go faster or back up to re-read a line. Started at 22, brought down to
- * 14 on request.
+ * to go faster or back up to re-read a line.
+ *
+ * **Lines, not pixels** — it was 22px/s, then 14px/s. A pixel rate silently
+ * encodes a type size: when the crawl was resized to match
+ * `reference/image9.jpg` (roughly 14 characters to a line, a character about
+ * a tenth of the frame's height) the column grew from 3,553px to 7,881px for
+ * exactly the same words, and 14px/s turned a 115-second read into an
+ * eight-minute one without anybody changing the speed. It also meant the
+ * crawl ran at four different reading speeds across the four breakpoints the
+ * type steps through. A line is the unit a reader actually consumes, so
+ * holding *that* rate fixed is what keeps the pace the same everywhere.
+ *
+ * Half a line a second is a deliberate amble — comfortably slower than
+ * reading speed for a 14-character line, so the wheel is an accelerator
+ * rather than a necessity.
  */
-export const ABOUT_AUTO_SCROLL_SPEED = 14;
+export const ABOUT_AUTO_SCROLL_LINES_PER_SECOND = 0.5;
 
 /**
  * The most one frame of auto-scroll is allowed to advance the column, in
@@ -103,14 +116,27 @@ export const ABOUT_AUTO_SCROLL_SPEED = 14;
 const MAX_AUTO_SCROLL_STEP_SECONDS = 0.1;
 
 /**
- * How far the column should auto-advance for one frame's real time step.
+ * How far the column should auto-advance for one frame's real time step, in
+ * pixels.
  *
  * Takes the step already run through `sceneClock.delta()` — zero while
  * paused — so the caller doesn't need its own pause branch; a zero in is a
  * zero out.
+ *
+ * `lineHeightPx` is the column's own computed line height, read from the DOM
+ * by the caller rather than restated here: it is the one number that already
+ * tracks every breakpoint's type size, and it is what turns a rate in lines
+ * into a rate in pixels. A non-finite or zero value (a browser that has not
+ * laid the column out yet, or reports `line-height: normal`) yields no
+ * movement rather than a NaN scrollTop that would strand the column.
  */
-export function autoScrollStep(deltaSeconds: number): number {
-  return Math.min(deltaSeconds, MAX_AUTO_SCROLL_STEP_SECONDS) * ABOUT_AUTO_SCROLL_SPEED;
+export function autoScrollStep(deltaSeconds: number, lineHeightPx: number): number {
+  if (!Number.isFinite(lineHeightPx) || lineHeightPx <= 0) return 0;
+  return (
+    Math.min(deltaSeconds, MAX_AUTO_SCROLL_STEP_SECONDS) *
+    ABOUT_AUTO_SCROLL_LINES_PER_SECOND *
+    lineHeightPx
+  );
 }
 
 /**

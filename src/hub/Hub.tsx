@@ -223,6 +223,10 @@ export default function Hub() {
           onNavClick={handleNav}
           zoomStage={zoomStage}
           onZoomSelect={handleZoomSelect}
+          // The sheet is the only white surface that ever gets under the
+          // header. About is deliberately not one: it has no sheet, its text
+          // sits straight on the starfield, and the logo stays white there.
+          onLightBackground={pageOpen}
         />
 
         {/* Middle: contextual card (orbit mode only, and not while the

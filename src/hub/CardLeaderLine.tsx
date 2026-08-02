@@ -83,8 +83,27 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
       const line = lineRef.current;
       if (!group || !line) return;
 
+      /**
+       * The dot on the card is the trail's near end, so it goes with the
+       * trail — a lone dot in the corner of a card with nothing leaving it
+       * reads as a stray mark, which is the same reason it is dropped
+       * outright once an area is focused (`AreaCard`).
+       *
+       * It matters more than it used to. The trail is only drawn while the
+       * facing area's marker is actually on screen, and at the "near" orbit's
+       * lean (see `NEAR_VERTICAL_SHARE`) that area spends much of a lap below
+       * the frame — so the trail comes and goes where it used to be more or
+       * less permanent. Written straight to the style for the same reason
+       * nothing else here goes through React: this runs every frame.
+       */
+      const setAnchorShown = (shown: boolean) => {
+        const anchor = anchorRef.current;
+        if (anchor) anchor.style.opacity = shown ? "1" : "0";
+      };
+
       const hide = () => {
         group.style.opacity = "0";
+        setAnchorShown(false);
       };
 
       // No anchor means there is nothing to draw *from*, so the trail goes
@@ -112,6 +131,7 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
       const reach = span - radius - MARKER_GAP - CAP;
       if (reach - from < MIN_TRAIL) return hide();
       group.style.opacity = "1";
+      setAnchorShown(true);
 
       const unitX = dx / span;
       const unitY = dy / span;

@@ -84,22 +84,45 @@ export type OrbitZoom = "near" | "far";
 export const NEAR_ORBIT_RADIUS = 50;
 
 /**
- * Share fed into `focalOffsetY` for the "near" altitude's downward lean —
- * see that function's own comment for the original -25-at-distance-70
- * derivation, against reference/image5.png. Carried across unchanged (still
- * 0.86 in relative terms) when `NEAR_ORBIT_RADIUS` itself moved from 70 to
- * 50 on reference/image7.png — a share is a fraction of the vertical
- * half-FOV's tangent, not a world-unit offset, so it keeps the same
- * *relative* screen-space lean at any distance, confirmed by eye rather than
- * assumed. Nudged down from 0.86 to 0.78 afterwards ("もう少しだけ、球体を
- * 上に出してください" — bring the sphere up a little), which eases the push
- * without changing its direction: measured, the visible top of the dome
- * rose from 38.4% down the frame to 34.6% (`focalOffsetY(50, 45, 0.86)` ≈
- * -17.8 down to `focalOffsetY(50, 45, 0.78)` ≈ -16.2). Only "near" leans;
- * "far" and every other camera destination (a section, About) sit on their
- * own axis with no vertical push.
+ * Share fed into `focalOffsetY` for the "near" altitude's downward lean — how
+ * far the planet sits towards the bottom-right of the frame.
+ *
+ * **Derived from `reference/image7.png` rather than walked in by eye**, which
+ * is what the 0.86 and 0.78 that shipped before it were. Measuring that
+ * mockup (a plain circle drawn over a screenshot of this site's own chrome,
+ * specifically to answer "where do the edges go") gives a disc centred
+ * **65.5% across and 81.8% down**, radius 49% of the frame's height. The
+ * planet's centre is what the camera looks at, so it sits at exactly
+ * `0.5 + share/2` down the frame — 81.8% therefore *is* 0.636, and the old
+ * 0.78 overshot the reference it was supposedly matching by putting the
+ * centre at 89%.
+ *
+ * **This lean costs the card's leader line, knowingly.** `facing` — the area
+ * the card describes — is not the point at the middle of the planet's disc:
+ * it is the nearest of five anchors, and it wanders across the whole visible
+ * disc as the tour advances. Pushing the disc down the frame pushes the
+ * described area off the bottom of it, and with it goes the marker and the
+ * dotted trail. Measured over a full lap of the tour, 20 samples, three
+ * viewports — marker positions off-screen, out of 20 (1440x900):
+ *
+ * | share | off-screen | worst overshoot below the frame |
+ * | ----- | ---------- | ------------------------------- |
+ * | 0.78  | 16         | 648px                           |
+ * | 0.64  | ~14        | ~470px                          |
+ * | 0.40  | 7          | 268px                           |
+ * | 0.20  | 3          | 115px                           |
+ * | 0.00  | 0          | —                               |
+ *
+ * The largest lean that keeps all 20 on screen is **0.04**, i.e. no lean at
+ * all, and it cannot be bought back with altitude either: the lean displaces
+ * the subject by `share·radius·H/(2·depth)` px, which at this share is ~290px
+ * of a 900px frame however far away the planet is, so the disc would have to
+ * shrink to a marble (radius ≥ 185, About's own distance) to fit both. **The
+ * composition and the trail are not tunable against each other**, and the
+ * composition was chosen. Do not "fix" this constant without that context —
+ * see docs/review.md A-3 for the full measurement.
  */
-export const NEAR_VERTICAL_SHARE = 0.78;
+export const NEAR_VERTICAL_SHARE = 0.636;
 
 /** `ORBIT_RADIUS` or `NEAR_ORBIT_RADIUS`, whichever `zoom` names. */
 export function orbitRadiusForZoom(zoom: OrbitZoom): number {
@@ -130,9 +153,19 @@ export const ORBIT_MAX_POLAR = Math.PI - 0.15;
 export const ORBIT_CARD_SHARE = 0.22;
 
 /**
- * How steeply the camera looks down when framing a single area, in radians —
- * the angle `sectionPose` tilts away from a building's own surface normal,
- * towards its local north.
+ * How high above a building's own local horizon the camera sits when framing
+ * it, in radians — `sectionPose` puts the camera along the building's local
+ * north, lifted by this much towards its surface normal.
+ *
+ * **Measured from the horizon, not from the normal**, despite what this said
+ * before: `sectionPose` multiplies `cos(tilt)` into `forward` (the tangent)
+ * and `sin(tilt)` into `up` (the normal), so 0.34 rad is 19.5° above the
+ * ground, not 19.5° off vertical. The old wording invited exactly the wrong
+ * fix — swapping the two would swing the camera to 70.5° and make every
+ * section a near-overhead shot, which is not what `reference/image6.png`
+ * (a horizon low in the frame, the roof seen at a shallow angle) asks for.
+ * The value was right all along; what was broken was `camera.up` (see
+ * `sectionUp`).
  */
 export const SECTION_TILT = 0.34;
 
@@ -354,6 +387,53 @@ export function sectionPose(target: readonly [number, number, number], distance:
     ty,
     tz,
   ];
+}
+
+/**
+ * Which way is "up" for the camera while it orbits the planet as a satellite:
+ * the world's own +Y. Every framing that pivots on the planet's centre — the
+ * free orbit at either altitude, and About — uses this.
+ */
+export const ORBIT_UP: Direction = [0, 1, 0];
+
+/**
+ * Which way is "up" for the camera while it is parked on a single building:
+ * that building's own surface normal.
+ *
+ * **This is what `sectionPose` was missing, and the reason section close-ups
+ * came out wrong.** `sectionPose` builds the whole shot in the building's own
+ * tangent frame, which is what makes it latitude-independent — but a pose is
+ * only half of a camera. `camera.up` decides the roll, and while it stayed
+ * pinned to the world's +Y, the other half of the shot was still being
+ * answered in world coordinates. Two things went wrong at once, both of them
+ * quietly:
+ *
+ * - **Buildings rendered on their side.** A building's own up is its normal,
+ *   which for anything near the equator points nearly *horizontally* in world
+ *   terms — `products` (lat 6°, lon 0°) stands up along world +Z. Rolling the
+ *   frame to world +Y instead put that building's vertical 84° from the
+ *   screen's, i.e. lying down.
+ * - **Roll went wherever `lookAt`'s degenerate case sent it.** The camera sits
+ *   along the building's local *north*, and near the equator local north is
+ *   nearly world +Y — so the view direction ran within 10-18° of `camera.up`
+ *   for `products`, `skills` and `experience`. `lookAt` has no defined roll
+ *   there, and what came out was a mirrored frame: the voxel signage on those
+ *   three buildings rendered back-to-front, which is how this was spotted at
+ *   all. `about` (37.5°) and `contact` (63.5°) sit far enough off the axis to
+ *   look fine, so the symptom came and went with latitude and never looked
+ *   like one bug.
+ *
+ * Handing the camera the building's own up answers both: the building's
+ * vertical *is* the screen's vertical, and the view direction is always
+ * exactly `π/2 + SECTION_TILT` away from it, so there is no degenerate case
+ * left to fall into at any latitude.
+ *
+ * (The free orbit's own guard against the same degeneracy — `ORBIT_MIN_POLAR`
+ * / `ORBIT_MAX_POLAR` — never applied here, because a section is not on the
+ * orbit. That is why nothing caught it.)
+ */
+export function sectionUp(target: readonly [number, number, number]): Direction {
+  return tangentBasis(target as Direction).up;
 }
 
 /**

@@ -110,24 +110,48 @@ describe("wheelScrollStep", () => {
 });
 
 describe("autoScrollStep", () => {
+  /** A believable computed line height for the crawl at a desktop breakpoint. */
+  const LINE = 100;
+
   it("is zero for no elapsed time", () => {
-    expect(autoScrollStep(0)).toBe(0);
+    expect(autoScrollStep(0, LINE)).toBe(0);
   });
 
-  // Literals, not ABOUT_AUTO_SCROLL_SPEED: this is checking the multiplication
-  // itself happens, not restating whatever the constant is set to.
+  // Literals, not the constant: this is checking the multiplication itself
+  // happens, not restating whatever the rate is set to. Half a line a second
+  // of a 100px line is 50px/s, so 0.05s is 2.5px.
   it("scales linearly with elapsed time below the clamp", () => {
-    expect(autoScrollStep(0.05)).toBeCloseTo(0.7, 9);
-    expect(autoScrollStep(0.1)).toBeCloseTo(1.4, 9);
+    expect(autoScrollStep(0.05, LINE)).toBeCloseTo(2.5, 9);
+    expect(autoScrollStep(0.1, LINE)).toBeCloseTo(5, 9);
   });
 
-  // The case this exists for: a backgrounded tab's next rAF callback can
+  // The whole point of measuring the pace in lines: the same elapsed time has
+  // to carry the reader over the same amount of *text* whatever size it is
+  // rendered at. Doubling the type doubles the pixels travelled, so the words
+  // still go by at one rate — which is what a pixel rate could not do (it made
+  // the crawl four times slower to read the moment the type was enlarged to
+  // match reference/image9.jpg).
+  it("travels twice as far when the type is twice as large", () => {
+    expect(autoScrollStep(0.1, 200)).toBeCloseTo(2 * autoScrollStep(0.1, 100), 9);
+  });
+
+  // The case the clamp exists for: a backgrounded tab's next rAF callback can
   // arrive seconds after the last one, and advancing the column by that much
   // in a single step would jump over lines — or past ABOUT_RETURN_AT — rather
   // than simply keep the crawl playing at its usual pace.
   it("clamps a large gap instead of jumping the column forward", () => {
-    expect(autoScrollStep(1)).toBeCloseTo(1.4, 9);
-    expect(autoScrollStep(5)).toBeCloseTo(1.4, 9);
+    expect(autoScrollStep(1, LINE)).toBeCloseTo(5, 9);
+    expect(autoScrollStep(5, LINE)).toBeCloseTo(5, 9);
+  });
+
+  // `getComputedStyle(...).lineHeight` reports the keyword `normal` on an
+  // element that never set one, and reads back as NaN. Moving the column by
+  // NaN sets scrollTop to 0 and pins the crawl at the top forever, which is a
+  // far worse failure than simply not auto-playing.
+  it("refuses a line height it cannot use, rather than producing NaN", () => {
+    expect(autoScrollStep(0.1, NaN)).toBe(0);
+    expect(autoScrollStep(0.1, 0)).toBe(0);
+    expect(autoScrollStep(0.1, -20)).toBe(0);
   });
 });
 

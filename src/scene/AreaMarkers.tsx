@@ -11,7 +11,7 @@ import {
   markerScaleForScreenRadius,
 } from "./worldLayout";
 import { PLANET_SECTION_KEYS, sectionDirection } from "./planet/sections";
-import { publishMarkerScreen } from "./markerScreen";
+import { markerOnScreen, publishMarkerScreen } from "./markerScreen";
 import { sceneClock } from "./sceneClock";
 import { useAppState } from "@/state/AppStateContext";
 
@@ -255,15 +255,11 @@ export default function AreaMarkers() {
       // Exact, not estimated: this is the same number the dot was just sized
       // to, so the trail can stop a fixed distance from its edge.
       drawn.current[index] ?? 0,
-      // Two ways the marker can have nothing to point at. z >= 1 puts it
-      // behind the camera, where the projection flips and would fling the
-      // trail off in the opposite direction. Outside the viewport it is real
-      // but unseeable, and a trail running off the edge points at nothing.
-      projected.z < 1 &&
-        screenX >= 0 &&
-        screenX <= width &&
-        screenY >= 0 &&
-        screenY <= height
+      // Two ways the marker can have nothing to point at: behind the camera,
+      // or outside the viewport (real, but unseeable — a trail running off the
+      // edge points at nothing). The rule itself lives in markerScreen.ts, as
+      // a pure function with tests, because it is the sort that fails quietly.
+      markerOnScreen(screenX, screenY, projected.z, width, height)
     );
   });
 

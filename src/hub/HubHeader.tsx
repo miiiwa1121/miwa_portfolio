@@ -15,6 +15,8 @@ type Props = {
   onNavClick: (id: NonNullable<SectionType>) => void;
   zoomStage: ZoomStage;
   onZoomSelect: (stage: ZoomStage) => void;
+  /** True while the white detail sheet covers the canvas — see the logo below. */
+  onLightBackground: boolean;
 };
 
 export default function HubHeader({
@@ -27,13 +29,31 @@ export default function HubHeader({
   onNavClick,
   zoomStage,
   onZoomSelect,
+  onLightBackground,
 }: Props) {
   return (
     <header className="flex justify-between items-start w-full gap-6">
-      {/* Logo → full reset. Text only, no frame/icon. */}
+      {/*
+       * Logo → full reset. Text only, no frame/icon.
+       *
+       * The colour has to follow what is behind it. The header sits at z-40
+       * and the detail sheet at z-20, so the logo keeps floating over the
+       * sheet once a section is opened — and the sheet is white. White text
+       * with a white glow on white paper is invisible: for the whole time a
+       * detail page was open, the only thing left of the wordmark was the
+       * orange full stop, and that is the one control a reader instinctively
+       * reaches for to get back out (the page's other two exits are scrolling
+       * off either end, neither of which announces itself). Nothing was
+       * broken, so nothing showed up in a test — it only showed up in a
+       * screenshot.
+       */}
       <button
         onClick={onLogoClick}
-        className="pointer-events-auto font-black text-white text-4xl sm:text-5xl tracking-tight hover:scale-[1.04] transition-transform [text-shadow:0_1px_5px_rgba(255,255,255,0.7)]"
+        className={`pointer-events-auto font-black text-4xl sm:text-5xl tracking-tight hover:scale-[1.04] transition-transform ${
+          onLightBackground
+            ? "text-gray-900"
+            : "text-white [text-shadow:0_1px_5px_rgba(255,255,255,0.7)]"
+        }`}
       >
         Miiiwa<span className="text-orange-500">.</span>
       </button>
