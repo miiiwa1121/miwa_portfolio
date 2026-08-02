@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  ABOUT_RETURN_AT,
   ABOUT_SETTLE_MS,
   aboutReturn,
   aboutReturnProgress,
@@ -12,33 +11,36 @@ import {
 } from "./aboutScroll";
 
 describe("aboutScrollProgress", () => {
-  it("is 0 at the top and 1 at the bottom", () => {
-    expect(aboutScrollProgress(0, 2000, 800)).toBe(0);
-    expect(aboutScrollProgress(1200, 2000, 800)).toBe(1);
+  it("is 0 at the top and 1 once scrollTop reaches proseBottom", () => {
+    expect(aboutScrollProgress(0, 2000)).toBe(0);
+    expect(aboutScrollProgress(2000, 2000)).toBe(1);
   });
 
   it("reads the middle proportionally", () => {
-    expect(aboutScrollProgress(600, 2000, 800)).toBeCloseTo(0.5, 9);
+    expect(aboutScrollProgress(1000, 2000)).toBeCloseTo(0.5, 9);
   });
 
-  // The case that would send a first-time reader straight home: a viewport
-  // tall enough to fit the whole column, where there is no scrolling to do.
-  it("stays at 0 when there is nothing to scroll", () => {
-    expect(aboutScrollProgress(0, 800, 800)).toBe(0);
-    expect(aboutScrollProgress(0, 500, 800)).toBe(0);
+  // proseBottom <= 0 means the ref hasn't been measured yet (a first frame
+  // before layout) — reading that as 0 rather than dividing by it keeps a
+  // reader from being sent straight home before a word has scrolled past.
+  it("stays at 0 when proseBottom is not known yet", () => {
+    expect(aboutScrollProgress(0, 0)).toBe(0);
+    expect(aboutScrollProgress(500, 0)).toBe(0);
+    expect(aboutScrollProgress(500, -100)).toBe(0);
   });
 
-  it("clamps an overscroll rather than reporting past the end", () => {
-    // Rubber-banding hands back a scrollTop beyond the maximum, and a negative
-    // one at the top.
-    expect(aboutScrollProgress(1500, 2000, 800)).toBe(1);
-    expect(aboutScrollProgress(-80, 2000, 800)).toBe(0);
+  it("clamps past proseBottom rather than reporting more than 1", () => {
+    // Scrolled into the trailing spacer, past the prose block's own bottom
+    // edge — still fully progressed, not overshot.
+    expect(aboutScrollProgress(2600, 2000)).toBe(1);
+    // Rubber-banding at the top hands back a negative scrollTop.
+    expect(aboutScrollProgress(-80, 2000)).toBe(0);
   });
 
   it("never leaves the 0..1 range for any input", () => {
-    for (const top of [-500, 0, 37, 1199, 5000]) {
-      for (const [height, client] of [[2000, 800], [801, 800], [800, 800], [3000, 400]]) {
-        const progress = aboutScrollProgress(top, height, client);
+    for (const top of [-500, 0, 37, 1999, 5000]) {
+      for (const proseBottom of [2000, 801, 800, 1]) {
+        const progress = aboutScrollProgress(top, proseBottom);
         expect(progress).toBeGreaterThanOrEqual(0);
         expect(progress).toBeLessThanOrEqual(1);
       }
@@ -53,13 +55,17 @@ describe("shouldReturnHome", () => {
     expect(shouldReturnHome(1, settled)).toBe(true);
   });
 
-  // A literal, not ABOUT_RETURN_AT: comparing the threshold against itself
-  // holds for any threshold at all, including 1 — which is the setting this
-  // is here to rule out. Momentum scrolling routinely stops a pixel or two
-  // short of the bottom and then sends no further events, so demanding the
-  // exact end would strand the reader there.
-  it("tolerates momentum stopping a hair short", () => {
-    expect(shouldReturnHome(0.997, settled)).toBe(true);
+  // Literals, not ABOUT_RETURN_AT: written against the constant this would
+  // hold for any threshold at all, including the old 0.995. The whole point
+  // of the redefinition (see aboutScrollProgress) is that progress 1 already
+  // means the text is fully gone, with real headroom before the column's
+  // actual scroll ceiling — so unlike the old scrollHeight-based progress,
+  // nothing here needs an early fudge for momentum stopping short, and
+  // firing before exactly 1 would take the camera home while a sliver of
+  // the last line was still on screen.
+  it("does not fire until progress reaches exactly 1", () => {
+    expect(shouldReturnHome(0.999, settled)).toBe(false);
+    expect(shouldReturnHome(1, settled)).toBe(true);
   });
 
   it("stays put part way down", () => {
@@ -205,17 +211,12 @@ describe("aboutReturnProgress", () => {
     expect(aboutReturnProgress(0.875)).toBeCloseTo(0.75, 9);
   });
 
+  // The two ends have to agree: ABOUT_RETURN_AT is exactly 1 (see its own
+  // comment), so the column handing over and the camera finishing its trip
+  // home are the same instant — nothing here is a jump the camera makes with
+  // nobody scrolling.
   it("has landed by the bottom of the column", () => {
     expect(aboutReturnProgress(1)).toBe(1);
-  });
-
-  // The two ends have to agree: the column stops scrolling and hands over at
-  // ABOUT_RETURN_AT, and whatever is left of the trip at that moment is a jump
-  // the camera makes with nobody scrolling. Not a constant compared with
-  // itself — this fails outright if the handover moves earlier or the trip
-  // starts later.
-  it("is all but home at the point the column returns", () => {
-    expect(aboutReturnProgress(ABOUT_RETURN_AT)).toBeGreaterThan(0.98);
   });
 
   // Rubber-banding hands back positions past both ends, and this feeds an

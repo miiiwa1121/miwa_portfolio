@@ -645,21 +645,21 @@ function CameraController() {
       return;
     }
 
-    // 4. About, read to the end. There is no flight to start: the column's own
-    //    scroll flew this one, frame by frame, and the camera is already
-    //    sitting wherever About's idle rotation left it. Anything launched
-    //    here would be a second trip on top of an arrival that has already
-    //    happened. Reconcile the free orbit's targets to that landing spot —
-    //    off the tour path in general, the same way ending a drag leaves it —
-    //    and let the ordinary idle drift ease it back onto the path from
-    //    there, rather than snapping anywhere.
-    if (cameFrom === "about" && aboutReturn.progress() >= 1) {
-      azimuthTargetRef.current = aboutAzimuthRef.current;
-      polarTargetRef.current = ABOUT_POLAR;
-      azimuthRef.current = aboutAzimuthRef.current;
-      polarRef.current = ABOUT_POLAR;
-      tourURef.current = PLANET_TOUR.nearestU(directionAt(aboutAzimuthRef.current, ABOUT_POLAR));
-      const landedOn = facingSectionOnPlanet(directionAt(aboutAzimuthRef.current, ABOUT_POLAR));
+    // 4. About, read to the end. There is no flight to start: the column's
+    //    own scroll flew this one, frame by frame, riding the tour path home
+    //    (see the About branch of the frame loop, below) — azimuthRef/
+    //    polarRef/tourURef are already sitting on the tour's own landing
+    //    point by the last frame that ran there, and the ordinary idle drift
+    //    picks them up with nothing left to damp. Only the facing card needs
+    //    a nudge here, so it doesn't wait one more frame for the idle loop's
+    //    own facing check (below) to catch up.
+    //
+    //    wasReset can't also be true here: leaving About via the logo/HOME
+    //    bumps homeNonce and calls closePage in the same breath (see goHome
+    //    in AppStateContext), and branch 3 above already returns for that
+    //    case before this one runs.
+    if (cameFrom === "about") {
+      const landedOn = facingSectionOnPlanet(directionAt(azimuthRef.current, polarRef.current));
       facingRef.current = landedOn;
       setFacing(landedOn);
       return;
@@ -669,7 +669,11 @@ function CameraController() {
     //    HOME while one was focused (3 falls through to here for that case).
     //    Either way: back out to the tour, turned so the area just read about
     //    is the thing facing the camera, and resume the tour from there.
-    if (cameFrom && cameFrom !== "about" && PLANET_SECTION_KEYS.includes(cameFrom)) {
+    //    `cameFrom === "about"` is excluded by construction, not by a check
+    //    here — PLANET_SECTION_KEYS never contains "about" (see
+    //    planet/sections.ts), and branch 4 above has already returned for
+    //    every other way "about" could reach this point.
+    if (cameFrom && PLANET_SECTION_KEYS.includes(cameFrom)) {
       const u = sectionU(cameFrom);
       tourURef.current = u;
       const { azimuth, polar } = orbitAnglesOf(PLANET_TOUR.direction(u));
@@ -753,16 +757,29 @@ function CameraController() {
         aboutAzimuthRef.current += sceneClock.delta(delta) * AUTO_ORBIT_SPEED;
         const pose = orbitPose(aboutAzimuthRef.current, ABOUT_POLAR, ABOUT_ORBIT_RADIUS);
 
+        // The tour keeps advancing the whole time About is open — at the
+        // same rate the idle drift below uses — rather than sitting frozen
+        // wherever it was when About was entered. That makes "the landing
+        // point" below a point already moving at the tour's own speed by the
+        // time the return blend reaches it, so arriving there (t = 1) is a
+        // velocity match, not a stop: idle drift has nothing left to damp
+        // and simply continues, instead of the camera arriving still and
+        // then having to be pulled onto a path it was never moving along.
+        const duPerSecond = AUTO_ORBIT_SPEED / PLANET_TOUR.length;
+        tourURef.current = wrap01(tourURef.current + sceneClock.delta(delta) * duPerSecond);
+        const { azimuth: tourAzimuth, polar: tourPolar } = orbitAnglesOf(PLANET_TOUR.direction(tourURef.current));
+
         // Reading the column home. Past its half way mark the framing pulls
         // straight in from About's own distant radius towards the free
-        // orbit's, at the *same* azimuth and polar — deliberately not
-        // re-tilting towards wherever the tour happens to sit, which would
-        // mean deciding a "correct" polar for every azimuth along the way.
-        // Landing off the tour path this way is not a special case: it is
-        // exactly the state a drag leaves the camera in, and the ordinary
-        // idle drift (below) eases it back onto the path from there, the same
-        // way it does after any free look.
-        const homeward = orbitPose(aboutAzimuthRef.current, ABOUT_POLAR, currentOrbitRadius);
+        // orbit's, tilting from ABOUT_POLAR towards the tour's own polar
+        // angle at this point along the way — re-tilting per-azimuth like
+        // this only works because the target is the tour path itself, the
+        // one curve that already has a "correct" polar defined for every
+        // azimuth (see PLANET_TOUR's own "interpolated in latitude and
+        // longitude" note in planet/tour.ts). Landing anywhere else on this
+        // curve is not a special case: it is exactly where idle drift was
+        // always going to carry the camera, About or not.
+        const homeward = orbitPose(tourAzimuth, tourPolar, currentOrbitRadius);
         const t = easeInOutCubic(aboutReturn.progress());
         // Both ends of About's own trip pivot on the planet's centre, so the
         // roll never leaves the world's up here — no slerp to run.
@@ -778,11 +795,16 @@ function CameraController() {
           false
         );
 
-        // Where the idle drift picks up once the column is gone. Without this
-        // it would resume from whatever target was left over from before
-        // About was opened, and turn the camera to it the moment it landed.
-        azimuthTargetRef.current = aboutAzimuthRef.current;
-        polarTargetRef.current = ABOUT_POLAR;
+        // Where the idle drift picks up once the column is gone — written
+        // every frame (not just once the column closes), so there is never a
+        // leftover target from before About was opened for the very first
+        // idle frame to lurch towards. Input is locked out for the whole
+        // time a section is focused (see orbitLockedRef), so nothing else
+        // writes azimuthRef/polarRef while this runs.
+        azimuthRef.current = tourAzimuth;
+        polarRef.current = tourPolar;
+        azimuthTargetRef.current = tourAzimuth;
+        polarTargetRef.current = tourPolar;
       }
       return;
     }

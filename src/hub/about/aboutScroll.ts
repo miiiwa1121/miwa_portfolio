@@ -13,16 +13,26 @@
  * of `3d/Scene.tsx`'s frame loop.
  *
  * The arithmetic lives here rather than inline for the same reason the sheet's
- * does: the awkward cases are all about numbers (a column too short to scroll,
- * a browser that overshoots) and they are worth pinning down without a DOM.
+ * does: the awkward cases are all about numbers (the entrance settle window, a
+ * reader who reaches the end before the return blend has anywhere to land)
+ * and they are worth pinning down without a DOM.
  */
 
 /**
- * Fire slightly before the very end. Momentum scrolling routinely stops a
- * pixel or two short, and with no further scroll events that would strand the
- * reader at the bottom of the text with nothing left to do.
+ * The scroll progress (see `aboutScrollProgress`) that counts as "done".
+ *
+ * Exactly 1, not a hair before it — the previous version of this fired at
+ * 0.995 to dodge momentum scrolling stopping a pixel or two short of the
+ * column's actual scroll ceiling, but that meant the camera (and the "close
+ * About" call) went home while a sliver of the last line was still on
+ * screen, which is the opposite of what was asked for. Now that progress 1
+ * means "the prose block's own bottom edge has scrolled past the top of the
+ * box" rather than "the column has reached its scroll ceiling" (see
+ * `aboutScrollProgress`), there is real headroom past that point before the
+ * ceiling — the trailing spacer in About.tsx is sized to guarantee it — so a
+ * browser stopping short of its true maximum has nothing to strand here.
  */
-export const ABOUT_RETURN_AT = 0.995;
+export const ABOUT_RETURN_AT = 1;
 
 /**
  * How long after the column appears before scrolling can send it away.
@@ -140,21 +150,27 @@ export function autoScrollStep(deltaSeconds: number, lineHeightPx: number): numb
 }
 
 /**
- * How far through the column the reader is, 0 to 1.
+ * How far through the column the reader is, 0 to 1 — measured against the
+ * prose block's own bottom edge, not the column's total scroll range.
  *
- * Returns 0 when there is nothing to scroll, which is the case that matters:
- * on a tall enough viewport the text fits outright, and `scrollTop / 0` would
- * otherwise read as "read to the end" on the first frame and throw the reader
- * home before they had seen a word of it.
+ * `proseBottom` is `proseRef.offsetTop + proseRef.offsetHeight` (About.tsx):
+ * a fixed document-space pixel, the position the last line sits at before any
+ * scrolling. Once `scrollTop` reaches it, that line has scrolled past the top
+ * of the box — the same document position the browser's own overflow clip
+ * removes it at — so progress reaching 1 and the text actually being gone are
+ * the same event, not an early proxy for it. This used to be measured against
+ * `scrollHeight - clientHeight` (the column's true scroll ceiling), which
+ * doesn't distinguish "the text is gone" from "there's a trailing spacer's
+ * worth of nothing still left to scroll through" — the column could report
+ * 1.0 while a fully legible line was still on screen, or the reverse.
+ *
+ * Returns 0 when `proseBottom` isn't known yet (a ref not mounted, or a first
+ * frame before layout), rather than `scrollTop / 0` reading as "read to the
+ * end" and throwing the reader home before they had seen a word of it.
  */
-export function aboutScrollProgress(
-  scrollTop: number,
-  scrollHeight: number,
-  clientHeight: number
-): number {
-  const scrollable = scrollHeight - clientHeight;
-  if (scrollable <= 0) return 0;
-  return Math.max(0, Math.min(1, scrollTop / scrollable));
+export function aboutScrollProgress(scrollTop: number, proseBottom: number): number {
+  if (proseBottom <= 0) return 0;
+  return Math.max(0, Math.min(1, scrollTop / proseBottom));
 }
 
 /** Whether this scroll position, at this age, means "take me home". */

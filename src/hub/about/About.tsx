@@ -109,7 +109,12 @@ export default function About({ onFinish }: Props) {
       // `scrollTop` clamps itself at both ends, so an overscroll at the top or
       // the bottom stops there rather than being accumulated and having to be
       // scrolled back out of.
-      element.scrollTop += wheelScrollStep(event.deltaY, event.deltaMode, element.clientHeight);
+      //
+      // `window.innerHeight`, not `element.clientHeight`: the column's own
+      // box is taller than the viewport now (see the scroller's `h-[350%]`
+      // below), so its `clientHeight` no longer means "one screen" — a
+      // `deltaMode === 2` (page-unit) wheel event needs the actual viewport.
+      element.scrollTop += wheelScrollStep(event.deltaY, event.deltaMode, window.innerHeight);
     };
     element.addEventListener("wheel", onWheel, { passive: false });
     return () => element.removeEventListener("wheel", onWheel);
@@ -157,10 +162,19 @@ export default function About({ onFinish }: Props) {
     onFinish();
   };
 
+  // The document-space pixel the prose block's own bottom edge sits at —
+  // fixed regardless of scrollTop (see aboutScrollProgress). Read fresh each
+  // time rather than cached: a language switch or a resize changes line
+  // wrapping and therefore proseRef's height.
+  const proseBottom = () => {
+    const prose = proseRef.current;
+    return prose ? prose.offsetTop + prose.offsetHeight : 0;
+  };
+
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     if (finished.current) return;
     const el = event.currentTarget;
-    const progress = aboutScrollProgress(el.scrollTop, el.scrollHeight, el.clientHeight);
+    const progress = aboutScrollProgress(el.scrollTop, proseBottom());
     // Before the finish check, not after: the event that ends the column is
     // also the one that has to leave the camera home, and returning early
     // would strand it a hair short of the home framing for the scene to then
@@ -185,11 +199,7 @@ export default function About({ onFinish }: Props) {
       settleTimer.current = setTimeout(() => {
         const column = columnRef.current;
         if (!column) return;
-        const now = aboutScrollProgress(
-          column.scrollTop,
-          column.scrollHeight,
-          column.clientHeight
-        );
+        const now = aboutScrollProgress(column.scrollTop, proseBottom());
         aboutReturn.publish(aboutReturnProgress(now));
         if (shouldReturnHome(now, Date.now() - openedAt.current)) finish();
       }, retry);
@@ -315,7 +325,7 @@ export default function About({ onFinish }: Props) {
       // not. Cropped screenshots taken after centring but *before* the
       // perspective was eased still showed the same skew; what actually fixed
       // it was `perspective` going 160px → 420px (see the scroller below).
-      className="pointer-events-none w-[75%] -ml-[5%] h-full [perspective:420px] [perspective-origin:50%_15%]"
+      className="relative pointer-events-none w-[75%] -ml-[2%] h-full [perspective:460px] [perspective-origin:50%_15%]"
     >
       <div
         ref={columnRef}
@@ -331,6 +341,21 @@ export default function About({ onFinish }: Props) {
         // paragraph instead. Lines are flat-on and full size right where
         // they enter at the bottom, and recede — smaller, more tilted away —
         // the further up the screen they climb.
+        //
+        // The box itself is `h-[350%]` — 3.5 screens tall, not one — sized
+        // against reference/image10.png: a horizontal line drawn on that
+        // screenshot marking how much farther up the crawl should still be
+        // legible lands, worked backward through this same projection, at a
+        // box 3.4-3.5x the viewport. `absolute inset-x-0 bottom-0` on this
+        // element (paired with `relative` on the perspective parent above)
+        // is what lets it grow upward off past the header instead of
+        // downward off the bottom of the screen — plain flow would have
+        // grown it the wrong direction, since `transform-origin: 50% 100%`
+        // pins the pivot to *this* box's own bottom edge regardless of
+        // where that edge ends up. The extra height only changes how much
+        // of the document is visible in one frame; everything already on
+        // screen at the old height is unaffected; see the mask comment
+        // below for the one thing that does scale with it.
         //
         // No mask at the bottom, on purpose — a line does not fade in, it is
         // simply there, full size, the moment it scrolls into the box. The
@@ -351,13 +376,24 @@ export default function About({ onFinish }: Props) {
         //    but faded text that was still large and legible — a visible
         //    dissolve, not a line vanishing into distance.
         //
-        // This is the middle: perspective gentle enough (160px) that no line
+        // This is the middle: perspective gentle enough (460px) that no line
         // anywhere in the readable band is distorted, plus a short mask
-        // (12% of the column, `black_12%` below) that only ever touches
-        // content the shrink has *already* taken most of the way — by the
-        // time a line reaches that band it is a small fraction of reading
-        // size, so the fade reads as the last bit of "too far to see" rather
-        // than as its own effect.
+        // (`black_20%` below) that only ever touches content the shrink has
+        // *already* taken most of the way — by the time a line reaches that
+        // band it is a small fraction of reading size, so the fade reads as
+        // the last bit of "too far to see" rather than as its own effect.
+        //
+        // The mask percentage is measured against the *box's* own height,
+        // not the screen, so it had to move when the box did (`h-full` →
+        // `h-[350%]`, above): the same 12% that used to buy a ~17px fade at
+        // the top of the frame would buy only ~9px of the new, taller box —
+        // a hard edge rather than a fade, since the top of the box is now
+        // deep enough into the funnel that a few percent already spans very
+        // little screen space. 20% reproduces that same ~17px screen-space
+        // fade width against the new box height (worked out from this
+        // element's own transform, not eyeballed) — the topmost sliver
+        // stays exactly as wide on screen as it was before, just relocated
+        // to the new, higher vanishing point.
         //
         // Yellow (`#FFE81F`) and bold, and sized to fill the frame near the
         // pivot rather than sit at reading size — reference/image8.png (a
@@ -366,12 +402,17 @@ export default function About({ onFinish }: Props) {
         // nearest line is cut off by both the bottom and side of the frame)
         // are both scaled far larger than body text anywhere else on the
         // site.
-        className="pointer-events-auto w-full h-full overflow-y-auto text-[#FFE81F] font-bold [text-shadow:0_0_12px_#070a14,0_0_4px_#070a14,0_2px_3px_rgba(0,0,0,0.9)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [transform:rotateX(46deg)] [transform-origin:50%_100%] [mask-image:linear-gradient(to_bottom,transparent,black_12%)]"
+        className="pointer-events-auto absolute inset-x-0 bottom-0 w-full h-[350%] overflow-y-auto text-[#FFE81F] font-bold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [transform:rotateX(110deg)] [transform-origin:50%_100%] [mask-image:linear-gradient(to_bottom,transparent,black_20%)]"
       >
         {/*
          * Leading space exactly one scroller tall, which is what makes the
          * first line arrive **at the bottom edge of the frame** rather than
          * already halfway up it.
+         *
+         * "One scroller tall" — not one screen tall, now that the scroller
+         * is `h-[350%]` — but `h-full` on this child still means exactly
+         * that: 100% of the scroller's own (taller) height, so it keeps
+         * tracking the scroller automatically if that height changes again.
          *
          * The scroller shows document `[scrollTop, scrollTop + clientHeight]`
          * mapped onto the tilted plane, with the *bottom* of that band on the
@@ -444,13 +485,20 @@ export default function About({ onFinish }: Props) {
         </div>
 
         {/* Trailing space so the last line has somewhere to scroll up into
-            the shrink before running out of column to scroll. Shorter than
-            the full screen the flat version needed — `h-2/3`, not `h-full`
-            — because the crawl no longer has to carry the line all the way
-            to the physical top edge to lose it; by a third of the way down
-            from there, the tilt alone has already taken it past reading
-            size. */}
-        <div aria-hidden className="h-2/3" />
+            the shrink before running out of column to scroll — and, since
+            aboutScrollProgress now measures progress against proseRef's own
+            bottom edge rather than this element's, headroom *past* that edge
+            so the browser's actual scroll ceiling (scrollHeight -
+            clientHeight, which this spacer is also what pads out) never
+            arrives before progress can reach 1 — reaching the ceiling first
+            would clamp scrollTop and strand the reader just short of "done".
+            `110%` of the scroller's own height, 10 points more than the
+            leading spacer's `h-full` (100%) above: the ceiling ends up a
+            tenth of the scroller's own height — about a third of a screen —
+            past proseRef's bottom edge, whatever the prose block's own
+            height happens to be. Any figure over 100% keeps that guarantee;
+            110% is not a number to chase precision on. */}
+        <div aria-hidden className="h-[110%]" />
       </div>
     </motion.div>
   );
