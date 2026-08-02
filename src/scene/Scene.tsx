@@ -885,7 +885,25 @@ function CameraController() {
   );
 }
 
-export default function Scene({ obscured = false }: { obscured?: boolean }) {
+export default function Scene({
+  obscured = false,
+  interactive = true,
+}: {
+  obscured?: boolean;
+  /**
+   * Whether the canvas should accept pointer events right now. `<Canvas>`'s
+   * own outermost div sets an inline `pointerEvents` style unconditionally
+   * (`'auto'` whenever no `eventSource` is given, which is always, here) —
+   * that inline value beats any CSS trying to turn it off from an ancestor,
+   * since inheritance only ever loses to an element's own explicit style.
+   * The `style` prop below is the one place that inline value can be
+   * overridden, because R3F spreads `...style` *after* its own `pointerEvents`
+   * key. Hub.tsx's own wrapper div around this component still needs its own
+   * matching `pointer-events-none` too — turning off *this* div alone does
+   * not make its ancestor transparent, only the reverse.
+   */
+  interactive?: boolean;
+}) {
   const home = orbitAnglesOf(PLANET_TOUR.direction(0));
   return (
     <Canvas
@@ -902,16 +920,21 @@ export default function Scene({ obscured = false }: { obscured?: boolean }) {
       }}
       dpr={[1, 2]}
       frameloop={obscured ? "demand" : "always"}
+      style={interactive ? undefined : { pointerEvents: "none" }}
     >
       {/*
-       * Stage 5 of docs/planet-migration.md: space, not atmosphere. Fog is
-       * gone outright — there is nothing for light to scatter off between
-       * here and the planet — and the flat cream backdrop (a stand-in since
-       * stage 2) is a near-black navy instead. Kept in sync with the canvas
-       * wrapper's own bg-[#070a14] in Hub.tsx, so there is no flash of the
-       * old colour before WebGL paints.
+       * No `<color attach="background">` here, and no fog either — space has
+       * nothing for light to scatter off between here and the planet, so
+       * there is no atmosphere-haze role for either to fill. The canvas is
+       * left transparent on purpose (R3F's own `alpha: true` default) so the
+       * self-intro crawl, which now sits in its own DOM layer *behind* this
+       * canvas (see Hub.tsx), shows through everywhere the scene hasn't
+       * painted an opaque pixel — that is what lets the planet and buildings
+       * occlude the crawl text per-pixel instead of by z-index. The
+       * near-black navy (`#070a14`) that used to be painted here lives on a
+       * plain background-colour div beneath both layers in Hub.tsx now, kept
+       * in sync there rather than duplicated in two places.
        */}
-      <color attach="background" args={["#070a14"]} />
       {/*
        * radius is the inner edge of the shell the points scatter across, and
        * has to clear the camera's farthest reach (About's maxDistance,

@@ -1,22 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence } from "framer-motion";
 import { Monitor, Terminal } from "lucide-react";
 import { GithubIcon, XIcon } from "@/ui/icons";
-import About from "./about/About";
 import Footer from "./Footer";
-import type { SectionType } from "@/types";
 
 type Props = {
   isJa: boolean;
   openTerminal: () => void;
   pageOpen: boolean;
-  activeSection: SectionType;
-  onAboutFinish: () => void;
 };
 
-export default function HubDock({ isJa, openTerminal, pageOpen, activeSection, onAboutFinish }: Props) {
+export default function HubDock({ isJa, openTerminal, pageOpen }: Props) {
   const [toolsOpen, setToolsOpen] = useState(false);
 
   return (
@@ -66,32 +61,6 @@ export default function HubDock({ isJa, openTerminal, pageOpen, activeSection, o
             </button>
           </div>
         )}
-      </div>
-
-      {/* Floating About section for home screen — frameless, straight over
-          the starfield.
-          **The whole frame, centred**, where this used to be a column pinned
-          to the left (15% → 8% → -3% as it was widened by hand). The crawl in
-          `reference/image9.jpg` is symmetrical about the frame's own middle
-          and its nearest lines run off *both* edges; a column parked to one
-          side cannot do that, and it also skewed the near lines — the
-          projection fans out around `perspective-origin`, so text sitting far
-          to one side of that axis got stretched across the frame rather than
-          simply enlarged. Centring is what removes the skew, not a gentler
-          angle. The camera still pushes the planet clear on the right
-          (ABOUT_CARD_SHARE), which is now what keeps the two apart. */}
-      <div className="absolute inset-0 pointer-events-none z-30">
-        <AnimatePresence>
-          {!pageOpen && activeSection === "about" && (
-            // `onAboutFinish` (closePage), not a fly-home. The scroll that
-            // carried the text off the screen carried the camera home with
-            // it (see the About branch of Scene's frame loop), so by now it
-            // is already in the home framing, and a flight would only be a
-            // second arrival on top of the one the reader just made. Facing
-            // is published by the scene from the angle it actually stopped at.
-            <About onFinish={onAboutFinish} />
-          )}
-        </AnimatePresence>
       </div>
 
       {/* Footer (only on Home screen, bottom right) */}

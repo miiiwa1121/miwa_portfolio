@@ -102,7 +102,17 @@
 
 ### 宇宙の見た目
 
-背景は暗い宇宙紺（`#070a14`、`Scene.tsx` と `Hub.tsx` の Canvas ラッパーで揃えている）。フォグは無い——大気が無い場所には「遠景を距離で溶かす」役が存在しないので、暗さがその役を引き受ける。`ambientLight`/`hemisphereLight` を低く抑えることで、太陽側と反対側がはっきり濃淡を持つ（時刻や自転を持たせているわけではなく、低い環境光の結果としての「昼夜」）。影のカメラ範囲（`shadow-camera-*`）は実際のシーンの大きさ（`SMOOTH_PLANET_RADIUS` ＋最も高い建物）から計算しており、フォグと違って惑星の大きさを変えるたびに retighten が要る。
+背景は暗い宇宙紺（`#070a14`、`Hub.tsx` の背景色 div 一箇所で持つ——canvas 自身は透明で、色を塗っていない。理由は次項）。フォグは無い——大気が無い場所には「遠景を距離で溶かす」役が存在しないので、暗さがその役を引き受ける。`ambientLight`/`hemisphereLight` を低く抑えることで、太陽側と反対側がはっきり濃淡を持つ（時刻や自転を持たせているわけではなく、低い環境光の結果としての「昼夜」）。影のカメラ範囲（`shadow-camera-*`）は実際のシーンの大きさ（`SMOOTH_PLANET_RADIUS` ＋最も高い建物）から計算しており、フォグと違って惑星の大きさを変えるたびに retighten が要る。
+
+### canvas を透明にして、自己紹介の上に3Dオブジェクトを重ねる
+
+自己紹介の列と惑星が画面上で重なったとき、建物や惑星の方を手前に見せたい（[docs/review.md](docs/review.md) のような台帳項目ではなく、直接の要望）。**z-index では不可能**——canvas は WebGL が描いた結果を1枚の平らな板として合成するので、その中身の一部だけを DOM より手前に、一部だけを奥にということは原理的にできない。
+
+- **`Scene.tsx` の `<Canvas>` に `<color attach="background">` を持たせず、透明のまま使う。** `@react-three/fiber` は `eventSource` を渡さない限り既定で `alpha: true` の `WebGLRenderer` を作るので、何も描いていないピクセルはそのまま透明になる（ソースの `defaultProps` で確認済み）。空の色（`#070a14`）は `Hub.tsx` 側の背景色 div 一枚に一本化した。
+- **`Hub.tsx` を3層に積む**: 背景色 div（最下層）→ 自己紹介の列（中間層）→ 透明な canvas（最上層）。canvas が不透明に描いた画素（惑星・建物・装飾・衛星）は、重なったところではすべて自動的に文字より手前に来る——per-pixel で正確で、輪郭のアンチエイリアスも正しく混ざる。マスクや円の近似ではないので、球の輪郭のずれも、建物や衛星が球面から突き出て文字にかかるケースも、追加のコードなしで正しく扱える。
+- **透明にしただけでは、canvas が今度は自己紹介の操作を奪う。** `fixed inset-0` の canvas が文字の手前に重なっている以上、素直に置くとブラウザのヒットテストは常に canvas を先に拾い、列自身の `wheel` リスナー（`columnRef` に直接 `addEventListener` している）に何も届かなくなる。About が開いている間は、Scene の `interactive` prop を `false` にして canvas 側の入力を止める——About 中はマーカーが半径0で触れる対象が無く、ドラッグ／ホイールでの自由回転も `orbitLockedRef` でロック済みなので、canvas 自身が入力を受け付けなくても実害が無い。
+- **`pointer-events-none` を祖先の div に掛けるだけでは効かない。** `<Canvas>` が生成する一番外側の div は、`eventSource` を渡さない限り常にインライン style で `pointerEvents: 'auto'` を明示的に上書きする（`react-three-fiber` のソースで確認）——インライン style は継承より優先されるので、祖先側で CSS の `pointer-events:none` を継承させようとしても、この内側の div が毎フレーム同じ値に打ち消す。実測（`getComputedStyle`）で初めて気づいた。直すには **`<Canvas>` 自身の `style` prop で直接上書きする**しかない——R3F の実装は `style: {..., pointerEvents, ...style}` という順でオブジェクトを組んでおり、渡した `style` の同名キーが後から効いて勝つ。`Scene` の `interactive` prop は、`false` のときだけ `style={{ pointerEvents: "none" }}` を渡す薄いラッパー。`Hub.tsx` 側のラッパー div 自身の `pointer-events-none`（About 中だけ）も引き続き必要——子（canvas 自身）を透明にしても親が自動的に透明になるわけではないので、両方合わせて初めて列まで貫通する。
+- **副作用: 背景の星（drei `<Stars>`）も文字より手前に来る。** 本家のオープニングロールは「文字が星より手前」なので、ここだけ逆転している。星は `fade` の掛かった小さな点で画面の1%未満と見て対応を見送った——気になるなら星だけを別の canvas（描画1回、ライト無し）に分離する必要がある。
 
 ### 自己紹介の帰り道は「読み終えること」
 

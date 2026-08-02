@@ -97,6 +97,7 @@ Vitest（node 環境）で、**React も three.js も含まない純粋ロジッ
 - **`useFrame` の中でカメラの行列を読む前に `camera.updateMatrixWorld()` を呼ぶ。** `camera-controls` は毎フレーム `position` / `quaternion` しか書かず、行列を張り直すのは `gl.render()` の中。これを飛ばすと `.project()` が前フレームのカメラで射影し、DOM 側だけ1フレーム遅れる（回転方向で符号が反転するズレになる）
 - **自分から動くものは `scene/sceneClock.ts` から時刻を読む。** `state.clock.elapsedTime` や生の `delta` を直接使うと、停止ボタンで止まらないオブジェクトが1つだけ残る——drei の `<Stars>` はまさにこれで（ソース側が `sceneClock` を知らない）、`speed={0}` で止めて回避している
 - **詳細ページがキャンバスを覆っている間は `frameloop="demand"`。** 省電力のためのこの切り替えを外さない
+- **canvas は透明のまま（`<color attach="background">` を足さない）。** 惑星・建物が自己紹介の文字より手前に来るのは、canvas が透明で、その下の DOM 層（自己紹介の列 → 背景色 div）を不透明画素だけが隠す仕組みで実現している——z-indexではなく合成の透明度で解決しているので、背景色を canvas 側に戻すと文字が常に見えなくなる。色は `Hub.tsx` の背景色 div 一箇所だけが持つ。**canvas 自身の `pointer-events` は `<Canvas>` の `style` prop で操作する。** `eventSource` を渡さない限り R3F 自身が最も外側の div にインラインで `pointerEvents:'auto'` を書くため、祖先の CSS で `pointer-events:none` を継承させようとしても毎回打ち消される——`Scene` の `interactive` prop（`style={{pointerEvents:"none"}}` を直接渡す）が唯一効く場所。詳細は [docs/tech.md](docs/tech.md) の「canvas を透明にして、自己紹介の上に3Dオブジェクトを重ねる」
 
 ### 見た目を確認する方法
 

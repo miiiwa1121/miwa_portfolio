@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import { useAppState, SectionType } from "@/state/AppStateContext";
 import { useLanguage } from "@/state/LanguageContext";
 import { useTerminal } from "@/terminal/TerminalContext";
@@ -10,6 +11,7 @@ import CardLeaderLine from "./CardLeaderLine";
 import AreaCard from "./AreaCard";
 import HubHeader from "./HubHeader";
 import HubDock from "./HubDock";
+import About from "./about/About";
 import type { ZoomStage } from "./ZoomControl";
 import { adjacentOnTour, TOUR_ORDER } from "@/scene/planet/tour";
 import Sheet from "@/detail/Sheet";
@@ -194,10 +196,44 @@ export default function Hub() {
     }
   };
 
+  // Whether the self-intro crawl is on screen — read by both the crawl's own
+  // layer below and the canvas's pointer-events toggle, so the two can never
+  // disagree about which one is meant to catch a gesture.
+  const aboutShowing = !pageOpen && activeSection === "about";
+
   return (
     <main className="w-full h-screen overflow-hidden relative font-sans">
-      {/* 3D scene fixed in the background */}
-      {/* z-0, not -z-10. Behind a negative index the canvas painted *under*
+      {/* Bottom layer: flat space colour. Split out from the canvas (below)
+          so the canvas itself can be left transparent — see Scene.tsx's own
+          note on why there's no `<color attach="background">` there any
+          more. */}
+      <div className="fixed inset-0 w-full h-full z-0 bg-[#070a14]" />
+
+      {/* Self-intro crawl: floating text straight over the space colour,
+          *underneath* the (now transparent) canvas. The planet, buildings and
+          satellites the canvas draws occlude the crawl per-pixel wherever
+          they paint an opaque pixel — a z-index alone could never do this,
+          since the canvas is one flat layer and cannot have part of its own
+          content behind DOM and part in front of it. Moved out of HubDock
+          (where it used to live inside the z-40 chrome stack, on top of
+          everything) for exactly this reason. `pointer-events-none` on the
+          wrapper, same as before — the scroller inside opts itself back in. */}
+      <div className="fixed inset-0 z-[5] pointer-events-none">
+        <AnimatePresence>
+          {aboutShowing && (
+            // `closePage`, not a fly-home. The scroll that carried the text
+            // off the screen carried the camera home with it (see the About
+            // branch of Scene's frame loop), so by now it is already in the
+            // home framing, and a flight would only be a second arrival on
+            // top of the one the reader just made. Facing is published by
+            // the scene from the angle it actually stopped at.
+            <About onFinish={closePage} />
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* 3D scene, transparent, painted over both layers above. */}
+      {/* z-10, not -z-10. Behind a negative index the canvas painted *under*
           <main> and stopped hit-testing entirely, which silently killed every
           click and hover in the scene — buildings included. Everything meant
           to sit over it carries its own higher z-index. */}
@@ -207,8 +243,20 @@ export default function Hub() {
           the pinch-to-orbit-zoom logic. Paired with the page's own
           maximumScale/userScalable in layout.tsx, which stops the same
           gesture from zooming the page anywhere outside the canvas. */}
-      <div className="fixed inset-0 w-full h-full z-0 bg-[#070a14] touch-none">
-        <Scene obscured={sceneObscured} />
+      {/* pointer-events-none on this div while the crawl is showing: with the
+          canvas now painted *in front of* the crawl layer (z-10 over z-5,
+          needed for the occlusion above), it would otherwise catch every
+          gesture over the whole viewport before the crawl's own wheel
+          handler ever saw one. Nothing in the scene needs a pointer hit
+          during About anyway — markers sit at radius 0 and drag/wheel
+          orbiting is already locked out (orbitLockedRef) whenever a section
+          is focused. `interactive={!aboutShowing}` on Scene itself is the
+          other half of this — see its own prop comment for why turning off
+          pointer-events on just this wrapper div is not enough by itself. */}
+      <div
+        className={`fixed inset-0 w-full h-full z-10 touch-none ${aboutShowing ? "pointer-events-none" : ""}`}
+      >
+        <Scene obscured={sceneObscured} interactive={!aboutShowing} />
       </div>
 
       {/* --- PERSISTENT CHROME (always visible in both modes) --- */}
@@ -245,13 +293,7 @@ export default function Hub() {
           )}
         </div>
 
-        <HubDock
-          isJa={isJa}
-          openTerminal={openTerminal}
-          pageOpen={pageOpen}
-          activeSection={activeSection}
-          onAboutFinish={closePage}
-        />
+        <HubDock isJa={isJa} openTerminal={openTerminal} pageOpen={pageOpen} />
       </div>
 
       {/* HOME button — zoomed into a building, page not yet open.
