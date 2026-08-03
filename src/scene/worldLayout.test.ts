@@ -3,6 +3,7 @@ import {
   ABOUT_CARD_SHARE,
   ABOUT_ORBIT_RADIUS,
   ABOUT_POLAR,
+  AUTO_ORBIT_SPEED,
   BUILDING_POSITIONS,
   CARD_SHARE,
   FRAME_MARGIN,
@@ -10,9 +11,11 @@ import {
   NEAR_ORBIT_RADIUS,
   NEAR_VERTICAL_SHARE,
   ORBIT_CARD_SHARE,
+  ORBIT_DAMP_LAMBDA,
   ORBIT_MAX_POLAR,
   ORBIT_MIN_POLAR,
   ORBIT_RADIUS,
+  ORBIT_RETURN_SPEED,
   ORBIT_UP,
   SECTION_TILT,
   aimOffset,
@@ -26,8 +29,10 @@ import {
   glidePose,
   markerScaleForScreenRadius,
   orbitAnglesOf,
+  orbitArcBetween,
   orbitPose,
   orbitRadiusForZoom,
+  orbitStepFraction,
   pixelsPerWorldUnit,
   sectionPose,
   sectionUp,
@@ -372,6 +377,177 @@ describe("the free orbit's polar clamp", () => {
 
   it("is symmetrical about the equator", () => {
     expect(ORBIT_MIN_POLAR).toBeCloseTo(Math.PI - ORBIT_MAX_POLAR);
+  });
+});
+
+describe("orbitArcBetween", () => {
+  const dirOf = (a: { azimuth: number; polar: number }): Direction => {
+    const [x, y, z] = orbitPose(a.azimuth, a.polar, 1);
+    return [x, y, z];
+  };
+
+  it("measures a tilt as the tilt itself", () => {
+    // Polar runs along a meridian, so a change in it is already an arc.
+    expect(orbitArcBetween({ azimuth: 1.2, polar: 1.0 }, { azimuth: 1.2, polar: 1.4 })).toBeCloseTo(0.4);
+  });
+
+  it("measures a turn round the equator as the turn itself", () => {
+    const half = Math.PI / 2;
+    expect(orbitArcBetween({ azimuth: 0.2, polar: half }, { azimuth: 0.9, polar: half })).toBeCloseTo(0.7);
+  });
+
+  it("counts the same turn of azimuth for far less the nearer a pole it happens", () => {
+    // Why a speed for the camera has to be asked for in arc rather than in
+    // azimuth: high over the planet a whole turn crosses almost no ground, and
+    // a cap written in azimuth alone would let the camera race round up there.
+    const equator = orbitArcBetween({ azimuth: 0, polar: Math.PI / 2 }, { azimuth: 0.5, polar: Math.PI / 2 });
+    const overhead = orbitArcBetween({ azimuth: 0, polar: 0.3 }, { azimuth: 0.5, polar: 0.3 });
+    expect(equator).toBeCloseTo(0.5);
+    expect(overhead).toBeLessThan(0.5 * equator);
+  });
+
+  it("agrees with the angle between the two directions those angles name", () => {
+    // An oracle that shares no arithmetic with the closed form: build both
+    // points through orbitPose and measure them the way planetLayout does.
+    const pairs: [{ azimuth: number; polar: number }, { azimuth: number; polar: number }][] = [
+      [{ azimuth: 0, polar: 1 }, { azimuth: 0.4, polar: 1.3 }],
+      [{ azimuth: -2.9, polar: 0.5 }, { azimuth: 2.9, polar: 2.1 }], // either side of ±π
+      [{ azimuth: 1, polar: 0.2 }, { azimuth: 4, polar: 2.8 }],
+      [{ azimuth: 0.75, polar: 1.57 }, { azimuth: 0.76, polar: 1.58 }],
+    ];
+    for (const [a, b] of pairs) {
+      expect(orbitArcBetween(a, b)).toBeCloseTo(angleBetween(normalize(dirOf(a)), normalize(dirOf(b))));
+    }
+  });
+
+  it("is zero, and not NaN, where the two points coincide", () => {
+    const arc = orbitArcBetween({ azimuth: 2.2, polar: 0.8 }, { azimuth: 2.2, polar: 0.8 });
+    expect(Number.isNaN(arc)).toBe(false);
+    expect(arc).toBeCloseTo(0);
+  });
+});
+
+describe("orbitStepFraction — how much of the gap one frame closes", () => {
+  const frame = 1 / 60;
+  const equator = Math.PI / 2;
+  const gapOf = (gap: number) => ({
+    from: { azimuth: 0, polar: equator },
+    to: { azimuth: gap, polar: equator },
+  });
+  /** The arc a single frame actually covers, for a gap of `gap` radians. */
+  const travelled = (gap: number, cap?: number) => {
+    const { from, to } = gapOf(gap);
+    const fraction = orbitStepFraction(from, to, frame, cap);
+    return orbitArcBetween(from, {
+      azimuth: from.azimuth + (to.azimuth - from.azimuth) * fraction,
+      polar: from.polar + (to.polar - from.polar) * fraction,
+    });
+  };
+
+  it("uncapped, takes the same share of the gap however big the gap is", () => {
+    // The damp's own shape, and the complaint about it: a share of what is
+    // left means a drag that went far is hauled back proportionally faster.
+    expect(orbitStepFraction(gapOf(0.02).from, gapOf(0.02).to, frame)).toBeCloseTo(
+      orbitStepFraction(gapOf(1.5).from, gapOf(1.5).to, frame)
+    );
+    expect(travelled(1.5)).toBeGreaterThan(travelled(0.02) * 50);
+  });
+
+  it("capped, covers the same arc however big the gap is", () => {
+    // The fix, stated as the property that was wanted: one speed, not one
+    // duration. 0.2 and 0.8 radians away both leave at the same pace.
+    expect(travelled(0.2, ORBIT_RETURN_SPEED)).toBeCloseTo(travelled(0.8, ORBIT_RETURN_SPEED));
+    expect(travelled(0.2, ORBIT_RETURN_SPEED)).toBeCloseTo(ORBIT_RETURN_SPEED * frame);
+  });
+
+  it("never crosses more arc in a frame than the cap allows", () => {
+    for (const gap of [0.05, 0.2, 0.6, 1.5, 3.0]) {
+      expect(travelled(gap, ORBIT_RETURN_SPEED)).toBeLessThanOrEqual(ORBIT_RETURN_SPEED * frame + 1e-12);
+    }
+  });
+
+  it("holds to the cap on a long frame as well as a short one", () => {
+    // The cap is a speed, so a frame worth four of them may cover four times
+    // as much — and no more. A fixed per-frame step would fall behind on a
+    // slow device instead.
+    const { from, to } = gapOf(1.2);
+    const long = 4 / 60;
+    const fraction = orbitStepFraction(from, to, long, ORBIT_RETURN_SPEED);
+    expect(fraction * 1.2).toBeCloseTo(ORBIT_RETURN_SPEED * long);
+  });
+
+  it("hands back to the damp for the last fraction of a degree", () => {
+    // What ends a return: within about speed/λ radians the damp is already the
+    // slower of the two, and the cap stops having anything to say.
+    const close = gapOf(ORBIT_RETURN_SPEED / ORBIT_DAMP_LAMBDA / 4);
+    expect(orbitStepFraction(close.from, close.to, frame, ORBIT_RETURN_SPEED)).toBe(
+      orbitStepFraction(close.from, close.to, frame)
+    );
+  });
+
+  it("never asks for more than the whole gap", () => {
+    for (const gap of [1e-9, 1e-4, 0.01, 1, 3]) {
+      for (const cap of [undefined, ORBIT_RETURN_SPEED]) {
+        const { from, to } = gapOf(gap);
+        const fraction = orbitStepFraction(from, to, frame, cap);
+        expect(fraction).toBeGreaterThan(0);
+        expect(fraction).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it("stays a number when there is no gap at all", () => {
+    const still = { azimuth: 0.4, polar: 1.1 };
+    expect(orbitStepFraction(still, still, frame, ORBIT_RETURN_SPEED)).toBeGreaterThan(0);
+  });
+});
+
+describe("drifting back onto the tour path after a drag", () => {
+  const frame = 1 / 60;
+
+  /**
+   * Seconds for a camera released `gap` radians off the path to get back to
+   * within `arrived`, with the path's own point drifting away from it at
+   * `targetSpeed` all the while.
+   */
+  const secondsHome = (gap: number, cap: number | undefined, targetSpeed = 0, arrived = 0.02) => {
+    const equator = Math.PI / 2;
+    let camera = 0;
+    let target = gap;
+    for (let step = 0; step < 60 * 120; step++) {
+      target += targetSpeed * frame;
+      const from = { azimuth: camera, polar: equator };
+      const to = { azimuth: target, polar: equator };
+      if (to.azimuth - from.azimuth <= arrived) return step * frame;
+      camera += (to.azimuth - from.azimuth) * orbitStepFraction(from, to, frame, cap);
+    }
+    return Infinity;
+  };
+
+  it("takes seconds where the damp alone took a fraction of one", () => {
+    // The report this answers: released 0.35 rad (20°) off the path, the
+    // planet was snatched back before the hand had left it.
+    expect(secondsHome(0.35, undefined)).toBeLessThan(1);
+    expect(secondsHome(0.35, ORBIT_RETURN_SPEED)).toBeGreaterThan(4);
+    expect(secondsHome(0.35, ORBIT_RETURN_SPEED)).toBeLessThan(8);
+  });
+
+  it("still catches the path when the path is drifting away from it", () => {
+    // The reason the cap cannot simply be AUTO_ORBIT_SPEED: the tour keeps
+    // advancing while the camera returns, so a camera trailing directly behind
+    // is chasing a point that is running from it at exactly that speed.
+    expect(secondsHome(0.35, AUTO_ORBIT_SPEED, AUTO_ORBIT_SPEED)).toBe(Infinity);
+    expect(secondsHome(0.35, ORBIT_RETURN_SPEED, AUTO_ORBIT_SPEED)).toBeLessThan(15);
+  });
+
+  it("closes on that receding point at about the speed the planet turns by itself", () => {
+    // Which is what "come back at the idle rotation's speed" was asked for:
+    // the arc between camera and target shrinks at ORBIT_RETURN_SPEED minus
+    // the drift, and that difference is the idle drift itself.
+    const gap = 0.35;
+    const chasing = secondsHome(gap, ORBIT_RETURN_SPEED, AUTO_ORBIT_SPEED);
+    expect(chasing).toBeGreaterThan(0.8 * (gap / AUTO_ORBIT_SPEED));
+    expect(chasing).toBeLessThan(1.2 * (gap / AUTO_ORBIT_SPEED));
   });
 });
 

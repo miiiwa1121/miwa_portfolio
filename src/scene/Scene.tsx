@@ -24,6 +24,9 @@ import {
   orbitRadiusForZoom,
   ORBIT_MIN_POLAR,
   ORBIT_MAX_POLAR,
+  AUTO_ORBIT_SPEED,
+  ORBIT_RETURN_SPEED,
+  orbitStepFraction,
   ORBIT_CARD_SHARE,
   CARD_SHARE,
   SECTION_TILT,
@@ -43,7 +46,8 @@ import { useAppState, type SectionType } from "@/state/AppStateContext";
 // Rotation sensitivity (kept gentle).
 const DRAG_SENSITIVITY = 0.002; // radians per px of pointer drag, both axes
 const WHEEL_SENSITIVITY = 0.0004; // radians (of great-circle arc) per unit of wheel deltaY
-const AUTO_ORBIT_SPEED = 0.032; // radians (of great-circle arc) per second of idle drift
+// AUTO_ORBIT_SPEED — the idle drift's own pace — now lives in worldLayout.ts,
+// next to the ORBIT_RETURN_SPEED derived from it.
 
 // How far apart two fingers must move, in px, before a pinch is read as a
 // deliberate request to switch the free orbit's altitude — not a continuous
@@ -136,12 +140,20 @@ function pointerDistance(a: { x: number; y: number }, b: { x: number; y: number 
  * `PINCH_THRESHOLD_PX`, which asks `onPinchZoom` for the free orbit's other
  * altitude (see worldLayout.ts's `OrbitZoom`) — a discrete step, not a
  * continuous dial, fired once per two-finger gesture.
+ *
+ * `returningRef` is the one piece of state a gesture leaves behind it: letting
+ * go of a drag hands the camera back to the tour path, and it is only *that*
+ * trip which is held to the idle drift's own pace (see `ORBIT_RETURN_SPEED`).
+ * Both other things this hook does — the drag itself, and the wheel's travel
+ * along the path — are the reader steering, and get the damp's full
+ * responsiveness back the moment they start.
  */
 function useViewInput(
   azimuthTargetRef: React.RefObject<number>,
   polarTargetRef: React.RefObject<number>,
   tourURef: React.RefObject<number>,
   draggingRef: React.RefObject<boolean>,
+  returningRef: React.RefObject<boolean>,
   orbitLockedRef: React.RefObject<boolean>,
   flightRef: React.RefObject<unknown>,
   onPinchZoom: (zoom: OrbitZoom) => void
@@ -171,6 +183,11 @@ function useViewInput(
 
     const onPointerDown = (e: PointerEvent) => {
       if (locked() || isInteractive(e.target)) return;
+      // A hand back on the planet ends any drift back towards the path — the
+      // drag below has to track the pointer, not crawl after it at
+      // ORBIT_RETURN_SPEED. Cleared on the way down rather than on the first
+      // move, so even a drag begun mid-return starts responsive.
+      returningRef.current = false;
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       if (activePointers.size === 2) {
@@ -240,6 +257,12 @@ function useViewInput(
         pinchConsumed = false;
       }
       if (activePointers.size === 0) {
+        // Letting go is what starts the trip home, and the only thing that
+        // does: from here until the camera is back on the path (or another
+        // gesture takes over) the frame loop holds it to ORBIT_RETURN_SPEED.
+        // Set even for a drag that never moved — the gap is nil there, the cap
+        // never binds, and the flag clears itself on the next frame.
+        if (draggingRef.current) returningRef.current = true;
         down = false;
         draggingRef.current = false;
       }
@@ -273,6 +296,10 @@ function useViewInput(
       }
 
       e.preventDefault(); // stop any rubber-band scroll; there's no page yet
+      // Travel along the path the reader just asked for, not a return to it:
+      // the same 0.4 rad that should take six seconds to drift back would read
+      // as a dead scroll wheel if it took six seconds to answer a flick.
+      returningRef.current = false;
       const deltaU = (-e.deltaY * WHEEL_SENSITIVITY) / PLANET_TOUR.length;
       tourURef.current = wrap01(tourURef.current + deltaU);
     };
@@ -289,7 +316,16 @@ function useViewInput(
       window.removeEventListener("pointercancel", endDrag);
       window.removeEventListener("wheel", onWheel);
     };
-  }, [azimuthTargetRef, polarTargetRef, tourURef, draggingRef, orbitLockedRef, flightRef, onPinchZoom]);
+  }, [
+    azimuthTargetRef,
+    polarTargetRef,
+    tourURef,
+    draggingRef,
+    returningRef,
+    orbitLockedRef,
+    flightRef,
+    onPinchZoom,
+  ]);
 }
 
 /**
@@ -371,6 +407,19 @@ function CameraController() {
   const tourURef = useRef(0);
 
   const draggingRef = useRef(false);
+  /**
+   * Whether the camera is currently drifting back onto the tour path after a
+   * drag let go — the one journey held to `ORBIT_RETURN_SPEED` rather than
+   * damped home in half a second.
+   *
+   * A mode rather than a property of the gap itself, because the gap alone
+   * cannot tell the two apart: a wheel flick and a released drag both leave
+   * the camera some arc away from where the tour says it should be, and only
+   * one of them is a return. Set by letting go (see `useViewInput`), cleared
+   * by anything that is the reader steering again — a new drag, the wheel, the
+   * card's swipe, any flight — and by arriving.
+   */
+  const returningRef = useRef(false);
   const prevSectionRef = useRef<SectionType>(null);
   const prevNonceRef = useRef(homeNonce);
   const prevOrbitZoomRef = useRef(orbitZoom);
@@ -469,6 +518,10 @@ function CameraController() {
   const startGlide = (to: Pose, toOffsetX: number, toOffsetY: number, duration: number, toUp: Direction) => {
     const controls = controlsRef.current;
     if (!controls) return;
+    // A flight supersedes a drift home: it has its own clock and its own
+    // destination, and leaving the flag set would hand the leftovers of an old
+    // return to the idle loop the flight lands in.
+    returningRef.current = false;
     const position = controls.getPosition(scratchPosition, false);
     const target = controls.getTarget(scratchTarget, false);
     const currentOffset = controls.getFocalOffset(scratchOffset, false);
@@ -495,7 +548,16 @@ function CameraController() {
     orbitLockedRef.current = pageOpen || !!activeSection;
   }, [pageOpen, activeSection]);
 
-  useViewInput(azimuthTargetRef, polarTargetRef, tourURef, draggingRef, orbitLockedRef, glideRef, setOrbitZoom);
+  useViewInput(
+    azimuthTargetRef,
+    polarTargetRef,
+    tourURef,
+    draggingRef,
+    returningRef,
+    orbitLockedRef,
+    glideRef,
+    setOrbitZoom
+  );
 
   const snapFocalOffset = (offsetX: number, offsetY: number = 0) => {
     controlsRef.current?.setFocalOffset(offsetX, offsetY, 0, false);
@@ -550,6 +612,9 @@ function CameraController() {
   useEffect(() => {
     if (!turnRequest) return;
     tourURef.current = sectionU(turnRequest.section);
+    // Somewhere asked for, not a drift home — the swipe gets the damp's own
+    // pace, the same way the wheel does (see `returningRef`).
+    returningRef.current = false;
   }, [turnRequest]);
 
   // Every camera destination is decided here, in one place, so the several
@@ -831,18 +896,36 @@ function CameraController() {
 
     if (inFlight()) return;
 
-    // Damp the actual, rendered azimuth/polar towards their targets — inertia
-    // and smooth flowing rotation, the same shape a drag or a wheel flick has
+    // Move the rendered azimuth/polar towards their targets — inertia and
+    // smooth flowing rotation, the same shape a drag or a wheel flick has
     // always had. `wrapAngle` re-centres the target within one turn of the
     // current azimuth first, the same reason it always did: azimuthTargetRef
     // is a plain accumulator that can drift many turns from where
-    // `azimuthRef` currently sits, and left alone `damp()` would chase that
+    // `azimuthRef` currently sits, and left alone the chase would follow that
     // raw numeric gap instead of the short physical distance.
     const current = azimuthRef.current;
     const target = current + wrapAngle(azimuthTargetRef.current - current);
     azimuthTargetRef.current = target;
-    azimuthRef.current = THREE.MathUtils.damp(current, target, 5, delta);
-    polarRef.current = THREE.MathUtils.damp(polarRef.current, polarTargetRef.current, 5, delta);
+
+    // One fraction of the gap, applied to both angles, which is exactly what
+    // the pair of `MathUtils.damp` calls here before did (see
+    // `orbitStepFraction`) — with one addition: a camera on its way back from
+    // a drag is also held to `ORBIT_RETURN_SPEED`, so how far the drag went no
+    // longer decides how fast the planet is taken back off the reader.
+    const from = { azimuth: current, polar: polarRef.current };
+    const to = { azimuth: target, polar: polarTargetRef.current };
+    const damped = orbitStepFraction(from, to, delta);
+    let fraction = damped;
+    if (returningRef.current) {
+      fraction = orbitStepFraction(from, to, delta, ORBIT_RETURN_SPEED);
+      // The cap ceasing to bite *is* the arrival: within about
+      // ORBIT_RETURN_SPEED/ORBIT_DAMP_LAMBDA radians of the path the damp is
+      // the slower of the two, and the last fraction of a degree is better
+      // eased than crawled. No threshold of its own to keep in step.
+      if (fraction >= damped) returningRef.current = false;
+    }
+    azimuthRef.current = current + (target - current) * fraction;
+    polarRef.current = from.polar + (to.polar - from.polar) * fraction;
 
     applyUp(controls, ORBIT_UP);
     controls.setLookAt(...orbitPose(azimuthRef.current, polarRef.current, currentOrbitRadius), false);

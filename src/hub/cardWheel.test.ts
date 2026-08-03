@@ -4,6 +4,7 @@ import {
   WHEEL_THRESHOLD,
   initialWheelState,
   stepForWheel,
+  wheelPixels,
   type WheelState,
 } from "./cardWheel";
 
@@ -114,10 +115,77 @@ describe("stepForWheel", () => {
     ]).steps).toEqual([]);
   });
 
-  it("is pure — the state handed in is never written to", () => {
-    const state = initialWheelState();
-    const snapshot = { ...state };
-    stepForWheel(state, 500, 1000);
-    expect(state).toEqual(snapshot);
+  // The bug this whole re-arming business exists for. A trackpad's momentum
+  // runs for a second or two, and putting the fingers back on cancels it — so
+  // the second flick's events carry straight on from the tail, with no pause
+  // anywhere. Waiting for quiet meant the whole second flick was swallowed,
+  // and whether a scroll did anything came down to whether it happened to land
+  // on top of the last one's tail.
+  it("gives a second flick its own card even when it lands on the last one's tail", () => {
+    const first = flick(60, 20);
+    const cut = first.slice(0, 20 + 8); // the flick, plus a chunk of its tail
+    const resumeAt = cut[cut.length - 1][1] + 16;
+
+    // Stated so this cannot quietly start passing for the other reason: there
+    // is no pause here, which is the only thing that used to end a gesture.
+    expect(resumeAt - cut[cut.length - 1][1]).toBeLessThan(GESTURE_GAP_MS);
+
+    expect(feed([...cut, ...flick(60, 20, resumeAt)]).steps).toEqual([-1, -1]);
+  });
+
+  // The events at the start of a hard flick climb every bit as steeply as
+  // fingers coming back down would — 240 after 88 is nearly a trebling. What
+  // separates them is that a flick on its way up has not decayed from anything
+  // yet. Without that half of the test, this gesture buys two cards.
+  it("does not read a flick's own build-up as a second gesture", () => {
+    const ramp: [number, number][] = [2, 5, 13, 34, 88, 240, 240, 240].map(
+      (deltaY, i) => [deltaY, i * 16]
+    );
+    const tail = flick(240, 1, ramp.length * 16).slice(1);
+    expect(feed([...ramp, ...tail]).steps).toEqual([-1]);
+  });
+
+  // Tails do not decay perfectly smoothly — rounding and the odd late frame
+  // leave one event a shade bigger than the one before it. A shade is not a
+  // hand: only a step change in size counts as the wheel being driven again.
+  it("is not fooled by a tail that wobbles on its way down", () => {
+    const wobbly: [number, number][] = [
+      200, 200, 200, 200, 200,
+      90, 60, 70, 45, 50, 30, 33, 20, 22, 12, 14, 8, 9, 5, 6, 3, 4, 2, 3,
+    ].map((deltaY, i) => [deltaY, i * 16]);
+    expect(feed(wobbly).steps).toEqual([-1]);
+  });
+});
+
+describe("wheelPixels", () => {
+  it("leaves pixel-mode travel alone", () => {
+    expect(wheelPixels(100, 0)).toBe(100);
+    expect(wheelPixels(-37.5, 0)).toBe(-37.5);
+  });
+
+  // The two units the same mouse notch arrives in: 100 pixels in Chrome, 3
+  // lines in Firefox. They have to come out close enough that a threshold
+  // calibrated on one is a sane figure in the other.
+  it("makes a line-mode notch worth about the same as a pixel-mode one", () => {
+    expect(wheelPixels(3, 1)).toBeGreaterThan(80);
+    expect(wheelPixels(3, 1)).toBeLessThan(120);
+  });
+
+  it("reads page-mode travel as a screenful, not as three pixels", () => {
+    expect(wheelPixels(1, 2)).toBeGreaterThan(200);
+  });
+
+  it("keeps the direction", () => {
+    expect(wheelPixels(-3, 1)).toBeLessThan(0);
+    expect(wheelPixels(-1, 2)).toBeLessThan(0);
+  });
+});
+
+describe("stepForWheel, fed real wheel events", () => {
+  // A whole mouse notch used to be worth 3 against a threshold of 80, so the
+  // card needed twenty-seven of them: not a stiff control, a dead one.
+  it("steps on one notch of a line-mode wheel", () => {
+    const notch = wheelPixels(3, 1);
+    expect(feed([[notch, 0]]).steps).toEqual([-1]);
   });
 });

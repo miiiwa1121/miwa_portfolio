@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight } from "lucide-react";
 import { useCardGestures } from "./useCardGestures";
-import { initialWheelState, stepForWheel } from "./cardWheel";
+import { initialWheelState, stepForWheel, wheelPixels } from "./cardWheel";
 import type { SectionType } from "@/types";
 
 /**
@@ -78,6 +78,31 @@ const CARD_VARIANTS = {
   exit: (step: number) => ({ opacity: 0, y: step < 0 ? -34 : 34, scale: 0.97 }),
 };
 
+const CARD_SPRING = { type: "spring", stiffness: 420, damping: 38, mass: 0.7 } as const;
+
+/**
+ * How long a card that has just arrived gets before another step is taken.
+ *
+ * Counted from the card actually changing, not from the step that asked for
+ * it: the camera has to swing far enough for another area to be in front
+ * before `section` comes back down at all, which is around 0.13s at the
+ * orbit's damping. This is the part after that — CARD_SPRING is a whisker
+ * overdamped (ζ ≈ 1.11), its slow pole a time constant of about 64ms, so by
+ * 160ms the card is nine tenths of the way onto the screen and unmistakably
+ * there. Together they are what "you cannot skip a card you never saw" means
+ * in wall-clock terms: about a third of a second, three cards a second.
+ */
+const CARD_SETTLE_MS = 160;
+
+/**
+ * How long a step is given to land before the gate opens anyway.
+ *
+ * Only a backstop. The camera's damping closes 99% of the gap inside a second,
+ * so a `section` that has not changed by then means the request never took —
+ * and a gate with no way out would leave the stack dead to every later scroll.
+ */
+const STEP_TIMEOUT_MS = 1000;
+
 type Props = {
   /** The area being described — whatever the camera is turned towards. */
   section: NonNullable<SectionType>;
@@ -115,14 +140,49 @@ export default function AreaCard({
     onStepRef.current = onStep;
   }, [onStep]);
 
+  // A step is a request, not a change. It turns the camera, and the area that
+  // ends up in front comes back down as a new `section` some fraction of a
+  // second later. Two things go wrong if the next one is taken before that has
+  // happened: `onStep` is handed the card already on its way out, so it asks
+  // for the spot the reader is heading to anyway and the scroll does nothing —
+  // and when it does not do nothing, it steps past a card that never finished
+  // arriving. So the gate is arrival itself: `pendingSince` is set when a step
+  // goes out and cleared by the card actually changing.
+  const pendingSince = useRef<number | null>(null);
+  const armedAt = useRef(0);
+
+  useEffect(() => {
+    if (pendingSince.current === null) return; // the first render, not an arrival
+    pendingSince.current = null;
+    armedAt.current = performance.now() + CARD_SETTLE_MS;
+  }, [section]);
+
   // Stepping is browsing, and browsing is over once an area is focused: the
   // camera is parked on that building and the orbit is locked out, so a step
   // would swap the card for one describing somewhere the view is not. The
   // stack loses its layers in the same breath, so it stops offering.
   const browsable = !focused;
+
+  // Focusing an area throws away whatever was in flight. The card is set from
+  // the section being opened rather than from a turn, so nothing is coming to
+  // clear the gate, and leaving it shut would make the stack ignore the first
+  // scroll after the reader comes back out.
+  useEffect(() => {
+    if (browsable) return;
+    pendingSince.current = null;
+    armedAt.current = 0;
+  }, [browsable]);
+
   const takeStep = useCallback(
     (step: number) => {
       if (!browsable) return;
+      const now = performance.now();
+      if (pendingSince.current !== null) {
+        if (now - pendingSince.current < STEP_TIMEOUT_MS) return;
+      } else if (now < armedAt.current) {
+        return;
+      }
+      pendingSince.current = now;
       setLastStep(step);
       onStepRef.current(step);
     },
@@ -146,7 +206,12 @@ export default function AreaCard({
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       event.stopPropagation();
-      const result = stepForWheel(wheel, event.deltaY, event.timeStamp);
+      // `deltaY` is in whatever unit `deltaMode` names, and the threshold is
+      // in pixels. A gesture the gate turns away is still spent, on purpose:
+      // keeping its travel banked would mean the moment the gate opened, a
+      // momentum tail nobody is driving any more would buy the next card.
+      const travel = wheelPixels(event.deltaY, event.deltaMode);
+      const result = stepForWheel(wheel, travel, event.timeStamp);
       wheel = result.state;
       if (result.step !== 0) takeStep(result.step);
     };
@@ -210,7 +275,7 @@ export default function AreaCard({
           animate="center"
           exit="exit"
           whileHover={{ y: -4 }}
-          transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.7 }}
+          transition={CARD_SPRING}
           className="relative z-10 bg-white rounded-3xl p-6 sm:p-8 border border-black/5"
         >
           <p className="text-orange-500 font-black text-lg">
