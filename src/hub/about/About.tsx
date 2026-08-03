@@ -206,26 +206,33 @@ export default function About({ onFinish }: Props) {
     }
   };
 
+  // The Japanese copy is written entirely in full-width forms — `２０１９`, not
+  // `2019` — because the crawl is set on a grid of one em per character (see
+  // the prose block below). Each paragraph also has to stay on a single source
+  // line: JSX condenses a newline in the middle of a text run into a single
+  // half-width space, which is narrower than a cell and knocks that one line
+  // off the grid. `aboutCopy.test.ts` holds both rules — neither depends on
+  // how many cells wide the block is, so changing that is not a reason to
+  // revisit them.
   const paragraphs = isJa
     ? [
         <>
-          初めまして、<span className="font-bold">Miiiwa</span>です。
-          「面白いを最優先！」をモットーに、日々新しい技術に触れながらプロダクト開発に挑戦している駆け出しの学生エンジニア（27卒）です。
+          初めまして、<span className="font-bold">Ｍｉｉｉｗａ</span>です。「面白いを最優先！」をモットーに、日々新しい技術に触れながらプロダクト開発に挑戦している駆け出しの学生エンジニア（２７卒）です。
         </>,
         <>
-          きっかけは2019年、漫画『王様達のヴァイキング』を読んだことでした。コード一つで世界と対峙できるという事実に衝撃を受け、そこからコンピュータの世界にのめり込んでいます。翌年には情報系の高校へ進学し、C言語でアルゴリズムやメモリ管理といった土台を固めました。
+          きっかけは２０１９年、漫画『王様達のヴァイキング』を読んだことでした。コード一つで世界と対峙できるという事実に衝撃を受け、そこからコンピュータの世界にのめり込んでいます。翌年には情報系の高校へ進学し、Ｃ言語でアルゴリズムやメモリ管理といった土台を固めました。
         </>,
         <>
-          転機になったのはPythonとの出会いです。思いついたものがその日のうちに動く——この速度を知ってから、作りたいものの数が一気に増えました。2024年にはエンジニア養成機関「42tokyo」へ入学し、ピアラーニングの環境で自走力とソフトウェアエンジニアリングを鍛え直しています。
+          転機になったのはＰｙｔｈｏｎとの出会いです。思いついたものがその日のうちに動く——この速度を知ってから、作りたいものの数が一気に増えました。２０２４年にはエンジニア養成機関「４２ｔｏｋｙｏ」へ入学し、ピアラーニングの環境で自走力とソフトウェアエンジニアリングを鍛え直しています。
         </>,
         <>
-          2025年には東京大学松尾研究室のGCI（グローバル消費インテリジェンス寄付講座）を修了し、データサイエンスとAIの視点を手に入れました。同じ年、産学連携プロジェクトではリーダーとしてチーム開発を牽引し、実社会の課題に向き合う難しさと面白さを知りました。
+          ２０２５年には東京大学松尾研究室のＧＣＩ（グローバル消費インテリジェンス寄付講座）を修了し、データサイエンスとＡＩの視点を手に入れました。同じ年、産学連携プロジェクトではリーダーとしてチーム開発を牽引し、実社会の課題に向き合う難しさと面白さを知りました。
         </>,
         <>
-          個人開発では「imadoko」から始まり、P2Pスペースシェアリングの「Sukima Park」、「mesen」と作り続け、いまは新サービス「Umoja」を開発中です。要件定義からアーキテクチャ設計、実装までを一人で回すなかで、技術は目的ではなく手段だと考えるようになりました。
+          個人開発では「ｉｍａｄｏｋｏ」から始まり、Ｐ２Ｐスペースシェアリングの「Ｓｕｋｉｍａ　Ｐａｒｋ」、「ｍｅｓｅｎ」と作り続け、いまは新サービス「Ｕｍｏｊａ」を開発中です。要件定義からアーキテクチャ設計、実装までを一人で回すなかで、技術は目的ではなく手段だと考えるようになりました。
         </>,
         <>
-          大切にしているのは、ただ動くものを作らないこと。「使ってて楽しい」「デザインがカッコいい」と思ってもらえる体験（UX）まで含めて、はじめてプロダクトだと思っています。このポートフォリオをボクセルの街にしたのも、その答えの一つです。
+          大切にしているのは、ただ動くものを作らないこと。「使ってて楽しい」「デザインがカッコいい」と思ってもらえる体験（ＵＸ）まで含めて、はじめてプロダクトだと思っています。このポートフォリオをボクセルの街にしたのも、その答えの一つです。
         </>,
         <>
           とにかく新規性重視で、まだこの世にないものを探し求めて、日々を過ごしています！
@@ -449,35 +456,73 @@ export default function About({ onFinish }: Props) {
             alignment with each other — reading as warped rather than just
             smaller. Centered text has no such offset: a line's own middle
             already sits on the axis everything shrinks toward, so it only
-            gets smaller, never skewed. */}
+            gets smaller, never skewed.
+
+            The body below is justified rather than centered now, which is
+            not a counter-example: every justified line is exactly as wide as
+            the block, so each line's middle lands on that same axis. What
+            the warning rules out is a line whose *middle* is off-axis, and
+            neither centering nor justification produces one. */}
         <h2 className="pt-28 text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight mb-10 text-center">
           {isJa ? "自己紹介" : "About Me"}
         </h2>
         {/*
-         * Sized by characters-per-line rather than by a comfortable reading
-         * size, which is the measurement `reference/image9.jpg` actually
-         * supports: its lines hold 13-15 characters and a character in the
-         * middle of the frame stands about a tenth of the frame's height.
-         * Since the box is 128% of the viewport, "13-15 per line" fixes the
-         * type size at roughly `viewportWidth * 1.28 / 14` — hence a step per
-         * breakpoint rather than one figure, because that ratio is the thing
-         * being held constant, not the pixel size.
+         * Set on a grid of a whole number of full-width characters per line,
+         * which is the shape `reference/image9.jpg` is built on. Four things
+         * in that frame decide the whole of this block:
          *
-         * It was `text-3xl sm:text-4xl` (30/36px). The funnel renders the
-         * middle of the frame at about 60% of the declared size, so 36px was
-         * being read at 22px at best and single digits further up — the whole
-         * column below reading size, which is what made the crawl a texture
-         * rather than a paragraph.
+         *   1. every line holds the same number of characters — 13 in the
+         *      reference ("反乱軍の苦闘は続いていた。", "恐るべき帝国宇宙艦隊の追撃",
+         *      "から逃れ、ルーク・スカイウ"), 15 here by request;
+         *   2. both edges are flush, only a paragraph's last line runs short;
+         *   3. there is no kinsoku — "ォーカーに率いられた自由の" starts a line
+         *      with a small kana, which is exactly what lets (1) hold;
+         *   4. a paragraph's first line is indented one character.
+         *
+         * `w-[15em]` with the font size on the same element is what makes (1)
+         * literal: outside `font-size` itself, `em` resolves against the
+         * element's own computed size, so 15em *is* 15 full-width cells at
+         * any size. That replaces the four breakpoint steps this used to
+         * carry (`text-3xl sm:text-4xl lg:text-6xl xl:text-7xl`) — those were
+         * an approximation of the same "hold characters-per-line" goal, and a
+         * loose one: they measured out to 9.7 / 14.6 / 13.8 / 15.0 characters
+         * across the breakpoints. With the measure fixed, size is free to be
+         * one continuous figure.
+         *
+         * `4.8vw` is a ceiling, not a taste, and it is the half of this pair
+         * that has to move whenever the cell count does: the scroller is the
+         * shell's `w-[75%]`, so the font can be at most 75/15 = 5vw before
+         * the block outgrows it, and 15 × 4.8vw = 72vw leaves 4% of headroom
+         * under that. A block wider than the scroller would be clipped in the
+         * scroller's own local space, before the perspective — the
+         * `overflow-y: auto` forces `overflow-x: auto` trap the outer shell's
+         * comment describes, which eats the far lines as hard as the near
+         * ones. `4.5rem` caps it at what `xl:text-7xl` used to be, the size
+         * already fitted to clear the planet (image9 has nothing but stars in
+         * it to share the frame with). The cap only bites past a ~1500px
+         * viewport, where 15em is 1080px against a 1125px scroller.
+         *
+         * `line-break: anywhere` is (3): without it a line that has to push a
+         * 、 to the next row comes up one cell short, and justification opens
+         * that missing cell up as visible letter-spacing across the whole
+         * line. `indent-[1em]` is (4), and stays on the grid because one em
+         * is exactly one cell — an indented first line is 12 cells, still a
+         * whole number.
+         *
+         * `text-spacing-trim` / `text-autospace` are pinned rather than left
+         * to the UA. Both insert or remove sub-em space around punctuation
+         * and between kana and Latin, both have defaults that are still
+         * moving, and either one firing would break the grid silently — the
+         * text would still look fine, just no longer aligned.
+         *
+         * The grid also assumes the copy holds no half-width characters; the
+         * Japanese paragraphs above are written with full-width Latin and
+         * digits for that reason, and `aboutCopy.test.ts` is what keeps them
+         * that way.
          */}
-        {/* One step down from the `text-4xl … xl:text-[6.5rem]` first fitted
-            to image9.jpg. The reference frame has nothing in it but stars;
-            this one has a planet to share the screen with, and at the larger
-            size the near lines reached it however far left the column was
-            pushed. Same shape, same 3-4 lines to a paragraph — just enough
-            smaller to clear the disc. */}
         <div
           ref={proseRef}
-          className="space-y-10 text-3xl sm:text-4xl lg:text-6xl xl:text-7xl text-[#FFE81F] leading-snug text-center"
+          className="space-y-10 w-[15em] mx-auto text-[min(4.8vw,4.5rem)] text-[#FFE81F] leading-snug text-justify indent-[1em] [line-break:anywhere] [text-spacing-trim:space-all] [text-autospace:no-autospace]"
         >
           {paragraphs.map((paragraph, i) => (
             <p key={i}>{paragraph}</p>

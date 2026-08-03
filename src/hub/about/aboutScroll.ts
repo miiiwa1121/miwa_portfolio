@@ -199,12 +199,19 @@ export function settleRetryDelay(progress: number, sinceOpenedMs: number): numbe
  * How far down the column the camera starts making its way home.
  *
  * The trip home is not a flight of its own here — the scroll drives it, so
- * that reading the back half of the column *is* the return. Starting it half
- * way rather than at the end means the diorama is already coming back and
+ * that reading the back of the column *is* the return. Starting it partway
+ * rather than at the end means the diorama is already coming back and
  * already growing while there is still text to read, and the last line
  * leaving the screen and the camera arriving are one moment instead of two.
+ *
+ * Was 0.5 (the back half) until 2026-08-03, when the approach was asked to
+ * begin sooner. Lowering this does not speed the camera up — the trip is
+ * still exactly one column's worth of scrolling — it stretches the same trip
+ * over more of the column, so the planet is further along at any given point
+ * in the reading. Which is also the constraint on how far this can go: the
+ * planet grows while text is still on screen, and the two share the frame.
  */
-export const ABOUT_RETURN_FROM = 0.5;
+export const ABOUT_RETURN_FROM = 0.35;
 
 /**
  * How far through its trip home the camera should be, for a column scrolled

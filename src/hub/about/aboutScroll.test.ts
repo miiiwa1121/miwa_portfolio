@@ -195,20 +195,29 @@ describe("settleRetryDelay", () => {
 
 describe("aboutReturnProgress", () => {
   // Literals rather than ABOUT_RETURN_FROM: what is being pinned down is that
-  // the camera holds still for the *first half* and not for some other share
-  // of the column. Written against the constant, every one of these would hold
-  // for any starting point at all, including 0 (a camera already leaving while
-  // the first paragraph is being read) and 0.99 (a snap at the end).
-  it("holds still through the first half of the column", () => {
+  // the camera holds still for the first *third* of the column and not for
+  // some other share of it. Written against the constant, every one of these
+  // would hold for any starting point at all, including 0 (a camera already
+  // leaving while the first paragraph is being read) and 0.99 (a snap at the
+  // end). The odd-looking figures below are the quarter points of the span
+  // that is left, worked out from 0.35 rather than chosen for looks.
+  it("holds still through the first third of the column", () => {
     expect(aboutReturnProgress(0)).toBe(0);
-    expect(aboutReturnProgress(0.25)).toBe(0);
-    expect(aboutReturnProgress(0.5)).toBe(0);
+    expect(aboutReturnProgress(0.2)).toBe(0);
+    expect(aboutReturnProgress(0.35)).toBe(0);
   });
 
-  it("spends the second half getting home", () => {
-    expect(aboutReturnProgress(0.625)).toBeCloseTo(0.25, 9);
-    expect(aboutReturnProgress(0.75)).toBeCloseTo(0.5, 9);
-    expect(aboutReturnProgress(0.875)).toBeCloseTo(0.75, 9);
+  // Deliberately asserted at 0.5 too: that used to be the moment the camera
+  // was still standing still, so a revert to the old constant fails here
+  // rather than silently passing the checks either side of it.
+  it("is already on its way by the middle of the column", () => {
+    expect(aboutReturnProgress(0.5)).toBeGreaterThan(0.2);
+  });
+
+  it("spends the rest of the column getting home", () => {
+    expect(aboutReturnProgress(0.5125)).toBeCloseTo(0.25, 9);
+    expect(aboutReturnProgress(0.675)).toBeCloseTo(0.5, 9);
+    expect(aboutReturnProgress(0.8375)).toBeCloseTo(0.75, 9);
   });
 
   // The two ends have to agree: ABOUT_RETURN_AT is exactly 1 (see its own
