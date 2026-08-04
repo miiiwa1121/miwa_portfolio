@@ -7,7 +7,7 @@ import {
   BUILDING_POSITIONS,
   CARD_SHARE,
   FRAME_MARGIN,
-  MARKER_DOT_FILL,
+  MARKER_GLYPH_FILL,
   NEAR_ORBIT_RADIUS,
   NEAR_VERTICAL_SHARE,
   ORBIT_CARD_SHARE,
@@ -921,8 +921,8 @@ describe("pixelsPerWorldUnit", () => {
 
 describe("markerScaleForScreenRadius", () => {
   /** What the sprite shader draws, given the scale this hands back. */
-  const drawnRadius = (scale: number, depth: number, fov: number, height: number) =>
-    scale * MARKER_DOT_FILL * pixelsPerWorldUnit(depth, fov, height);
+  const drawnHalfHeight = (scale: number, depth: number, fov: number, height: number) =>
+    scale * MARKER_GLYPH_FILL * pixelsPerWorldUnit(depth, fov, height);
 
   // The property the trail leans on: ask for a radius, get a scale that draws
   // exactly that radius. If this holds, the gap between the trail's tip and the
@@ -931,7 +931,7 @@ describe("markerScaleForScreenRadius", () => {
     for (const depth of [4, 9.5, 18, 26, 40]) {
       for (const radius of [6, 9, 14, 18]) {
         const scale = markerScaleForScreenRadius(radius, depth, 45, 900);
-        expect(drawnRadius(scale, depth, 45, 900)).toBeCloseTo(radius, 9);
+        expect(drawnHalfHeight(scale, depth, 45, 900)).toBeCloseTo(radius, 9);
       }
     }
   });
@@ -943,7 +943,7 @@ describe("markerScaleForScreenRadius", () => {
       [60, 720],
     ]) {
       const scale = markerScaleForScreenRadius(14, 22, fov, height);
-      expect(drawnRadius(scale, 22, fov, height)).toBeCloseTo(14, 9);
+      expect(drawnHalfHeight(scale, 22, fov, height)).toBeCloseTo(14, 9);
     }
   });
 
@@ -952,13 +952,14 @@ describe("markerScaleForScreenRadius", () => {
     expect(markerScaleForScreenRadius(14, 30, 45, 900)).toBeCloseTo(near * 3, 6);
   });
 
-  it("asks for a quad wider than the disc, since the texture has margin", () => {
-    // The drawn disc covers 0.37 of the sprite, so a 14px radius needs a quad
-    // ~38px across. Sizing the sprite as though the disc filled it would leave
-    // the trail stopping short of a dot a third smaller than it expected —
-    // which is half of what the world-space estimate used to get wrong.
+  it("asks for a quad taller than the glyph, since the texture has margin", () => {
+    // The drawn bolt covers 0.34 of the sprite, so a 14px half-height needs a
+    // quad ~41px tall. Sizing the sprite as though the glyph filled it would
+    // leave the trail stopping short of a marker a third smaller than it
+    // expected — which is half of what the world-space estimate used to get
+    // wrong. The margin is where the glow goes.
     const scale = markerScaleForScreenRadius(14, 20, 45, 900);
-    expect(scale * pixelsPerWorldUnit(20, 45, 900)).toBeCloseTo(14 / MARKER_DOT_FILL, 6);
+    expect(scale * pixelsPerWorldUnit(20, 45, 900)).toBeCloseTo(14 / MARKER_GLYPH_FILL, 6);
   });
 });
 

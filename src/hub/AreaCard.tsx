@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight } from "lucide-react";
 import { useCardGestures } from "./useCardGestures";
 import { initialWheelState, stepForWheel, wheelPixels } from "./cardWheel";
+import { MARKER_TRAIL_INK } from "@/scene/markerBolt";
 import type { SectionType } from "@/types";
 
 /**
@@ -261,8 +262,16 @@ export default function AreaCard({
           // that knows whether there is a trail to leave from it. Fading
           // rather than switching, so an area passing behind the card does
           // not make the dot blink.
-          style={{ opacity: 0, transition: "opacity 240ms ease" }}
-          className="absolute top-5 right-5 z-20 w-[9px] h-[9px] rounded-full bg-[rgba(66,38,18,0.75)]"
+          // The colour lives in `markerBolt.ts` with the trail's, not in a
+          // Tailwind arbitrary value: the class scanner needs a literal, and a
+          // second literal is a second thing to forget when the marker's blue
+          // is next adjusted.
+          style={{
+            opacity: 0,
+            transition: "opacity 240ms ease",
+            backgroundColor: MARKER_TRAIL_INK,
+          }}
+          className="absolute top-5 right-5 z-20 w-[9px] h-[9px] rounded-full"
         />
       )}
 

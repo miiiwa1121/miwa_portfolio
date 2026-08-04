@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { MARKER_TRAIL_GLOW, MARKER_TRAIL_INK, markerClearance } from "@/scene/markerBolt";
 import { onMarkerScreen, type MarkerScreenPoint } from "@/scene/markerScreen";
+import { lightningPath } from "./lightningPath";
 
 /**
- * The zigzag trail from the card out to the marker floating over its area.
+ * The bolt of lightning from the card out to the marker floating over its area.
  *
  * DOM rather than 3D, deliberately: the trail is a flat annotation that should
  * always sit on top, so putting it in the scene would only buy it depth
@@ -16,32 +18,33 @@ import { onMarkerScreen, type MarkerScreenPoint } from "@/scene/markerScreen";
  * DOM; re-rendering this component sixty times a second would be competing
  * with the renderer for the same main thread.
  *
- * Both ends are measured the same way: from the *edge* of the dot they leave,
+ * Both ends are measured the same way: from the *edge* of the mark they leave,
  * outwards by a fixed clearance. The card's dot is an element and is measured;
- * the marker's dot is drawn in WebGL at a size the scene sets in screen pixels
- * and publishes, so neither radius is ever estimated here.
- */
-
-/**
- * Distance along the trail between successive vertices — half a zigzag.
+ * the marker is drawn in WebGL at a size the scene sets in screen pixels and
+ * publishes, so neither end's extent is ever estimated here.
  *
- * Fixed, and measured from the card end, so the peaks nearest the card never
- * move as the scene turns; only the far end gains and loses them. Letting the
- * step stretch to fit instead would shift every peak whenever the count
- * changed, which reads as the trail creeping in and out from under the card.
+ * The far end takes one extra step. The marker is a lightning bolt, not a disc,
+ * so "the edge" depends on which way the trail is coming from — `halfHeight`
+ * goes through `markerClearance()` with the trail's own direction rather than
+ * being subtracted outright, which would leave the ink stopping five pixels
+ * short whenever the trail arrives across the bolt rather than along it.
+ *
+ * The shape between those two ends belongs to `lightningPath()`, which is pure
+ * and tested; this file only maps its axis-relative points onto the screen and
+ * writes them out. It redraws itself whenever the scene's `strike` turns over —
+ * the same instant the marker at the far end flashes, since both come off the
+ * one `FLICKER_PERIOD` in `markerBolt.ts`. So it reads as a single strike
+ * rather than as two animations sharing a screen.
  */
-const ZIGZAG_STEP = 11;
-
-/** How far the peaks stand off the straight line between card and marker. */
-const ZIGZAG_AMPLITUDE = 6;
-
-/** One full zigzag: up to a peak and back down to the baseline. */
-const ZIGZAG_PERIOD = ZIGZAG_STEP * 2;
-
-/** Ceiling on whole zigzags, so even the longest trail stays bounded. */
-const MAX_CYCLES = 80;
 
 const STROKE_WIDTH = 2.4;
+
+/** Forks are secondary: thinner than the trunk, and dimmer. */
+const FORK_STROKE_WIDTH = 1.8;
+const FORK_OPACITY = 0.7;
+
+/** The halo, laid down as a much wider stroke along the trunk's own path. */
+const GLOW_STROKE_WIDTH = 7;
 
 /**
  * A round linecap puts ink half a stroke beyond the last vertex, at both ends.
@@ -49,7 +52,7 @@ const STROKE_WIDTH = 2.4;
  */
 const CAP = STROKE_WIDTH / 2;
 
-/** Clear space between the marker dot's edge and the start of the ink. */
+/** Clear space between the marker bolt's edge and the start of the ink. */
 const MARKER_GAP = 9;
 
 /** Clear space between the card's anchor dot and the start of the ink. */
@@ -71,17 +74,19 @@ type Props = {
 
 export default function CardLeaderLine({ anchorRef, hidden }: Props) {
   const groupRef = useRef<SVGGElement | null>(null);
-  const lineRef = useRef<SVGPolylineElement | null>(null);
+  const glowRef = useRef<SVGPathElement | null>(null);
+  const trunkRef = useRef<SVGPathElement | null>(null);
+  const forksRef = useRef<SVGPathElement | null>(null);
 
   useEffect(() => {
     if (hidden) return;
 
-    const points: string[] = [];
-
-    const draw = ({ x, y, radius, visible }: MarkerScreenPoint) => {
+    const draw = ({ x, y, halfHeight, strike, visible }: MarkerScreenPoint) => {
       const group = groupRef.current;
-      const line = lineRef.current;
-      if (!group || !line) return;
+      const glow = glowRef.current;
+      const trunk = trunkRef.current;
+      const forks = forksRef.current;
+      if (!group || !glow || !trunk || !forks) return;
 
       /**
        * The dot on the card is the trail's near end, so it goes with the
@@ -107,7 +112,7 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
       };
 
       // No anchor means there is nothing to draw *from*, so the trail goes
-      // away — rather than returning and leaving the last frame's polyline on
+      // away — rather than returning and leaving the last frame's path on
       // screen. A stale line is the worse failure of the two: it stays put
       // while the scene turns under it, which reads as the trail having come
       // loose from the dot rather than as anything being missing.
@@ -123,60 +128,46 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
       const dy = y - startY;
       const span = Math.hypot(dx, dy);
 
+      const unitX = dx / span;
+      const unitY = dy / span;
+      // Perpendicular to the trail, for the kinks to stand off along.
+      const sideX = -unitY;
+      const sideY = unitX;
+
       // Where the ink starts and stops, both a fixed clearance out from the
-      // edge of the dot at that end. The marker's radius comes from the scene:
-      // it is the number the sprite was sized to this very frame, in the same
-      // CSS pixels this SVG is drawn in.
+      // edge of the mark at that end. The marker's extent comes from the scene:
+      // `halfHeight` is the number the sprite was sized to this very frame, in
+      // the same CSS pixels this SVG is drawn in, and `markerClearance` turns
+      // it into how far the bolt's ink actually reaches back along the trail —
+      // the direction *from* the marker *towards* the card, which is why the
+      // unit vector goes in negated.
       const from = startRadius + CARD_GAP + CAP;
-      const reach = span - radius - MARKER_GAP - CAP;
+      const reach = span - markerClearance(halfHeight, -unitX, -unitY) - MARKER_GAP - CAP;
       if (reach - from < MIN_TRAIL) return hide();
       group.style.opacity = "1";
       setAnchorShown(true);
 
-      const unitX = dx / span;
-      const unitY = dy / span;
-      // Perpendicular to the trail, for the peaks to stand off along.
-      const sideX = -unitY;
-      const sideY = unitX;
+      // `lightningPath` works in (along, lift): distance down the trail, and
+      // offset from its axis. Turning that into screen pixels is this file's
+      // only geometric job — which is what keeps the shape itself testable
+      // without a DOM, and keeps it from depending on which way the trail
+      // happens to be pointing.
+      const subpath = (line: readonly (readonly [number, number])[]) =>
+        line
+          .map(([along, lift], i) => {
+            const px = startX + unitX * along + sideX * lift;
+            const py = startY + unitY * along + sideY * lift;
+            return `${i === 0 ? "M" : "L"}${px.toFixed(1)} ${py.toFixed(1)}`;
+          })
+          .join("");
 
-      const vertex = (along: number, lift: number) => {
-        const px = startX + unitX * along + sideX * lift;
-        const py = startY + unitY * along + sideY * lift;
-        points.push(`${px.toFixed(1)},${py.toFixed(1)}`);
-      };
-
-      // Both ends are pinned on the straight line between the two dots: the
-      // first vertex at `from`, the last exactly at `reach`. Only the last
-      // peak — the one nearest the marker — takes up the slack.
-      //
-      // Ending on an interpolated point of the zigzag instead let the tip drift
-      // up to the full amplitude off the axis as the trail's length changed,
-      // and with it the gap to the dot: the trail looked welded to the card but
-      // loose at the dot, which is exactly the asymmetry being fixed here.
-      const trail = reach - from;
-      const cycles = Math.min(Math.floor(trail / ZIGZAG_PERIOD), MAX_CYCLES);
-
-      points.length = 0;
-      for (let i = 0; i < cycles; i++) {
-        // Peak, then back down to the baseline — which is what makes it read as
-        // ^^^^ rather than a symmetrical wave.
-        vertex(from + i * ZIGZAG_PERIOD, 0);
-        vertex(from + i * ZIGZAG_PERIOD + ZIGZAG_STEP, ZIGZAG_AMPLITUDE);
-      }
-      // The leftover grows a peak of its own, its height rising with the room
-      // it has. At a full period that peak is indistinguishable from the whole
-      // ones, so the moment it is absorbed into the loop above nothing moves —
-      // the trail still lengthens continuously, just from a fixed far end.
-      const whole = cycles * ZIGZAG_PERIOD;
-      const slack = trail - whole;
-      if (slack > 0.5) {
-        vertex(from + whole, 0);
-        const lift = Math.min(ZIGZAG_AMPLITUDE, (ZIGZAG_AMPLITUDE * slack) / ZIGZAG_PERIOD);
-        vertex(from + whole + slack / 2, lift);
-      }
-      vertex(reach, 0);
-
-      line.setAttribute("points", points.join(" "));
+      const bolt = lightningPath(from, reach, strike);
+      const trunkPath = subpath(bolt.trunk);
+      trunk.setAttribute("d", trunkPath);
+      glow.setAttribute("d", trunkPath);
+      // Every fork in one element, as separate subpaths — three more <path>
+      // nodes to keep in sync would buy nothing, since they all share a stroke.
+      forks.setAttribute("d", bolt.forks.map(subpath).join(""));
     };
 
     return onMarkerScreen(draw);
@@ -187,10 +178,28 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
   return (
     <svg className="fixed inset-0 w-full h-full pointer-events-none z-30" aria-hidden="true">
       <g ref={groupRef} style={{ opacity: 0, transition: "opacity 240ms ease" }}>
-        <polyline
-          ref={lineRef}
+        {/* The halo first, so the trunk is drawn over its own light. */}
+        <path
+          ref={glowRef}
           fill="none"
-          stroke="rgba(66, 38, 18, 0.55)"
+          stroke={MARKER_TRAIL_GLOW}
+          strokeWidth={GLOW_STROKE_WIDTH}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <path
+          ref={forksRef}
+          fill="none"
+          stroke={MARKER_TRAIL_INK}
+          strokeOpacity={FORK_OPACITY}
+          strokeWidth={FORK_STROKE_WIDTH}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <path
+          ref={trunkRef}
+          fill="none"
+          stroke={MARKER_TRAIL_INK}
           strokeWidth={STROKE_WIDTH}
           strokeLinejoin="round"
           strokeLinecap="round"

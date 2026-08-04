@@ -12,12 +12,28 @@ export type MarkerScreenPoint = {
   x: number;
   y: number;
   /**
-   * The radius of the dot's drawn disc, in CSS pixels — the size the scene
-   * just sized the sprite to, not a projection of it measured afterwards. The
-   * trail stops a fixed clearance out from this, so any error here shows up
-   * directly as the gap opening and closing as the camera moves.
+   * How far the drawn bolt reaches straight up and down from its centre, in
+   * CSS pixels — the size the scene just sized the sprite to, not a projection
+   * of it measured afterwards. Any error here shows up directly as the trail's
+   * gap opening and closing as the camera moves.
+   *
+   * **Not a radius**, and named so that nothing treats it as one: the marker is
+   * a lightning bolt, roughly half as wide as it is tall, so how far its ink
+   * reaches depends on the direction being asked about. Subtracting this
+   * outright would leave a trail arriving horizontally stopping five pixels too
+   * early. `markerClearance()` in `markerBolt.ts` is what turns it into a
+   * clearance for a given direction.
    */
-  radius: number;
+  halfHeight: number;
+  /**
+   * Which of the marker's sparks the scene is on (`strikeIndex`).
+   *
+   * The trail draws a fresh bolt whenever this turns over. It rides along here
+   * because `CardLeaderLine` is DOM, outside the canvas and outside any frame
+   * loop that could read the scene clock — and the scene is already pushing to
+   * this channel every frame anyway.
+   */
+  strike: number;
   /** False when the marker is behind the camera or off-screen. */
   visible: boolean;
 };
@@ -48,7 +64,7 @@ export function markerOnScreen(
   return depth < 1 && x >= 0 && x <= width && y >= 0 && y <= height;
 }
 
-const current: MarkerScreenPoint = { x: 0, y: 0, radius: 0, visible: false };
+const current: MarkerScreenPoint = { x: 0, y: 0, halfHeight: 0, strike: 0, visible: false };
 const listeners = new Set<(point: MarkerScreenPoint) => void>();
 
 /**
@@ -64,20 +80,23 @@ const listeners = new Set<(point: MarkerScreenPoint) => void>();
 export function publishMarkerScreen(
   x: number,
   y: number,
-  radius: number,
+  halfHeight: number,
+  strike: number,
   visible: boolean
 ): void {
   if (
     current.x === x &&
     current.y === y &&
-    current.radius === radius &&
+    current.halfHeight === halfHeight &&
+    current.strike === strike &&
     current.visible === visible
   ) {
     return;
   }
   current.x = x;
   current.y = y;
-  current.radius = radius;
+  current.halfHeight = halfHeight;
+  current.strike = strike;
   current.visible = visible;
   for (const listener of listeners) listener(current);
 }

@@ -637,17 +637,31 @@ export type Pose = [number, number, number, number, number, number];
 export const MARKER_CLEARANCE = 1.1;
 
 /**
- * How much of a marker sprite's quad the drawn disc covers, measured from its
+ * How much of a marker sprite's quad the drawn glyph covers, measured from its
  * centre as a fraction of the quad's full height.
  *
- * The trail stops a fixed clearance from *this* edge, so the number has to be
- * the one the texture is painted with rather than a second guess at it — hence
- * both the painter and the sizing maths below reading it from here.
+ * The glyph is a lightning bolt (`markerBolt.ts`) and reaches this far straight
+ * up and down; across, it is only about half as wide. The trail stops a fixed
+ * clearance from *this* edge, so the number has to be the one the texture is
+ * painted with rather than a second guess at it — hence both the painter and
+ * the sizing maths below reading it from here.
  */
-export const MARKER_DOT_FILL = 0.37;
+export const MARKER_GLYPH_FILL = 0.34;
 
-/** The dot's rim, in the same units. It straddles the disc's edge. */
-export const MARKER_DOT_RIM = 0.06;
+/** The glyph's outline, in the same units. It straddles the shape's edge. */
+export const MARKER_GLYPH_RIM = 0.05;
+
+/**
+ * How far the bolt's glow spills past the solid glyph, in the same units.
+ *
+ * Not part of the edge the trail measures from: the glow is soft light, and
+ * stopping the ink a clearance out from *it* would leave a gap half again as
+ * wide as the one that was tuned. It exists here so the blur radius and the
+ * quad's own limit are decided in one place — 0.5 is the quad's edge, where
+ * clamped sampling would cut the glow off square, so the fill leaves 0.04 to
+ * spare.
+ */
+export const MARKER_GLOW_FILL = 0.46;
 
 /**
  * How many CSS pixels one world unit spans, `viewDepth` in front of the camera.
@@ -667,8 +681,12 @@ export function pixelsPerWorldUnit(
 }
 
 /**
- * The world scale a marker sprite needs for its drawn disc to come out
- * `radiusPx` across on screen.
+ * The world scale a marker sprite needs for its drawn glyph to reach `radiusPx`
+ * from its centre on screen.
+ *
+ * `radiusPx` is the bolt's *half-height*, the one direction in which the glyph
+ * reaches `MARKER_GLYPH_FILL` exactly. Across, it is narrower; how much
+ * narrower is `markerClearance()`'s business, not this function's.
  *
  * A sprite is a billboard: three.js offsets its corners in *view* space
  * (`mvPosition.xy += rotatedPosition` in the sprite shader), so its size on
@@ -688,7 +706,7 @@ export function markerScaleForScreenRadius(
   fovDegrees: number,
   viewportHeight: number
 ): number {
-  return radiusPx / (MARKER_DOT_FILL * pixelsPerWorldUnit(viewDepth, fovDegrees, viewportHeight));
+  return radiusPx / (MARKER_GLYPH_FILL * pixelsPerWorldUnit(viewDepth, fovDegrees, viewportHeight));
 }
 
 /**
