@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { useAppState, SectionType } from "@/state/AppStateContext";
+import { facingNow, publishFacing } from "@/state/facingChannel";
 import { useLanguage } from "@/state/LanguageContext";
 import { useTerminal } from "@/terminal/TerminalContext";
 import Scene from "@/scene/Scene";
@@ -47,8 +48,6 @@ export default function Hub() {
     openPage,
     closePage,
     goHome,
-    facing,
-    setFacing,
     turnTo,
     paused,
     togglePaused,
@@ -59,10 +58,17 @@ export default function Hub() {
   const { openTerminal } = useTerminal();
   const isJa = language === "ja";
 
-  // Which area the card is about. With no section explicitly focused it is
-  // whatever the camera is turned towards, so rotating the diorama leafs
-  // through the areas.
-  const card = activeSection ?? facing;
+  /**
+   * Which area the card is about. With no section explicitly focused it is
+   * whatever the camera is turned towards, so rotating the diorama leafs
+   * through the areas.
+   *
+   * A function, called at the moment an answer is needed, rather than a value
+   * computed each render: reading `facing` here would re-render this component
+   * — and with it the `<Canvas>` and the whole three.js tree — several times a
+   * lap of the idle drift. See `facingChannel`.
+   */
+  const cardSection = () => activeSection ?? facingNow();
   const openedAt = useRef(0);
 
   // What the zoom control highlights: any focused section (including About)
@@ -71,7 +77,7 @@ export default function Hub() {
   const zoomStage: ZoomStage = activeSection ? "building" : orbitZoom;
   const handleZoomSelect = (stage: ZoomStage) => {
     if (stage === "building") {
-      setActiveSection(facing);
+      setActiveSection(facingNow());
     } else {
       goToOrbit(stage);
     }
@@ -132,10 +138,10 @@ export default function Hub() {
     if (resetCamera) {
       // The tour's own starting point (u = 0) is what HOME actually flies to
       // — see the destination effect's "reset" branch in Scene.tsx.
-      setFacing(TOUR_ORDER[0]);
+      publishFacing(TOUR_ORDER[0]);
       goHome();
     } else {
-      if (activeSection) setFacing(activeSection);
+      if (activeSection) publishFacing(activeSection);
       closePage();
     }
   };
@@ -283,12 +289,14 @@ export default function Hub() {
         <div className="flex-1 flex items-center w-full">
           {!pageOpen && activeSection !== "about" && (
             <AreaCard
-              section={card}
+              focusedSection={activeSection}
               isJa={isJa}
-              focused={!!activeSection}
               anchorRef={anchorDotRef}
-              onOpen={() => openPage(card)}
-              onStep={(step) => turnTo(adjacentOnTour(card, step))}
+              // Both read the area in front when they fire rather than closing
+              // over it, so this component never has to re-render for it — see
+              // `facingChannel` for why that matters here specifically.
+              onOpen={() => openPage(cardSection())}
+              onStep={(step) => turnTo(adjacentOnTour(cardSection(), step))}
             />
           )}
         </div>

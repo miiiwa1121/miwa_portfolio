@@ -32,21 +32,52 @@ export function createSceneClock(): SceneClock {
   /** The reading time was frozen at; null while running. */
   let frozenAt: number | null = null;
 
+  /**
+   * The renderer's clock is not monotonic, so this carries the resets.
+   *
+   * `frameloop` is switched to `"demand"` while the detail page covers the
+   * canvas and back to `"always"` when it starts to come off (see Scene.tsx and
+   * Hub's `sceneObscured`). R3F's `setFrameloop` does `clock.stop();
+   * clock.elapsedTime = 0; clock.start(); clock.elapsedTime = 0` — so
+   * `elapsedTime` **restarts from zero twice per visit to a detail page**, and
+   * everything whose position is a function of scene time teleports on that one
+   * frame: the tram, the clouds, the villagers, the marker pulse and the strike
+   * the leader line is drawn from. The reveal happens while the reader is
+   * scrolling into a transparent spacer, so it is in view when it lands.
+   *
+   * Absorbed here rather than by giving up the `demand` throttle, which is the
+   * cheapest thing this page does for its battery. Everything downstream keeps
+   * reading one number that only ever goes forward.
+   */
+  let lastElapsed = 0;
+  let restarts = 0;
+
+  /** The renderer's reading, made monotonic. */
+  const now = (elapsed: number): number => {
+    if (elapsed < lastElapsed) restarts += lastElapsed - elapsed;
+    lastElapsed = elapsed;
+    return elapsed + restarts;
+  };
+
   return {
-    time: (elapsed) => (frozenAt ?? elapsed) - skipped,
+    time: (elapsed) => (frozenAt ?? now(elapsed)) - skipped,
     delta: (realDelta) => (frozenAt === null ? realDelta : 0),
     paused: () => frozenAt !== null,
     setPaused(paused, elapsed) {
+      // Through `now()`, not the raw reading: `frozenAt` and `skipped` have to
+      // be in the same scale as `time()`'s answers, or a pause taken after a
+      // restart is discounted by the size of the restart.
+      const current = now(elapsed);
       // Both directions are idempotent: the flag comes from React state, and a
       // re-run of the effect that syncs it must not bank a second pause (which
       // would move the freeze point) or a second resume (which would double the
       // discount and rewind the scene).
       if (paused) {
-        if (frozenAt === null) frozenAt = elapsed;
+        if (frozenAt === null) frozenAt = current;
         return;
       }
       if (frozenAt === null) return;
-      skipped += elapsed - frozenAt;
+      skipped += current - frozenAt;
       frozenAt = null;
     },
   };

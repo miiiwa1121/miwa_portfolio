@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { MARKER_TRAIL_GLOW, MARKER_TRAIL_INK, markerClearance } from "@/scene/markerBolt";
 import { onMarkerScreen, type MarkerScreenPoint } from "@/scene/markerScreen";
+import { useFacing } from "@/state/facingChannel";
 import { lightningPath } from "./lightningPath";
 
 /**
@@ -61,6 +62,24 @@ const CARD_GAP = 17;
 /** Below this there is no room for a trail worth drawing. */
 const MIN_TRAIL = 48;
 
+/**
+ * How long the anchor is re-measured for after anything that could have moved
+ * it, before the trail goes back to its cached rectangle.
+ *
+ * `getBoundingClientRect` forces the browser to flush style and layout, and
+ * `draw()` is called from inside the scene's own frame loop — so this used to
+ * be one forced layout per frame, for as long as the diorama was on screen. The
+ * anchor does not move for the vast majority of those frames: it sits on the
+ * card *stack*, which is a fixed box in a centred flex row.
+ *
+ * It does move for a moment when the card changes — each area's copy is a
+ * different height and the stack is vertically centred, and `AreaCard`'s
+ * entrance spring takes a few hundred milliseconds to place the new one — and
+ * when the window is resized. Both restart this window, which is comfortably
+ * longer than that spring settles in (its slow pole is a ~64ms time constant).
+ */
+const ANCHOR_SETTLE_MS = 450;
+
 type Props = {
   /**
    * The dot on the card that the trail leaves from — the element itself, so
@@ -78,8 +97,30 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
   const trunkRef = useRef<SVGPathElement | null>(null);
   const forksRef = useRef<SVGPathElement | null>(null);
 
+  // Not to draw with — the trail never names an area — but to know when the
+  // card underneath it has been swapped, which is the one thing that moves the
+  // anchor. See `ANCHOR_SETTLE_MS`.
+  const facing = useFacing();
+
   useEffect(() => {
     if (hidden) return;
+
+    let cachedRect: DOMRect | null = null;
+    let settledAt = performance.now() + ANCHOR_SETTLE_MS;
+    const remeasure = () => {
+      cachedRect = null;
+      settledAt = performance.now() + ANCHOR_SETTLE_MS;
+    };
+
+    /** The anchor's box: measured while it could still be moving, cached after. */
+    const anchorRect = (anchor: HTMLElement): DOMRect => {
+      if (cachedRect === null || performance.now() < settledAt) {
+        cachedRect = anchor.getBoundingClientRect();
+      }
+      return cachedRect;
+    };
+
+    window.addEventListener("resize", remeasure);
 
     const draw = ({ x, y, halfHeight, strike, visible }: MarkerScreenPoint) => {
       const group = groupRef.current;
@@ -119,7 +160,7 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
       const anchor = anchorRef.current;
       if (!anchor || !visible) return hide();
 
-      const rect = anchor.getBoundingClientRect();
+      const rect = anchorRect(anchor);
       const startX = rect.left + rect.width / 2;
       const startY = rect.top + rect.height / 2;
       const startRadius = Math.max(rect.width, rect.height) / 2;
@@ -170,8 +211,14 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
       forks.setAttribute("d", bolt.forks.map(subpath).join(""));
     };
 
-    return onMarkerScreen(draw);
-  }, [anchorRef, hidden]);
+    const unsubscribe = onMarkerScreen(draw);
+    return () => {
+      window.removeEventListener("resize", remeasure);
+      unsubscribe();
+    };
+    // `facing` is a dependency for its side effect alone: a new card means a
+    // new anchor position, and re-running this restarts the measuring window.
+  }, [anchorRef, hidden, facing]);
 
   if (hidden) return null;
 

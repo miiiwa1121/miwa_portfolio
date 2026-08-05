@@ -24,6 +24,7 @@ import {
   orbitRadiusForZoom,
   ORBIT_MIN_POLAR,
   ORBIT_MAX_POLAR,
+  type OrbitAngles,
   AUTO_ORBIT_SPEED,
   ORBIT_RETURN_SPEED,
   orbitStepFraction,
@@ -38,10 +39,12 @@ import {
 } from "./worldLayout";
 import { PLANET_TOUR, sectionU, facingSectionOnPlanet } from "./planet/tour";
 import { PLANET_SECTION_KEYS, sectionDirection } from "./planet/sections";
-import { slerpDirection, type Direction } from "./planet/planetLayout";
+import { type Direction } from "./planet/planetLayout";
+import { advanceFlight, beginFlight, type Flight } from "./cameraFlight";
 import { sceneClock } from "./sceneClock";
 import { aboutReturn } from "@/hub/about/aboutScroll";
 import { useAppState, type SectionType } from "@/state/AppStateContext";
+import { publishFacing } from "@/state/facingChannel";
 
 // Rotation sensitivity (kept gentle).
 const DRAG_SENSITIVITY = 0.002; // radians per px of pointer drag, both axes
@@ -74,23 +77,6 @@ const WHEEL_REARM_MS = 220;
  */
 const FLIGHT_SECONDS = 1.1;
 const RETURN_SECONDS = 1.6;
-
-/**
- * The largest step one frame may contribute to a flight.
- *
- * A backstop for a stall part way through, not a frame-rate policy: the clamp
- * only bites below 10fps, where the flight would stretch in wall-clock time
- * rather than skip. Set at 1/30 first, which quietly turned every flight on a
- * device rendering slower than 30fps into a slow-motion one — measured at
- * headless SwiftShader's ~3fps, a 1.2s flight took twelve seconds.
- *
- * The case this was really reaching for — the render loop sitting at one frame
- * a second behind the detail page (see IdleHeartbeat), then handing the first
- * frame of the flight home a delta approaching a full second — is handled
- * where it belongs, by not charging a flight for time that passed before it
- * existed. See `primed` below.
- */
-const MAX_FLIGHT_STEP = 1 / 10;
 
 /** Scratch vectors for reading the camera's current state; never kept. */
 const scratchPosition = new THREE.Vector3();
@@ -371,8 +357,7 @@ function ScenePause() {
 
 function CameraController() {
   const controlsRef = useRef<CameraControls>(null);
-  const { activeSection, pageOpen, homeNonce, facing, setFacing, turnRequest, paused, orbitZoom, setOrbitZoom } =
-    useAppState();
+  const { activeSection, pageOpen, homeNonce, turnRequest, paused, orbitZoom, setOrbitZoom } = useAppState();
   const scene = useThree((state) => state.scene);
   const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
   const size = useThree((state) => state.size);
@@ -423,7 +408,6 @@ function CameraController() {
   const prevSectionRef = useRef<SectionType>(null);
   const prevNonceRef = useRef(homeNonce);
   const prevOrbitZoomRef = useRef(orbitZoom);
-  const facingRef = useRef(facing);
 
   // About keeps orbiting slowly even though it isn't the free orbit — it has
   // no card to hold the camera clear of, so unlike every other focused
@@ -435,46 +419,22 @@ function CameraController() {
 
   /**
    * The flight in progress, if any — driven frame by frame in useFrame below
-   * rather than handed to CameraControls.
-   *
-   * `setLookAt(..., true)` was what did this before, and its damping is the
-   * wrong shape for the flight that matters: it spends most of its travel in
-   * its opening moments, which for the trip home from a detail page are the
-   * moments the sheet is still covering the canvas. Owning the clock means the
-   * duration is a number rather than an emergent property of a spring, the
-   * curve can hold still at the start (see easeInOutCubic), and a frame that
-   * arrives late cannot skip the flight forward (see MAX_FLIGHT_STEP).
+   * rather than handed to CameraControls. The record and its per-frame step
+   * live in `cameraFlight.ts`, where they can be run without a renderer.
    */
-  const glideRef = useRef<{
-    from: Pose;
-    to: Pose;
-    fromOffsetX: number;
-    toOffsetX: number;
-    fromOffsetY: number;
-    toOffsetY: number;
-    /**
-     * The roll, carried along with the position.
-     *
-     * A flight between the free orbit and a section crosses between two
-     * different "up"s — the world's +Y and the building's own normal (see
-     * `sectionUp`) — and they can be most of a right angle apart. Snapping at
-     * either end would spin the frame in a single tick; slerping alongside the
-     * eased position turns it over the length of the trip instead.
-     */
-    fromUp: Direction;
-    toUp: Direction;
-    elapsed: number;
-    duration: number;
-    /**
-     * False until this flight has seen a frame. `delta` is the gap since the
-     * *previous* frame, and a flight begins in an effect — after that frame,
-     * before the next — so none of that gap is time the flight has run for.
-     * Charging it anyway is harmless at 60fps and ruinous behind the detail
-     * page, where the gap is the heartbeat's full second and would spend most
-     * of the flight home on the frame it started.
-     */
-    primed: boolean;
-  } | null>(null);
+  const glideRef = useRef<Flight | null>(null);
+
+  /**
+   * The building bounds the flight in progress was framed from, or null when it
+   * is not a section close-up.
+   *
+   * The one thing about a flight that a resize invalidates. `sectionPose`'s
+   * distance comes from `frameDistance(radius, fov, aspect)`, so a window
+   * reshaped mid-flight would otherwise land the camera at a distance framed
+   * for the aspect ratio the flight started under, with nothing afterwards to
+   * correct it.
+   */
+  const flightFramingRef = useRef<{ target: [number, number, number]; radius: number } | null>(null);
 
   const inFlight = () => glideRef.current !== null;
   const prevPageOpenRef = useRef(pageOpen);
@@ -514,18 +474,34 @@ function CameraController() {
    * Send the camera to `pose` over `duration` seconds, starting from wherever
    * it is now — including part way through a flight it is superseding, which
    * is what keeps a second destination chosen mid-flight from snapping.
+   *
+   * `land` is the free orbit's angles at the far end, for the flights that end
+   * up back on it, and null for the ones that do not. Getting it wrong is not
+   * cosmetic — see `Flight.land`.
    */
-  const startGlide = (to: Pose, toOffsetX: number, toOffsetY: number, duration: number, toUp: Direction) => {
+  const startGlide = (
+    to: Pose,
+    toOffsetX: number,
+    toOffsetY: number,
+    duration: number,
+    toUp: Direction,
+    land: OrbitAngles | null
+  ) => {
     const controls = controlsRef.current;
     if (!controls) return;
     // A flight supersedes a drift home: it has its own clock and its own
     // destination, and leaving the flag set would hand the leftovers of an old
     // return to the idle loop the flight lands in.
     returningRef.current = false;
+    // Only `focusSection` has a framing to re-derive, and it re-records it
+    // immediately after this call. Cleared here so that every other flight —
+    // and any flight this one supersedes — cannot leave a stale one behind for
+    // a resize to aim at.
+    flightFramingRef.current = null;
     const position = controls.getPosition(scratchPosition, false);
     const target = controls.getTarget(scratchTarget, false);
     const currentOffset = controls.getFocalOffset(scratchOffset, false);
-    glideRef.current = {
+    glideRef.current = beginFlight({
       from: [position.x, position.y, position.z, target.x, target.y, target.z],
       to,
       fromOffsetX: currentOffset.x,
@@ -534,11 +510,56 @@ function CameraController() {
       toOffsetY,
       fromUp: upRef.current,
       toUp,
-      elapsed: 0,
       duration,
-      primed: false,
-    };
+      land,
+    });
   };
+
+  /**
+   * Fly to a section's own close-up, framed from that building's real bounds.
+   *
+   * Reading the bounds beats hand-tuned heights: the buildings are procedural
+   * and still changing shape, so a tall tower and a small house are each framed
+   * properly instead of sharing one hardcoded distance.
+   *
+   * Returns false when the building is not in the scene yet — which is a real
+   * case, not a defensive check: a direct link to `#products` applies its
+   * section a frame after mount (see `applyUrl`), and R3F commits the Canvas's
+   * children behind an `await`. The caller retries rather than giving up; this
+   * used to return silently and leave the camera parked in the orbit with a
+   * section supposedly focused and nothing to say so.
+   */
+  const focusSection = (section: NonNullable<SectionType>, duration: number): boolean => {
+    const building = scene.getObjectByName(section);
+    if (!building) return false;
+    const sphere = new THREE.Box3().setFromObject(building).getBoundingSphere(new THREE.Sphere());
+    const target: [number, number, number] = [sphere.center.x, sphere.center.y, sphere.center.z];
+    const distance = frameDistance(sphere.radius * FRAME_MARGIN, camera.fov, camera.aspect);
+    startGlide(
+      sectionPose(target, distance, SECTION_TILT),
+      focalOffsetX(distance, camera.fov, camera.aspect, CARD_SHARE),
+      0,
+      duration,
+
+      // The building's own normal, not the world's +Y — the whole shot is built
+      // in this building's tangent frame, and the roll is the half of it that
+      // used to be left behind in world coordinates. See `sectionUp` for what
+      // that cost.
+      sectionUp(target),
+      // Nothing to hand over: a focused section parks the camera, and the free
+      // orbit does not drive it again until the flight back out — which brings
+      // its own landing angles.
+      null
+    );
+    // Recorded after `startGlide`, which clears it: a section flight's
+    // destination depends on the frame's aspect ratio (through `frameDistance`)
+    // and so has to be recomputed if the window is resized mid-flight.
+    flightFramingRef.current = { target, radius: sphere.radius };
+    return true;
+  };
+
+  /** A section close-up waiting for its building to appear; see `focusSection`. */
+  const pendingFocusRef = useRef<{ section: NonNullable<SectionType>; duration: number } | null>(null);
 
   // Orbiting only makes sense in the free orbit — lock out drag/wheel input
   // whenever a section is focused (card or full page) so stray gestures can't
@@ -588,6 +609,16 @@ function CameraController() {
     if (glide) {
       glide.toOffsetX = offsetX;
       glide.toOffsetY = offsetY;
+      // A section close-up is framed against the aspect ratio too, not just
+      // pushed aside by it: `frameDistance` is how far back the camera has to
+      // sit for this building to fit *this* frame. Re-aimed rather than left
+      // alone, since nothing after the landing would ever correct it.
+      const framing = flightFramingRef.current;
+      if (framing) {
+        const distance = frameDistance(framing.radius * FRAME_MARGIN, camera.fov, camera.aspect);
+        glide.to = sectionPose(framing.target, distance, SECTION_TILT);
+        glide.toOffsetX = focalOffsetX(distance, camera.fov, camera.aspect, CARD_SHARE);
+      }
     } else if (!activeSection) {
       snapFocalOffset(offsetX, offsetY);
     }
@@ -629,6 +660,9 @@ function CameraController() {
     prevNonceRef.current = homeNonce;
     const wasZoomChange = orbitZoom !== prevOrbitZoomRef.current;
     prevOrbitZoomRef.current = orbitZoom;
+    // Whatever this run decides supersedes a close-up still waiting for its
+    // building, the same way a new flight supersedes one in progress.
+    pendingFocusRef.current = null;
 
     // Whether the detail page was covering the canvas when this flight was
     // asked for, which is what decides how long it gets. Read before the ref
@@ -648,32 +682,21 @@ function CameraController() {
         duration,
         // Back onto the satellite orbit, so back to the world's own up —
         // whatever building's normal the camera may have been rolled to.
-        ORBIT_UP
+        ORBIT_UP,
+        // This flight ends in the free orbit, so it owes the free orbit the
+        // angles it left the camera at. Without them the first idle frame damps
+        // from wherever the camera stood *before* the flight and undoes most of
+        // the trip in a single tick — see `Flight.land`.
+        { azimuth, polar }
       );
     };
 
     // 1. A section was focused (not About): frame its building from its own
     //    local frame, backing off by however much that particular building
-    //    needs. Reading the real bounds means a tall tower and a small house
-    //    are each framed properly, instead of sharing one hardcoded distance.
+    //    needs (see `focusSection`).
     if (activeSection && activeSection !== "about" && PLANET_SECTION_KEYS.includes(activeSection)) {
-      const building = scene.getObjectByName(activeSection);
-      if (building) {
-        const sphere = new THREE.Box3().setFromObject(building).getBoundingSphere(new THREE.Sphere());
-        const target: [number, number, number] = [sphere.center.x, sphere.center.y, sphere.center.z];
-        const distance = frameDistance(sphere.radius * FRAME_MARGIN, camera.fov, camera.aspect);
-        const pose = sectionPose(target, distance, SECTION_TILT);
-        startGlide(
-          pose,
-          focalOffsetX(distance, camera.fov, camera.aspect, CARD_SHARE),
-          0,
-          duration,
-          // The building's own normal, not the world's +Y — the whole shot is
-          // built in this building's tangent frame, and the roll is the half
-          // of it that used to be left behind in world coordinates. See
-          // `sectionUp` for what that cost.
-          sectionUp(target)
-        );
+      if (!focusSection(activeSection, duration)) {
+        pendingFocusRef.current = { section: activeSection, duration };
       }
       return;
     }
@@ -693,7 +716,11 @@ function CameraController() {
         duration,
         // About pivots on the planet's centre like the free orbit does, so it
         // keeps the world's up rather than any one building's.
-        ORBIT_UP
+        ORBIT_UP,
+        // Nothing to hand over either: About's own frame-loop branch writes
+        // azimuthRef/polarRef every frame it runs (it rides the tour path home
+        // as the column is read), so it never reads what a flight left behind.
+        null
       );
       return;
     }
@@ -724,9 +751,7 @@ function CameraController() {
     //    in AppStateContext), and branch 3 above already returns for that
     //    case before this one runs.
     if (cameFrom === "about") {
-      const landedOn = facingSectionOnPlanet(directionAt(azimuthRef.current, polarRef.current));
-      facingRef.current = landedOn;
-      setFacing(landedOn);
+      publishFacing(facingSectionOnPlanet(directionAt(azimuthRef.current, polarRef.current)));
       return;
     }
 
@@ -791,21 +816,27 @@ function CameraController() {
     // press play.
     const glide = glideRef.current;
     if (glide) {
-      if (glide.primed) glide.elapsed += Math.min(delta, MAX_FLIGHT_STEP);
-      else glide.primed = true;
-      const progress = Math.min(1, glide.elapsed / glide.duration);
-      const eased = easeInOutCubic(progress);
+      const step = advanceFlight(glide, delta);
       // Before the pose, not after: setLookAt decomposes the position it is
       // handed into the up-space that is current at that moment.
-      applyUp(controls, slerpDirection(glide.fromUp, glide.toUp, eased));
-      controls.setLookAt(...glidePose(glide.from, glide.to, eased), false);
-      controls.setFocalOffset(
-        glide.fromOffsetX + (glide.toOffsetX - glide.fromOffsetX) * eased,
-        glide.fromOffsetY + (glide.toOffsetY - glide.fromOffsetY) * eased,
-        0,
-        false
-      );
-      if (progress >= 1) glideRef.current = null;
+      applyUp(controls, step.up);
+      controls.setLookAt(...step.pose, false);
+      controls.setFocalOffset(step.offsetX, step.offsetY, 0, false);
+
+      // Hand the free orbit the angles this flight actually finished on, before
+      // letting go of the camera. `azimuthRef`/`polarRef` are a separate source
+      // of truth from the camera's transform and a flight never touches them,
+      // so skipping this leaves the idle damp below resuming from wherever the
+      // camera stood before the flight — one frame at 8% of that gap, i.e. most
+      // of the trip undone in a single tick. See `Flight.land` for the measured
+      // sizes; About solves the same problem its own way (below).
+      if (step.landed) {
+        azimuthRef.current = step.landed.azimuth;
+        polarRef.current = step.landed.polar;
+        azimuthTargetRef.current = step.landed.azimuth;
+        polarTargetRef.current = step.landed.polar;
+      }
+      if (step.done) glideRef.current = null;
       return;
     }
 
@@ -815,6 +846,13 @@ function CameraController() {
     // so nothing writes to the camera between flights there — one owner at a
     // time.
     if (activeSection) {
+      // A close-up whose building had not been committed to the scene when it
+      // was asked for. Retried here rather than abandoned — see `focusSection`.
+      const pending = pendingFocusRef.current;
+      if (pending && pending.section === activeSection && focusSection(pending.section, pending.duration)) {
+        pendingFocusRef.current = null;
+      }
+
       if (activeSection === "about") {
         // A plain accumulator, not damped: nothing else ever writes this
         // azimuth (input is locked out while a section is focused), so there
@@ -936,14 +974,11 @@ function CameraController() {
       false
     );
 
-    // Publish which area is in front. Only on a change — this runs every frame,
-    // and a setState per frame would re-render the whole overlay at 60Hz on the
-    // thread drawing the diorama.
-    const facingNow = facingSectionOnPlanet(directionAt(azimuthRef.current, polarRef.current));
-    if (facingNow !== facingRef.current) {
-      facingRef.current = facingNow;
-      setFacing(facingNow);
-    }
+    // Publish which area is in front. A subscription rather than a setState,
+    // because this runs every frame and everything above the canvas is a
+    // consumer — see `facingChannel`. `publishFacing` is its own no-op when
+    // nothing changed, so this needs no guard of its own.
+    publishFacing(facingSectionOnPlanet(directionAt(azimuthRef.current, polarRef.current)));
   });
 
   return (

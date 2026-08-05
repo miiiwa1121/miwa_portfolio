@@ -40,7 +40,12 @@ export default function ProjectCard({ project, onOpen, onBlockedLink }: Props) {
             title={statusLabel(project.status, language)}
           />
         </div>
-        <div className="absolute bottom-2 left-2 z-20 bg-white/90 px-2 py-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* The blur is on the hover state, not on the hidden element. A
+            `backdrop-filter` costs whether or not the thing carrying it is
+            visible: eight of these live inside the sheet, and the sheet spends
+            0.6–0.9s animating its own transform every time a detail page is
+            opened or closed — over the same seconds the camera is flying. */}
+        <div className="absolute bottom-2 left-2 z-20 bg-white/90 px-2 py-1 rounded opacity-0 group-hover:opacity-100 group-hover:backdrop-blur-sm transition-opacity">
           <span className="text-[10px] text-gray-600 font-bold tracking-widest uppercase">
             {language === "ja" ? "クリックで詳細" : "Click to view"}
           </span>

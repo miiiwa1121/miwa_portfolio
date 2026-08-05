@@ -9,6 +9,7 @@ import {
   aboutReturnProgress,
   aboutScrollProgress,
   autoScrollStep,
+  scrollCatchUp,
   settleRetryDelay,
   shouldReturnHome,
   wheelScrollStep,
@@ -75,6 +76,58 @@ export default function About({ onFinish }: Props) {
   const proseRef = useRef<HTMLDivElement | null>(null);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /**
+   * Where the column is heading. The wheel and the auto-play both write here
+   * and the frame loop walks `scrollTop` towards it — see `scrollCatchUp` for
+   * why the camera makes that indirection worth having.
+   *
+   * Authoritative, not a shadow of `scrollTop`: the wheel is `preventDefault`ed
+   * and there is no other way to scroll this box, so nothing else moves it.
+   */
+  const scrollTargetRef = useRef(0);
+
+  /**
+   * The column's own measurements — the three numbers every frame needs, none
+   * of which change while it is being read.
+   *
+   * Cached rather than measured per frame. Reading `getComputedStyle` and
+   * `offsetHeight` and then writing `scrollTop` is a read/write/read against
+   * layout, and this loop runs for the whole time the reader is also flying the
+   * camera home; the browser was being made to flush layout twice a frame for
+   * numbers that only move when the column is laid out again.
+   */
+  const metricsRef = useRef({ lineHeight: 0, proseBottom: 0, maxScroll: 0 });
+
+  /** Keeps a scroll target inside the column, the way `scrollTop` keeps itself. */
+  const clampScroll = (value: number) => Math.max(0, Math.min(metricsRef.current.maxScroll, value));
+
+  useEffect(() => {
+    const column = columnRef.current;
+    const prose = proseRef.current;
+    if (!column || !prose) return;
+    const measure = () => {
+      metricsRef.current = {
+        // The scroller carries no line-height of its own — it would report
+        // `normal` — so this is the prose block's, which is also the one number
+        // that already tracks the type size at every viewport width.
+        lineHeight: parseFloat(getComputedStyle(prose).lineHeight),
+        // A fixed document-space pixel: where the last line sits before any
+        // scrolling (see `aboutScrollProgress`).
+        proseBottom: prose.offsetTop + prose.offsetHeight,
+        maxScroll: Math.max(0, column.scrollHeight - column.clientHeight),
+      };
+    };
+    measure();
+    // Both boxes: the prose changes height when the copy rewraps, and the
+    // column's `clientHeight` changes when the window does.
+    const observer = new ResizeObserver(measure);
+    observer.observe(prose);
+    observer.observe(column);
+    return () => observer.disconnect();
+    // The copy itself changes with the language, which moves `offsetTop` even
+    // where it does not change any box's size.
+  }, [isJa]);
+
   // The camera starts where the column does. Published on the way in as well
   // as on the way out, so a column reopened after being read to the end never
   // hands the scene a leftover 1 and drops it straight home.
@@ -106,15 +159,18 @@ export default function About({ onFinish }: Props) {
     const onWheel = (event: WheelEvent) => {
       event.stopPropagation();
       event.preventDefault();
-      // `scrollTop` clamps itself at both ends, so an overscroll at the top or
-      // the bottom stops there rather than being accumulated and having to be
-      // scrolled back out of.
+      // The *target*, not the column itself — the loop below walks it there
+      // over a few frames (see `scrollCatchUp` for why the camera makes that
+      // necessary). Clamped here because `scrollTarget` is a number of our own
+      // rather than `scrollTop`, which clamps itself: without it an overscroll
+      // at either end would bank travel that has to be scrolled back out of.
       //
       // `window.innerHeight`, not `element.clientHeight`: the column's own
       // box is taller than the viewport now (see the scroller's `h-[350%]`
       // below), so its `clientHeight` no longer means "one screen" — a
       // `deltaMode === 2` (page-unit) wheel event needs the actual viewport.
-      element.scrollTop += wheelScrollStep(event.deltaY, event.deltaMode, window.innerHeight);
+      const step = wheelScrollStep(event.deltaY, event.deltaMode, window.innerHeight);
+      scrollTargetRef.current = clampScroll(scrollTargetRef.current + step);
     };
     element.addEventListener("wheel", onWheel, { passive: false });
     return () => element.removeEventListener("wheel", onWheel);
@@ -132,22 +188,28 @@ export default function About({ onFinish }: Props) {
   // `lastTime` starts null and the first frame only records it — same
   // reasoning as not adding `delta` on a flight's first frame in
   // `Scene.tsx`: there is no prior frame yet to measure a step against.
+  //
+  // Two clocks, deliberately. The auto-play runs on the diorama's, so the
+  // pause button stops the crawl with everything else; the catch-up runs on
+  // real time, so a wheel turned while paused still arrives somewhere.
   useEffect(() => {
     let frameId: number;
     let lastTime: number | null = null;
     const tick = (now: number) => {
       const element = columnRef.current;
-      const prose = proseRef.current;
-      if (element && prose && lastTime !== null) {
+      if (element && lastTime !== null) {
         const realDeltaSeconds = (now - lastTime) / 1000;
         // The pace is a rate in *lines* (see ABOUT_AUTO_SCROLL_LINES_PER_SECOND),
         // so the prose block's own computed line height is what converts it to
-        // pixels. Read fresh each frame rather than measured once: it changes
-        // with the breakpoint, and a resize mid-read would otherwise leave the
-        // crawl running at the previous width's speed.
-        const lineHeight = parseFloat(getComputedStyle(prose).lineHeight);
-        const step = autoScrollStep(sceneClock.delta(realDeltaSeconds), lineHeight);
-        if (step > 0) element.scrollTop += step;
+        // pixels — cached rather than read here, since it only changes when the
+        // column is laid out again (see `metricsRef`).
+        const auto = autoScrollStep(sceneClock.delta(realDeltaSeconds), metricsRef.current.lineHeight);
+        if (auto > 0) scrollTargetRef.current = clampScroll(scrollTargetRef.current + auto);
+
+        const catchUp = scrollCatchUp(element.scrollTop, scrollTargetRef.current, realDeltaSeconds);
+        // Sub-pixel steps are rounded away by `scrollTop` anyway; skipping them
+        // keeps a settled column from writing to it sixty times a second.
+        if (Math.abs(catchUp) >= 0.01) element.scrollTop += catchUp;
       }
       lastTime = now;
       frameId = requestAnimationFrame(tick);
@@ -162,19 +224,10 @@ export default function About({ onFinish }: Props) {
     onFinish();
   };
 
-  // The document-space pixel the prose block's own bottom edge sits at —
-  // fixed regardless of scrollTop (see aboutScrollProgress). Read fresh each
-  // time rather than cached: a language switch or a resize changes line
-  // wrapping and therefore proseRef's height.
-  const proseBottom = () => {
-    const prose = proseRef.current;
-    return prose ? prose.offsetTop + prose.offsetHeight : 0;
-  };
-
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     if (finished.current) return;
     const el = event.currentTarget;
-    const progress = aboutScrollProgress(el.scrollTop, proseBottom());
+    const progress = aboutScrollProgress(el.scrollTop, metricsRef.current.proseBottom);
     // Before the finish check, not after: the event that ends the column is
     // also the one that has to leave the camera home, and returning early
     // would strand it a hair short of the home framing for the scene to then
@@ -199,7 +252,7 @@ export default function About({ onFinish }: Props) {
       settleTimer.current = setTimeout(() => {
         const column = columnRef.current;
         if (!column) return;
-        const now = aboutScrollProgress(column.scrollTop, proseBottom());
+        const now = aboutScrollProgress(column.scrollTop, metricsRef.current.proseBottom);
         aboutReturn.publish(aboutReturnProgress(now));
         if (shouldReturnHome(now, Date.now() - openedAt.current)) finish();
       }, retry);

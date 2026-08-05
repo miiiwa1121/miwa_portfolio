@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, ReactNode } from "react";
 import { hashForSection, sectionFromHash } from "./sectionUrl";
 import type { SectionType } from "@/types";
 import type { OrbitZoom } from "@/scene/worldLayout";
@@ -28,13 +28,6 @@ interface AppStateContextType {
   goHome: () => void;
   /** Bumps every time goHome() runs; the camera watches it to reset its view. */
   homeNonce: number;
-  /**
-   * Which area the camera is currently turned towards. Published by the scene
-   * as it orbits, and read by the card — so the card can never disagree with
-   * what is actually on screen.
-   */
-  facing: NonNullable<SectionType>;
-  setFacing: (section: NonNullable<SectionType>) => void;
   /**
    * Ask the camera to turn to an area without focusing it — what swiping the
    * card does. Carries a nonce so asking twice for the same area still turns.
@@ -76,7 +69,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [activeSection, setActiveSection] = useState<SectionType>(null);
   const [pageOpen, setPageOpen] = useState(false);
   const [homeNonce, setHomeNonce] = useState(0);
-  const [facing, setFacing] = useState<NonNullable<SectionType>>("products");
   const [turnRequest, setTurnRequest] = useState<{ section: NonNullable<SectionType>; nonce: number } | null>(null);
   const [paused, setPaused] = useState(false);
   const [orbitZoom, setOrbitZoom] = useState<OrbitZoom>("near");
@@ -177,13 +169,20 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     window.history.pushState(null, "", wanted || window.location.pathname);
   }, [pageOpen, activeSection]);
 
-  return (
-    <AppStateContext.Provider
-      value={{ activeSection, setActiveSection, pageOpen, setPageOpen, openPage, closePage, goHome, homeNonce, facing, setFacing, turnTo, turnRequest, paused, togglePaused, orbitZoom, setOrbitZoom, goToOrbit }}
-    >
-      {children}
-    </AppStateContext.Provider>
+  // Memoised so a re-render of the provider that changed none of this — a
+  // parent re-rendering, a state set to the value it already held — does not
+  // hand every consumer a new object. Every consumer here is above the
+  // `<Canvas>`, whose setup effect has no dependency array and re-renders the
+  // whole three.js tree when it runs (see `facingChannel` for the full note).
+  const value = useMemo(
+    () => ({
+      activeSection, setActiveSection, pageOpen, setPageOpen, openPage, closePage, goHome, homeNonce,
+      turnTo, turnRequest, paused, togglePaused, orbitZoom, setOrbitZoom, goToOrbit,
+    }),
+    [activeSection, pageOpen, openPage, closePage, goHome, homeNonce, turnTo, turnRequest, paused, togglePaused, orbitZoom, goToOrbit]
   );
+
+  return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 }
 
 export function useAppState() {

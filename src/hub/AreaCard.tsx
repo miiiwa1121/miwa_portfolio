@@ -6,6 +6,7 @@ import { ChevronRight } from "lucide-react";
 import { useCardGestures } from "./useCardGestures";
 import { initialWheelState, stepForWheel, wheelPixels } from "./cardWheel";
 import { MARKER_TRAIL_INK } from "@/scene/markerBolt";
+import { useFacing } from "@/state/facingChannel";
 import type { SectionType } from "@/types";
 
 /**
@@ -105,11 +106,12 @@ const CARD_SETTLE_MS = 160;
 const STEP_TIMEOUT_MS = 1000;
 
 type Props = {
-  /** The area being described — whatever the camera is turned towards. */
-  section: NonNullable<SectionType>;
+  /**
+   * The area the camera has been sent to, or null in the free orbit — where the
+   * card follows whatever is in front instead.
+   */
+  focusedSection: SectionType;
   isJa: boolean;
-  /** True once an area is focused, which retires the trail and its anchor. */
-  focused: boolean;
   /** The dot the leader line leaves from; measured, never restated. */
   anchorRef: React.RefObject<HTMLSpanElement | null>;
   onOpen: () => void;
@@ -118,13 +120,21 @@ type Props = {
 };
 
 export default function AreaCard({
-  section,
+  focusedSection,
   isJa,
-  focused,
   anchorRef,
   onOpen,
   onStep,
 }: Props) {
+  // Subscribed here rather than handed down from `Hub`. The area in front
+  // changes several times a lap, and `Hub` sits above the `<Canvas>` — a
+  // re-render there re-renders the entire three.js tree (see `facingChannel`).
+  // This is the one place the answer is displayed, so this is the one place
+  // that has any reason to re-render for it.
+  const facing = useFacing();
+  const section = focusedSection ?? facing;
+  /** True once an area is focused, which retires the trail and its anchor. */
+  const focused = !!focusedSection;
   const card = CARD[section];
 
   // Which way the last step went, so the entering card knows which side to

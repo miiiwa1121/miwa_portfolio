@@ -9,6 +9,7 @@ import { PALETTE, pick } from "./voxel/palette";
 import { sceneClock } from "./sceneClock";
 import { PARK_CENTRE, scatterAround, walkerFacing } from "./planet/decor";
 import { normalize, offsetDirection, surfacePoint, tangentBasis, type Direction } from "./planet/planetLayout";
+import { orientTo, quaternionOf, standOn } from "./planetPlacement";
 import { SMOOTH_PLANET_RADIUS } from "./planet/sections";
 
 const VS = 0.42;
@@ -18,25 +19,15 @@ const GROUND_RADIUS = SMOOTH_PLANET_RADIUS;
 
 /**
  * A world position + quaternion for something standing at `direction`,
- * `height` above the surface.
+ * `height` above the surface — for the placements decided once, in a `useMemo`.
  *
- * The same conversion `Diorama.tsx`'s `BUILDING_QUATERNIONS` does for the
- * five landmarks — `tangentBasis` decides *which* way is up here, and this
- * is only the three.js plumbing to hand that to a `<group>`. Kept local
- * rather than shared: every caller in this file wants the same two things
- * (a position and a quaternion) from the same two inputs, and nothing
- * outside the render layer needs a `THREE.Quaternion`.
+ * Anything recomputed every frame uses `standOn` (the clouds and the villagers
+ * below), which writes into the object rather than handing back tuples for a
+ * render to spread.
  */
 function standAt(direction: Direction, height = 0, yaw = 0): { position: [number, number, number]; quaternion: [number, number, number, number] } {
-  const { right, up, forward } = tangentBasis(direction, yaw);
-  const matrix = new THREE.Matrix4().makeBasis(
-    new THREE.Vector3(...right),
-    new THREE.Vector3(...up),
-    new THREE.Vector3(...forward)
-  );
-  const q = new THREE.Quaternion().setFromRotationMatrix(matrix);
   const [x, y, z] = surfacePoint(direction, GROUND_RADIUS, height);
-  return { position: [x, y, z], quaternion: [q.x, q.y, q.z, q.w] };
+  return { position: [x, y, z], quaternion: quaternionOf(tangentBasis(direction, yaw)) };
 }
 
 // ---------------------------------------------------------------
@@ -209,10 +200,7 @@ export function Clouds() {
       const g = refs.current[i];
       if (!g) return;
       const bearing = c.seed + time * c.speed * 0.2;
-      const dir = offsetDirection(anchors[i], bearing, c.driftRadius);
-      const { position, quaternion } = standAt(dir, c.height);
-      g.position.set(...position);
-      g.quaternion.set(...quaternion);
+      standOn(g, offsetDirection(anchors[i], bearing, c.driftRadius), GROUND_RADIUS, c.height);
     });
   });
 
@@ -263,22 +251,19 @@ export function Villagers() {
       if (!g) return;
       const bearing = time * n.speed + n.phase;
       const bob = 0.15 + Math.abs(Math.sin(bearing * 8)) * 0.06;
-      const dir = offsetDirection(PARK_CENTRE, bearing, n.angularRadius);
+      // Not `standOn`: a villager faces the way it is walking, which is the
+      // path's own tangent, rather than the fixed local north `tangentBasis`
+      // would give it.
+      const up = offsetDirection(PARK_CENTRE, bearing, n.angularRadius);
       const facing = walkerFacing(PARK_CENTRE, bearing);
       const forward: Direction = n.speed >= 0 ? facing : [-facing[0], -facing[1], -facing[2]];
-      const up = dir;
-      const right = [
+      const right: Direction = [
         up[1] * forward[2] - up[2] * forward[1],
         up[2] * forward[0] - up[0] * forward[2],
         up[0] * forward[1] - up[1] * forward[0],
-      ] as Direction;
-      const matrix = new THREE.Matrix4().makeBasis(
-        new THREE.Vector3(...right),
-        new THREE.Vector3(...up),
-        new THREE.Vector3(...forward)
-      );
-      g.quaternion.setFromRotationMatrix(matrix);
-      g.position.set(...surfacePoint(dir, GROUND_RADIUS, bob));
+      ];
+      orientTo(g, { right, up, forward });
+      g.position.set(...surfacePoint(up, GROUND_RADIUS, bob));
     });
   });
 

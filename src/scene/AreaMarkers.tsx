@@ -22,6 +22,7 @@ import { PLANET_SECTION_KEYS, sectionDirection } from "./planet/sections";
 import { markerOnScreen, publishMarkerScreen } from "./markerScreen";
 import { sceneClock } from "./sceneClock";
 import { useAppState } from "@/state/AppStateContext";
+import { facingNow } from "@/state/facingChannel";
 
 /**
  * A pulsing bolt of pale blue lightning floating over each area, marking the
@@ -165,7 +166,7 @@ function outwardExtent(box: THREE.Box3, centre: THREE.Vector3, normal: THREE.Vec
 }
 
 export default function AreaMarkers() {
-  const { facing, activeSection, setActiveSection } = useAppState();
+  const { activeSection, setActiveSection } = useAppState();
   const [hovered, setHovered] = useState<string | null>(null);
   useCursor(hovered !== null);
   const texture = useMemo(() => makeBoltTexture(), []);
@@ -179,12 +180,16 @@ export default function AreaMarkers() {
   /** The half-height each bolt was actually drawn at this frame, pulse included. */
   const drawn = useRef<number[]>([]);
 
-  // The area currently being talked about. Focusing one pins it; otherwise it
-  // is whatever the camera has turned towards. The card reads the same thing,
-  // which is what keeps the highlighted bolt, the trail and the card agreeing.
-  const spotlight = activeSection ?? facing;
-
   useFrame((state) => {
+    // The area currently being talked about. Focusing one pins it; otherwise it
+    // is whatever the camera has turned towards. The card reads the same thing,
+    // which is what keeps the highlighted bolt, the trail and the card agreeing.
+    //
+    // Read here rather than as a subscription: the answer is only ever used to
+    // draw this frame, so there is nothing for a re-render to do (see
+    // `facingChannel`). The camera publishes it earlier in this same frame.
+    const spotlight = activeSection ?? facingNow();
+
     // Only the pulse and the spark are on the diorama's clock. The easing below
     // and the projection at the end are answers to the camera and the pointer,
     // both of which still move while the scene is paused.

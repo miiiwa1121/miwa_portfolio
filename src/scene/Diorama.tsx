@@ -1,6 +1,5 @@
 "use client";
 
-import * as THREE from "three";
 import type { SectionType } from "@/types";
 import Planet from "./Planet";
 import {
@@ -12,6 +11,7 @@ import {
 } from "./ProceduralObjects";
 import { BUILDING_POSITIONS } from "./worldLayout";
 import { PLANET_SECTION_KEYS, sectionBasis } from "./planet/sections";
+import { quaternionOf } from "./planetPlacement";
 import AreaMarkers from "./AreaMarkers";
 import FillerCity from "./FillerCity";
 import { Clouds, FerrisWheel, StreetLamps, Trees, Villagers } from "./Decorations";
@@ -24,23 +24,14 @@ import { VoxelBus } from "./VoxelBus";
  * `BUILDING_POSITIONS` is — nothing here depends on props or state, so there
  * is nothing for a render to redo.
  *
- * `Matrix4.makeBasis` takes local axes as arguments, and `sectionBasis`
- * already returns them in that order (right, up, forward) and already proved
- * right-handed (see planetLayout.test.ts) — so this conversion is the only
- * place three.js enters. `scene/planet/` itself stays free of it, which is
- * what lets the basis be tested without standing up a renderer.
+ * `sectionBasis` already returns the local axes in `Matrix4.makeBasis` order
+ * (right, up, forward) and already proved right-handed (see
+ * planetLayout.test.ts); `quaternionOf` is where three.js enters. `scene/planet/`
+ * itself stays free of it, which is what lets the basis be tested without
+ * standing up a renderer.
  */
 const BUILDING_QUATERNIONS = Object.fromEntries(
-  PLANET_SECTION_KEYS.map((key) => {
-    const { right, up, forward } = sectionBasis(key);
-    const matrix = new THREE.Matrix4().makeBasis(
-      new THREE.Vector3(...right),
-      new THREE.Vector3(...up),
-      new THREE.Vector3(...forward)
-    );
-    const q = new THREE.Quaternion().setFromRotationMatrix(matrix);
-    return [key, [q.x, q.y, q.z, q.w] as [number, number, number, number]];
-  })
+  PLANET_SECTION_KEYS.map((key) => [key, quaternionOf(sectionBasis(key))])
 ) as Record<NonNullable<SectionType>, [number, number, number, number]>;
 
 export default function Diorama() {

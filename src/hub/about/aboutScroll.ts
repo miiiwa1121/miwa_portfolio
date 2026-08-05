@@ -150,6 +150,45 @@ export function autoScrollStep(deltaSeconds: number, lineHeightPx: number): numb
 }
 
 /**
+ * How hard the column chases the position the reader has asked for — the `λ`
+ * of `MathUtils.damp`, i.e. the gap left shrinks by `1 - exp(-λΔt)` a frame.
+ * A quarter of a second to close a gap of any size: fast enough that a flick
+ * still feels like a flick, slow enough that the notches inside one are gone.
+ *
+ * **The camera is the reason this exists at all.** Reading the column *is* the
+ * trip home (see `aboutReturnProgress`), so the camera's framing is a direct
+ * function of `scrollTop` — no smoothing of its own, by design, because the
+ * scroll is supposed to be the thing driving it. A wheel that wrote `scrollTop`
+ * the instant an event arrived therefore put the trackpad's own delta pattern
+ * straight onto the camera: a flick delivers large, irregular steps, so the
+ * planet advanced in the same irregular steps. The column read as janky and the
+ * camera with it, but only when a hand was on the wheel — hands-off, the
+ * auto-play advances a smooth fraction of a line per frame and nothing stutters.
+ *
+ * Smoothing the scroll rather than the camera keeps `aboutReturnProgress`
+ * meaning exactly what it did, so nothing about where the trip ends changes;
+ * and the text, which is styled after a crawl, stops jumping too.
+ */
+const SCROLL_CATCH_UP_LAMBDA = 12;
+
+/**
+ * How far the column should move this frame to close in on `target`, in pixels.
+ *
+ * `deltaSeconds` is real time, not the diorama's: the pause button freezes the
+ * town, not the reader, and a wheel turned while paused still has to arrive
+ * somewhere. Only the auto-play (`autoScrollStep`) is on the scene's clock.
+ *
+ * Cannot overshoot — `1 - exp(-λΔt)` approaches 1 from below however long the
+ * frame was — so a tab returning from the background snaps to the target rather
+ * than sailing past it and bouncing.
+ */
+export function scrollCatchUp(current: number, target: number, deltaSeconds: number): number {
+  const gap = target - current;
+  if (!Number.isFinite(gap) || deltaSeconds <= 0) return 0;
+  return gap * (1 - Math.exp(-SCROLL_CATCH_UP_LAMBDA * deltaSeconds));
+}
+
+/**
  * How far through the column the reader is, 0 to 1 — measured against the
  * prose block's own bottom edge, not the column's total scroll range.
  *

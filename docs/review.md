@@ -454,7 +454,7 @@ out/.DS_Store, out/images/.DS_Store          ← ビルドで out/ にコピー�
 
 - **`closePage()` の `window.scrollTo`**（`AppStateContext.tsx`）も C-8 と同じ理由で no-op。
 - **`<section id="products">`（`detail/Section.tsx`）と URL hash `#products` が同名。** 現状は `pushState` を使っているので副作用は出ないが、将来 `location.hash = ...` に変えた瞬間にブラウザがその要素へスクロールする。片方に接頭辞を付けておくと安全。
-- **Context の value が毎レンダー新規オブジェクト**（AppState / Language 両方）。今は state 更新と同時にしか起きないので実害は薄いが、`useMemo` で包む価値はある。
+- **Context の value が毎レンダー新規オブジェクト**（Language / Terminal）。AppState は 2026-08-05 に `useMemo` 済み——あわせて `facing` を Context から購読チャンネルへ出した（`<Canvas>` より上の Context が変わると three.js のツリー全体が再調停されるため。理由は [docs/tech.md](tech.md) の「毎フレームの値は React state に載せない」）。
 - **画像ファイル名が日本語**（`音階神経衰弱.webp`）。URLエンコードで動くが、CDN やホスティングによっては事故る。ローマ字推奨。
 - **Skills が30個のフラットグリッド。** 習熟度も分類も無いので「ロゴを30個並べた」以上の情報がない。皮肉なことに**ターミナル側の `ASCII_SKILLS` は FRONTEND / BACKEND / MOBILE / INFRA / TOOLS に分類されていて情報量が上。** 本編にも同じ分類を入れる。`Claude` を言語・FWと同列に置くのも一考の余地がある。
 - **直近のコミットメッセージが `ok`。** 採用担当が git 履歴を見る可能性を考えると、ここも成果物。

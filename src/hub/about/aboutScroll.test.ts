@@ -5,6 +5,7 @@ import {
   aboutReturnProgress,
   aboutScrollProgress,
   autoScrollStep,
+  scrollCatchUp,
   settleRetryDelay,
   shouldReturnHome,
   wheelScrollStep,
@@ -158,6 +159,62 @@ describe("autoScrollStep", () => {
     expect(autoScrollStep(0.1, NaN)).toBe(0);
     expect(autoScrollStep(0.1, 0)).toBe(0);
     expect(autoScrollStep(0.1, -20)).toBe(0);
+  });
+});
+
+describe("scrollCatchUp", () => {
+  const FRAME = 1 / 60;
+
+  /** Walk a column from `from` towards `target` for `seconds`, one frame at a time. */
+  const settle = (from: number, target: number, seconds: number) => {
+    let at = from;
+    for (let t = 0; t < seconds; t += FRAME) at += scrollCatchUp(at, target, FRAME);
+    return at;
+  };
+
+  it("splits one flick across many frames instead of applying it whole", () => {
+    // The reason this exists: the camera's framing is a direct function of
+    // scrollTop, so a wheel event written straight through put the trackpad's
+    // own delta pattern onto the planet.
+    const flick = 600;
+    const firstFrame = scrollCatchUp(0, flick, FRAME);
+    expect(firstFrame).toBeGreaterThan(0);
+    expect(firstFrame).toBeLessThan(flick / 4);
+  });
+
+  it("gets there, and quickly enough that a flick still reads as a flick", () => {
+    expect(settle(0, 600, 0.25)).toBeGreaterThan(600 * 0.9);
+    expect(settle(0, 600, 1)).toBeCloseTo(600, 1);
+  });
+
+  it("never overshoots, however long the frame was", () => {
+    // A tab returning from the background hands the loop a multi-second step.
+    // Sailing past the target and coming back would be a bounce nobody asked
+    // for — and would take the camera with it.
+    for (const delta of [FRAME, 0.5, 5, 120]) {
+      expect(scrollCatchUp(0, 600, delta)).toBeLessThanOrEqual(600);
+      expect(scrollCatchUp(600, 0, delta)).toBeGreaterThanOrEqual(-600);
+    }
+  });
+
+  it("backs up the same way it goes forward", () => {
+    // Scrolling up to re-read a line is the same journey in reverse, and the
+    // camera follows it back out — the trip home is not one-way.
+    expect(settle(600, 0, 0.25)).toBeLessThan(60);
+    expect(scrollCatchUp(600, 0, FRAME)).toBeCloseTo(-scrollCatchUp(0, 600, FRAME), 10);
+  });
+
+  it("stands still when there is nowhere to go, or no time to do it in", () => {
+    expect(scrollCatchUp(400, 400, FRAME)).toBe(0);
+    expect(scrollCatchUp(0, 600, 0)).toBe(0);
+    expect(scrollCatchUp(0, 600, -1)).toBe(0);
+  });
+
+  it("yields no movement rather than a NaN scrollTop", () => {
+    // The same trap `autoScrollStep` guards: a NaN written to scrollTop lands
+    // as 0 and strands the column at the top with nothing to say why.
+    expect(scrollCatchUp(0, Number.NaN, FRAME)).toBe(0);
+    expect(scrollCatchUp(Number.NaN, 600, FRAME)).toBe(0);
   });
 });
 

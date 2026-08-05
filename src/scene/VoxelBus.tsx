@@ -9,6 +9,7 @@ import { PALETTE } from "./voxel/palette";
 import { sceneClock } from "./sceneClock";
 import { PLANET_TOUR } from "./planet/tour";
 import { surfacePoint, tangentOf, type Direction } from "./planet/planetLayout";
+import { orientTo } from "./planetPlacement";
 import { SMOOTH_PLANET_RADIUS } from "./planet/sections";
 
 const VS = 0.34;
@@ -79,12 +80,9 @@ export function VoxelBus() {
       up[0] * forward[1] - up[1] * forward[0],
     ];
 
-    const matrix = new THREE.Matrix4().makeBasis(
-      new THREE.Vector3(...right),
-      new THREE.Vector3(...up),
-      new THREE.Vector3(...forward)
-    );
-    group.quaternion.setFromRotationMatrix(matrix);
+    // Not `standOn`: the tram faces along the tour it is running, not the fixed
+    // local north `tangentBasis` would give it.
+    orientTo(group, { right, up, forward });
     group.position.set(...surfacePoint(now, GROUND_RADIUS, 0.3));
   });
 

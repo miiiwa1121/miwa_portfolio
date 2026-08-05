@@ -63,7 +63,10 @@
 - **極のクランプは自前で持つ。** `setLookAt` は毎フレーム `_spherical` を位置から組み直すだけで、`minPolarAngle`/`maxPolarAngle` を見ない（`rotateTo` と `_normalizeRotations` だけがそこを見る）。`camera-controls` 側は `[0, π]` に開けて争わせず、`ORBIT_MIN_POLAR`/`ORBIT_MAX_POLAR`（`0.15`/`π−0.15`）を毎フレーム自分でクランプする。
 - **カードを避ける横寄せは `focalOffsetX()` に一本化されている。** 自由回転・セクション・About のすべてが同じ関数を通る——「セクションへ寄るときは焦点オフセットを明示的に0に戻す」のような二本立ての規則は要らない。
 - **飛行は自前の時計とイージングで回す。** 毎フレーム `glidePose(from, to, easeInOutCubic(t))` を組んで `setLookAt(..., false)` に渡す。`setLookAt(..., true)` の `smoothTime` ダンピングは出だしが最速で、詳細ページのシートが退く短い間に飛行がほぼ終わってしまう。`lerp()` も使わない（±πをまたぐと長い方へ回る、`wrapAngle()` を通す）。**飛行の初回フレームには `delta` を加算しない**——`delta` は前フレームからの経過で、飛行はフレームの**間**に始まる。`frameloop="demand"` の裏では毎秒1フレームなので、加算すると1フレームで飛行が終わる。
+- **飛行そのものは `scene/cameraFlight.ts` が持つ純粋モジュール。** レコード（`Flight`）と1フレームぶんの前進（`advanceFlight`）が three.js の外にあるので、`MAX_FLIGHT_STEP` の効き方も着地の引き継ぎもレンダラ無しでテストできる。
+- **自由回転へ降りる飛行は、着地時に自由回転の状態を引き継がせる**（`Flight.land` → `FlightFrame.landed`）。**`azimuthRef`/`polarRef` はカメラの transform とは別の真実で、飛行はどちらも触らない**——だから飛行が終わった瞬間に4本（`azimuthRef`/`polarRef`/両ターゲット）へ着地角度を書かないと、次のアイドルフレームが**飛行前の角度から** damp を再開する。60fps では1フレームで `1 - exp(-λ/60) = 8%` しか進まないので、**旅の92%が1ティックで巻き戻り**、そこから0.6秒かけて飛び直すことになる。実測でセクション→ホームが最大36°、ロゴ→ホームが最大180°。セクション／About への飛行は `land: null`——前者はカメラを停めるだけ、後者は自分のフレームループで毎フレーム角度を書くため。
 - **カメラの行き先を決める effect は `Scene.tsx` に1つだけ**、経路は7つ（セクションへ寄る／Aboutへ寄る／リセットでツアー先頭へ／Aboutを読み切った＝何も飛ばさず着地先へ合わせる／セクションを離れてツアー再開／**自由回転のズーム段階が変わった**／初回マウント）。ここを分散させない。
+  - **セクションへ寄る分岐だけは、建物がまだシーンに無いことがある。** `#products` への直リンクは section を立てるのが1フレーム後（`applyUrl`）で、R3F は Canvas の子を `await` の向こうでコミットする。`focusSection()` は見つからなければ `false` を返し、フレームループが次のフレームで再試行する（`pendingFocusRef`）——黙って諦めると、セクションが選ばれているのにカメラは自由回転に停まったまま、という無言の失敗になる。
 - **自由回転には2つの固定高度がある**（`worldLayout.ts` の `OrbitZoom` = `"near"` | `"far"`）。`"near"`（`NEAR_ORBIT_RADIUS`、50）が新しいデフォルトで、参考写真（`reference/image7.png`——実写ではなく、円1個だけを重ねて配置とサイズだけを示したモックアップ）に画角を合わせた中間距離。`"far"`（`ORBIT_RADIUS`、100）はピンチで開く／ズームコントロールの「俯瞰」段を選んだときだけ入る一時的な状態——3段階の距離感が求められた回で、それぞれ「今の中間視点」「新しい参考写真」「建物ズームの参考写真」に合わせて一段ずつ寄せ直され、`ORBIT_RADIUS` はそのとき単に「以前の `NEAR_ORBIT_RADIUS` の値」に付け替えられた（旧140.32の式は退役）。`NEAR_ORBIT_RADIUS` 自体もその後 `reference/image5.png` を根拠に70へ決めたが、実写は配置の読み取りに向かず狙いより遠い値になっていたため、モックアップの `image7.png` を根拠に50へ再調整した。AppStateContext の `orbitZoom` が真実で、`orbitRadiusForZoom(orbitZoom)` がどちらの半径かを解決する——`Scene.tsx` 側で `ORBIT_RADIUS` を直接書いていた箇所（`flyToOrbit`・アイドル描画テール・リサイズ effect・About の帰りのブレンド先）は全部これ経由になっている。
   - **切り替えの入力は2つ**: 2本指ピンチ（`useViewInput` が `pointerId` ごとにポインタを追跡し、2点になった時点で単指ドラッグを打ち切ってピンチ判定に切り替える。つまむ/開くが `PINCH_THRESHOLD_PX` を超えた瞬間に1回だけ発火し、指を離すまで再発火しない——連続ズームではなく離散的な1段階の切り替え）と、ヘッダーのズームコントロール（`hub/ZoomControl.tsx`、一時停止ボタンの隣。**ボタン1個を押すたびに 俯瞰→標準→正面の建物→俯瞰… と巡回する**。ホバーで開くピッカーにしなかったのは、ホバーを要求する操作にはタッチの等価物が無いため。「正面の建物」段は `facing` へ `setActiveSection`）。
     - **ピンチがロジックとして正しくても、ブラウザ側に先取りされると届かない。** `pointermove` を受け取る前提として、キャンバスの祖先（`Hub.tsx` の固定div）に `touch-action: none`（Tailwind の `touch-none`）が要る——無いと2本指ジェスチャーはページのネイティブなピンチズームとして横取りされる。合わせて `app/layout.tsx` の `viewport` export（`maximumScale: 1`, `userScalable: false`）でページ全体の拡縮そのものを止めておく。どちらか一方だけでは不十分。
@@ -125,6 +128,8 @@
 
 **唯一の例外は背景の星**（drei の `<Stars>`）。またたきのシェーダー時計を `sceneClock` ではなく `state.clock.elapsedTime` から直接読んでいるため（ソースで確認済み）、`speed={0}` で完全に静止させている——動かして使うと、停止ボタンで止まらない唯一のオブジェクトになる。
 
+**この時計はレンダラの時刻が単調でないことを前提に組んである。** `frameloop` を `"demand"`↔`"always"` で切り替えると、R3F の `setFrameloop` が `clock.stop(); clock.elapsedTime = 0; clock.start(); clock.elapsedTime = 0` を実行する（`events-*.esm.js`）——詳細ページを開くたび・閉じるたびに**レンダラの時刻が0から数え直しになる**。`sceneClock` は内部に `restarts`（巻き戻り幅の累計）を持ち、渡された `elapsed` が前回より小さければその差を積んで補正する。これが無いと、時刻の関数で位置が決まるもの（トラム・雲・住人・マーカーの脈動と `strikeIndex`）が**閉じた瞬間に一斉にワープする**——しかも `Hub.tsx` は progress がわずかでも立てば `setCovered(false)` を投げるので、スペーサが透けて惑星が見えている状態で起きる。`setPaused` も同じ補正を通す（`frozenAt` と `skipped` が `time()` の答えと同じ座標系に乗る必要がある）。**`frameloop` の切り替え自体は残す**——省電力のためのもので、直すべきはこちら側。
+
 ### 宇宙の見た目
 
 背景は暗い宇宙紺（`#070a14`、`Hub.tsx` の背景色 div 一箇所で持つ——canvas 自身は透明で、色を塗っていない。理由は次項）。フォグは無い——大気が無い場所には「遠景を距離で溶かす」役が存在しないので、暗さがその役を引き受ける。`ambientLight`/`hemisphereLight` を低く抑えることで、太陽側と反対側がはっきり濃淡を持つ（時刻や自転を持たせているわけではなく、低い環境光の結果としての「昼夜」）。影のカメラ範囲（`shadow-camera-*`）は実際のシーンの大きさ（`SMOOTH_PLANET_RADIUS` ＋最も高い建物）から計算しており、フォグと違って惑星の大きさを変えるたびに retighten が要る。
@@ -171,14 +176,24 @@
   - **英語版はこの対象外**（欧文だけの文章に全角も `15em` の格子も意味がない）。
 - **黄（`#FFE81F`）に `text-shadow` の縁取りは掛けていない（2026-08-03に撤去）。** 惑星と重なる区間はコントラスト比 **1.60**（`docs/review.md` A-6）まで落ちる認識のうえで、ユーザーの明示的な指示により外した——縁取りが要る/要らないは見た目の好みで決まる話なので、勝手に復活させない。
 
+### 毎フレームの値は React state に載せない
+
+**`<Canvas>` より上のコンテキストが変わると、three.js のツリー全体が React に再調停される。** R3F 9 の `CanvasImpl` の setup effect には**依存配列が無く**、再レンダーのたびに `configure()` と `root.render(children)` が走る——惑星・5棟＋看板・`FillerCity` の290棟・装飾一式が毎回そこを通る。
+
+- **`React.memo` では止められない。** `its-fine` の `useContextBridge`（R3F がコンテキストをリコンサイラ境界の向こうへ運ぶ仕組み）は `CanvasImpl` のレンダー中に上位の全コンテキストを `use()` で購読するので、props が変わらなくても Canvas は再レンダーする。しかも memo すると今度は `CameraController` が `activeSection` の変化を受け取れなくなる——Bridge は `root.render` 経由でしか新しい値を運ばないため。**打てる手は「Canvas より上のコンテキストが変わる回数を減らす」しかない。**
+- そのため、毎フレームまたは頻繁に変わる値は**購読チャンネル**（プレーンなモジュール＋リスナーの `Set`）で運ぶ。現在3つ: `scene/markerScreen.ts`（マーカーの画面座標）、`hub/about/aboutScroll.ts` の `aboutReturn`（帰りの進捗）、`state/facingChannel.ts`（正面のエリア）。
+- **`facing` の読み手は3種類に分かれる**: `AreaCard` は `useSyncExternalStore` で購読（表示するので再レンダーが要る）、`AreaMarkers` は `useFrame` の中で `facingNow()` を読む（描くだけなので再レンダー不要）、`Hub` はハンドラが発火した時点で読む（`cardSection()`）。`AppStateContext` に置いていた頃は1ラップに5回、シーン全体の再調停を起こしていた。
+- `AppStateContext` の value は `useMemo` で包んである。
+
 ### その他
 
-- **省電力**: 詳細ページがキャンバスを覆っている間は `frameloop="demand"` に切り替え、毎秒1回だけ描画する。
+- **省電力**: 詳細ページがキャンバスを覆っている間は `frameloop="demand"` に切り替え、毎秒1回だけ描画する。**切り替えはレンダラの時計をリセットする**ので、`sceneClock` 側の補正とセット（「ジオラマの時計」参照）。
+- **`scene/planet/` の基底を three.js の姿勢に変えるのは `scene/planetPlacement.ts` 一箇所。** `quaternionOf` は一度きりの配置（5棟・木・街灯）用にタプルを返し、`orientTo`／`standOn` は毎フレーム動くもの（雲・住人・トラム）用にモジュールスコープの scratch へ書いて `Object3D` を直接更新する。後者を素直に書くと `Matrix4` + `Vector3`×3 + `Quaternion` が毎フレーム10体ぶん生まれ、毎秒6千オブジェクトのGC圧になる——それが遷移の最中に回収されると1フレーム落ちる。
 - **URL**: 開いているセクションをハッシュ（`#products` 等）に反映し、戻るボタンとリンク共有に対応。ただしセクションの中身はクライアント描画のため、プリレンダーされた HTML には含まれない。
 
 ## テスト
-- **Vitest**（node環境）。React も three.js も含まない純粋ロジックのみを対象にしているため、DOMもレンダラも不要で全体が1秒未満で走る（342件）。最も重いのは惑星の球殻の生成と水密性の検査。**ループの中で `expect` を数千回呼ばない** — 数万個のブロックを1個ずつ検証すると、惑星を生成するより検証の方が高くつく。集計してから1回だけ検証する。
-- 対象: カメラの姿勢計算と飛行の補間（`scene/worldLayout.ts`）、球面の幾何・接空間の基底（`scene/planet/planetLayout.ts`）、各セクションの経緯度（`scene/planet/sections.ts`）、ツアー経路（`scene/planet/tour.ts`）、惑星の球殻と地形（`scene/planet/shell.ts`）、雑居ビルの散布（`scene/planet/city.ts`）、プラザと装飾の配置（`scene/planet/decor.ts`）、ジオラマの時計（`scene/sceneClock.ts`）、決定論的ハッシュ（`scene/voxel/rng.ts`）、制作実績のフィルタ（`detail/products/catalog.ts`）、プロジェクトデータの言語解決（`data/project.ts`）、URL の解釈（`state/sectionUrl.ts`）、詳細ページの退場方向（`detail/detailSheet.ts`）、カードのホイール送り（`hub/cardWheel.ts`）、自己紹介の読了判定とスクロール連動の帰還（`hub/about/aboutScroll.ts`）。
+- **Vitest**（node環境）。React も three.js も含まない純粋ロジックのみを対象にしているため、DOMもレンダラも不要で全体が1秒未満で走る（425件）。最も重いのは惑星の球殻の生成と水密性の検査。**ループの中で `expect` を数千回呼ばない** — 数万個のブロックを1個ずつ検証すると、惑星を生成するより検証の方が高くつく。集計してから1回だけ検証する。
+- 対象: カメラの姿勢計算と飛行の補間（`scene/worldLayout.ts`）、飛行そのものと着地の引き継ぎ（`scene/cameraFlight.ts`）、球面の幾何・接空間の基底（`scene/planet/planetLayout.ts`）、各セクションの経緯度（`scene/planet/sections.ts`）、ツアー経路（`scene/planet/tour.ts`）、惑星の球殻と地形（`scene/planet/shell.ts`）、雑居ビルの散布（`scene/planet/city.ts`）、プラザと装飾の配置（`scene/planet/decor.ts`）、ジオラマの時計（`scene/sceneClock.ts`）、決定論的ハッシュ（`scene/voxel/rng.ts`）、制作実績のフィルタ（`detail/products/catalog.ts`）、プロジェクトデータの言語解決（`data/project.ts`）、URL の解釈（`state/sectionUrl.ts`）、詳細ページの退場方向（`detail/detailSheet.ts`）、カードのホイール送り（`hub/cardWheel.ts`）、自己紹介の読了判定とスクロール連動の帰還（`hub/about/aboutScroll.ts`）。
 - 新しいテストは**変異テストで検証する運用**にしている。意図的なバグを仕込んで落ちることを確認しないと、緑であることに意味がないため。
 
 ```bash
