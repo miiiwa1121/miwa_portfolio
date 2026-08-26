@@ -20,6 +20,7 @@ import {
   glidePose,
   easeInOutCubic,
   NEAR_ORBIT_RADIUS,
+  CAMERA_FOV,
   NEAR_VERTICAL_SHARE,
   orbitRadiusForZoom,
   ORBIT_MIN_POLAR,
@@ -1047,7 +1048,7 @@ export default function Scene({
       // very first paint can assume rather than read).
       camera={{
         position: orbitPose(home.azimuth, home.polar, NEAR_ORBIT_RADIUS).slice(0, 3) as [number, number, number],
-        fov: 45,
+        fov: CAMERA_FOV,
       }}
       dpr={[1, 2]}
       frameloop={obscured ? "demand" : "always"}

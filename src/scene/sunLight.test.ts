@@ -6,14 +6,13 @@ import {
   SUN_SHADOW_FAR,
   SUN_SHADOW_NEAR,
   SUN_ORB_RADIUS,
-  dragSunDirection,
-  sunVisibility,
+  sunDirectionAlong,
   incidence,
   sunPosition,
 } from "./sunLight";
 import { SMOOTH_PLANET_RADIUS } from "./planet/sections";
-import { NEAR_ORBIT_RADIUS } from "./worldLayout";
-import { angleBetween, dot, normalize, type Direction } from "./planet/planetLayout";
+import { CAMERA_FOV, ORBIT_RADIUS } from "./worldLayout";
+import { angleBetween, normalize, type Direction } from "./planet/planetLayout";
 
 describe("the shadow frustum", () => {
   it("holds the whole scene at the distance the sun is kept at", () => {
@@ -48,105 +47,137 @@ describe("incidence", () => {
   });
 });
 
-describe("dragging the sun", () => {
-  // The camera's own axes, for a camera out along +Z looking back at the planet.
-  const right: Direction = [1, 0, 0];
-  const up: Direction = [0, 1, 0];
-  const start: Direction = [0, 0, 1];
-  /** One-to-one tracking on a 900px viewport at fov 45. */
-  const perPixel = (45 * Math.PI) / 180 / 900;
+describe("placing the sun with the pointer", () => {
+  /** A camera out along +Z, at the overview altitude. */
+  const eye: Direction = [0, 0, ORBIT_RADIUS];
+  /** The ray from `eye` towards the point on the sun's own sphere in direction `d`. */
+  const rayAt = (d: Direction): Direction =>
+    normalize([d[0] * SUN_ORB_RADIUS - eye[0], d[1] * SUN_ORB_RADIUS - eye[1], d[2] * SUN_ORB_RADIUS - eye[2]]);
 
-  it("walks the sun the way the hand goes", () => {
-    const dragged = dragSunDirection(start, 100, 0, right, up, perPixel);
-    expect(dot(dragged, right)).toBeGreaterThan(dot(start, right));
-    const lifted = dragSunDirection(start, 0, -100, right, up, perPixel);
-    expect(dot(lifted, up)).toBeGreaterThan(dot(start, up));
-    // and the other way round, so a sign flip cannot pass by symmetry
-    expect(dot(dragSunDirection(start, -100, 0, right, up, perPixel), right)).toBeLessThan(0);
-    expect(dot(dragSunDirection(start, 0, 100, right, up, perPixel), up)).toBeLessThan(0);
+  it("puts the sun exactly where the pointer is", () => {
+    // The whole point of casting a ray rather than turning by a delta: no
+    // factor, no lag, nothing that varies with where on its circle the sun is.
+    for (const target of [
+      normalize([0, 0, 1]), // straight at the camera
+      normalize([0.6, 0.2, 0.77]),
+      normalize([-0.5, 0.5, 0.71]),
+      normalize([0.94, 0, 0.34]), // out towards the silhouette
+    ] as Direction[]) {
+      const landed = sunDirectionAlong(eye, rayAt(target));
+      expect(angleBetween(landed, target)).toBeLessThan(1e-6);
+    }
   });
 
-  it("tracks the pointer rather than merely responding to it", () => {
-    // A 300px drag across a 900px frame at fov 45 should carry the sun a third
-    // of the frame's own angle. Anything else and the sun slides out from under
-    // the finger holding it.
-    const third = ((45 * Math.PI) / 180) / 3;
-    expect(angleBetween(start, dragSunDirection(start, 300, 0, right, up, perPixel))).toBeCloseTo(third, 6);
-    // Both axes, at the same rate: a drag that is fast one way and slow the
-    // other slides out from under the finger on every diagonal.
-    expect(angleBetween(start, dragSunDirection(start, 0, 300, right, up, perPixel))).toBeCloseTo(third, 6);
+  it("takes the near intersection, so the sun does not jump round the back", () => {
+    // A ray through the middle of the sphere leaves by the far side too. Landing
+    // there would flip the sun behind the planet on a drag that only crossed the
+    // centre of the frame.
+    const landed = sunDirectionAlong(eye, [0, 0, -1]);
+    expect(landed[2]).toBeGreaterThan(0.99); // the side facing the camera
   });
 
-  it("stays a unit direction however far it is dragged", () => {
-    let d = start;
-    for (let i = 0; i < 400; i++) d = dragSunDirection(d, 37, -21, right, up, perPixel);
-    expect(Math.hypot(...d)).toBeCloseTo(1, 10);
+  it("follows a pointer dragged off the edge instead of letting go", () => {
+    // Rays that miss the sphere entirely — the pointer is outside its
+    // silhouette — still have to answer with something, or the sun would freeze
+    // whenever the hand overshot. The answer has to be the closest the sphere
+    // comes to that ray; anywhere else and the sun would slide sideways as the
+    // pointer went straight.
+    const past: Direction = normalize([1, 0, -0.2]); // well outside the silhouette
+    const landed = sunDirectionAlong(eye, past);
+    expect(Math.hypot(...landed)).toBeCloseTo(1, 10);
+    expect(landed[0]).toBeGreaterThan(0); // the side the pointer went
+
+    /** How far the ray passes from a point on the sun's sphere. */
+    const missBy = (d: Direction) => {
+      const p = [d[0] * SUN_ORB_RADIUS - eye[0], d[1] * SUN_ORB_RADIUS - eye[1], d[2] * SUN_ORB_RADIUS - eye[2]];
+      const along = p[0] * past[0] + p[1] * past[1] + p[2] * past[2];
+      return Math.hypot(p[0] - along * past[0], p[1] - along * past[1], p[2] - along * past[2]);
+    };
+    const best = missBy(landed);
+    for (let i = 0; i < 400; i++) {
+      const a = (i / 400) * 2 * Math.PI;
+      // Nudge the answer around in every direction; none may do better.
+      const nudged = normalize([landed[0] + 0.02 * Math.cos(a), landed[1] + 0.02 * Math.sin(a), landed[2]]);
+      expect(missBy(nudged)).toBeGreaterThanOrEqual(best - 1e-9);
+    }
   });
 
-  it("goes nowhere on a drag that went nowhere", () => {
-    const still = dragSunDirection(start, 0, 0, right, up, perPixel);
-    expect(angleBetween(still, start)).toBeCloseTo(0, 12);
+  it("does not jump as the pointer crosses the silhouette", () => {
+    // Where the near and far intersections meet, and the obvious way to write
+    // this — one branch for a hit, another for a miss — can part company.
+    //
+    // Tested by refining rather than by a threshold: the sun genuinely moves
+    // fast near the edge (a ray grazing a sphere slides a long way along it for
+    // very little pointer travel), so a fixed limit would only say how finely
+    // this happened to sample. A real break would not shrink when the sampling
+    // does; a steep but continuous stretch halves with it.
+    const sweep = (steps: number) => {
+      const rayAtSpread = (t: number): Direction => {
+        const spread = 0.05 + t * 0.35; // outwards past the sphere's edge (19.9°)
+        return normalize([Math.sin(spread), 0, -Math.cos(spread)]);
+      };
+      let previous = sunDirectionAlong(eye, rayAtSpread(0));
+      let worst = 0;
+      for (let i = 1; i <= steps; i++) {
+        const now = sunDirectionAlong(eye, rayAtSpread(i / steps));
+        worst = Math.max(worst, angleBetween(previous, now));
+        previous = now;
+      }
+      return worst;
+    };
+    const coarse = sweep(3000);
+    const fine = sweep(12000);
+    expect(fine).toBeLessThan(coarse * 0.75); // shrinks with the sampling: no break
+    expect(fine).toBeLessThan(0.02);
   });
 
-  it("can be put anywhere, the far side of the planet included", () => {
-    // Deliberately unclamped: the reader is allowed to make it night. What keeps
-    // that from being a black screen is the ambient floor, not a limit here.
-    // 4,000px of dragging is a shade over 200 degrees at this scale.
-    let d = start;
-    for (let i = 0; i < 40; i++) d = dragSunDirection(d, 100, 0, right, up, perPixel);
-    expect(dot(d, start)).toBeLessThan(-0.9); // round the back, well past the terminator
+  it("does not care how long the ray it is handed is", () => {
+    // A ray is a direction, not a distance, and the caller's may be either —
+    // three.js hands out a unit one, but the quadratic below only solves for a
+    // real distance along the ray if it is. Getting this wrong scales the hit
+    // point and lands the sun somewhere else entirely.
+    const ray: Direction = normalize([0.3, 0.2, -0.93]);
+    const unit = sunDirectionAlong(eye, ray);
+    for (const scale of [0.01, 7, 250]) {
+      const scaled = sunDirectionAlong(eye, [ray[0] * scale, ray[1] * scale, ray[2] * scale]);
+      expect(angleBetween(scaled, unit)).toBeLessThan(1e-6);
+    }
+  });
+
+  it("always answers a unit direction, whatever it is handed", () => {
+    for (const ray of [[0, 0, -1], [1, 1, 1], [0, 1, 0], [-1, 0, 0]] as Direction[]) {
+      const landed = sunDirectionAlong(eye, ray);
+      expect(Math.hypot(...landed)).toBeCloseTo(1, 10);
+      for (const v of landed) expect(Number.isFinite(v)).toBe(true);
+    }
   });
 });
 
 describe("the visible sun", () => {
+  // Only the overview altitude shows it, so that is the altitude it has to work
+  // at. The sun sits at `SUN_ORB_RADIUS` and is seen from `ORBIT_RADIUS`, both
+  // measured from the planet's centre, so at its widest — square-on to the
+  // camera — it appears this far off the middle of the frame:
+  const offAxisAtWidest = Math.atan(SUN_ORB_RADIUS / ORBIT_RADIUS);
+  /** How much of the frame the planet itself takes up from there. */
+  const planetDisc = Math.asin(SMOOTH_PLANET_RADIUS / ORBIT_RADIUS);
+  /** Half the frame, the short way. The sun has to fit inside this to be reachable. */
+  const frameHalfHeight = ((CAMERA_FOV / 2) * Math.PI) / 180;
+
+  it("clears the planet's own disc, so it is not hidden behind the world", () => {
+    expect(offAxisAtWidest).toBeGreaterThan(planetDisc);
+  });
+
+  it("stays inside the frame, so it can be reached", () => {
+    // This is the end the first attempt failed: out at 260 the sun was seen in
+    // essentially its own direction from the planet, which falls in frame only
+    // when it is behind the planet — where the planet then hides it. Zero
+    // sightings over a full lap.
+    expect(offAxisAtWidest).toBeLessThan(frameHalfHeight);
+  });
+
   it("clears everything standing on the planet", () => {
     // Otherwise it would pass through the city rather than over it.
     expect(SUN_ORB_RADIUS).toBeGreaterThanOrEqual(SCENE_BOUNDING_RADIUS);
-  });
-
-  it("stays inside the closest the camera ever gets, so the planet can hide it", () => {
-    // This is what makes the sun set instead of hanging in front of the world.
-    // Pushing it outside the orbit is what made the first version invisible:
-    // the camera only ever looks at the planet's centre, so a distant sun falls
-    // in frame only when it is behind the planet, which then occludes it.
-    expect(SUN_ORB_RADIUS).toBeLessThan(NEAR_ORBIT_RADIUS);
-  });
-});
-
-describe("sunVisibility", () => {
-  const view: Direction = [0, 0, 1]; // the camera is out along +Z
-
-  it("shows the sun fully when it is out beside the planet or behind it", () => {
-    expect(sunVisibility([1, 0, 0], view)).toBe(1); // 90°, at the limb
-    expect(sunVisibility([0, 0, -1], view)).toBe(1); // 180°, behind the planet
-    expect(sunVisibility([0, 1, 0], view)).toBe(1); // 90° the other way
-  });
-
-  it("hides it once it is between the eye and the world", () => {
-    // Where it would otherwise draw as a bright dot sitting on top of the city.
-    expect(sunVisibility(view, view)).toBe(0);
-    expect(sunVisibility(normalize([0.2, 0, 1]), view)).toBe(0); // 11°
-  });
-
-  it("crosses over without a step, since the arc is crossed by hand", () => {
-    // A sun that blinks out mid-drag reads as a bug. Sampled finely across the
-    // whole range, no single step may be visible.
-    let previous = sunVisibility(view, view);
-    let worst = 0;
-    for (let i = 1; i <= 2000; i++) {
-      const angle = (i / 2000) * Math.PI;
-      const sun: Direction = [Math.sin(angle), 0, Math.cos(angle)];
-      const now = sunVisibility(sun, view);
-      worst = Math.max(worst, Math.abs(now - previous));
-      previous = now;
-    }
-    expect(worst).toBeLessThan(0.01);
-  });
-
-  it("is 0 or 1 outside the crossing and strictly between inside it", () => {
-    const mid: Direction = [Math.sin(1), 0, Math.cos(1)]; // 1 rad, inside the ramp
-    const showing = sunVisibility(mid, view);
-    expect(showing).toBeGreaterThan(0);
-    expect(showing).toBeLessThan(1);
   });
 });

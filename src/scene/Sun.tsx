@@ -12,11 +12,11 @@ import {
   SUN_SHADOW_NEAR,
   SUN_ORB_RADIUS,
   SUN_ORB_SCREEN_RADIUS,
-  dragSunDirection,
-  sunVisibility,
+  sunDirectionAlong,
 } from "./sunLight";
 import { markerScaleForScreenRadius } from "./worldLayout";
 import type { Direction } from "./planet/planetLayout";
+import { useAppState } from "@/state/AppStateContext";
 
 /**
  * The sun: a light, an object in the sky, and a thing you can pick up and move.
@@ -37,6 +37,14 @@ import type { Direction } from "./planet/planetLayout";
  * `SUN_ORB_RADIUS` — see the note there for why a distant one was never once on
  * screen — and is sized in pixels rather than world units, so it stays a
  * predictable thing to grab all the way round.
+ *
+ * **Only the overview altitude shows it, and only there can it be moved.** That
+ * is where there is sky to see it in — the planet's disc is 9.7° across from
+ * `ORBIT_RADIUS` against 19.7° from `NEAR_ORBIT_RADIUS`, and the near altitude
+ * also leans the planet into the corner of the frame, which left the sun
+ * clipped at the edge and on screen for about a third of a lap. The light does
+ * not stop when the object goes: wherever the sun was left is where it goes on
+ * shining from, at every altitude and inside every section.
  *
  * Everything here is written straight into three.js objects from a frame loop.
  * The direction lives in a ref rather than React state for the usual reason
@@ -71,9 +79,9 @@ function makeSunTexture(): THREE.Texture {
   return texture;
 }
 
-/** Scratch for reading the camera's own axes out of its matrix; never kept. */
-const cameraRight = new THREE.Vector3();
-const cameraUp = new THREE.Vector3();
+/** Scratch for turning a pointer into a ray; never kept. */
+const pointerNdc = new THREE.Vector2();
+const pointerRay = new THREE.Raycaster();
 
 type Props = {
   /**
@@ -90,8 +98,8 @@ export default function Sun({ draggingRef }: Props) {
   const lightRef = useRef<THREE.DirectionalLight>(null);
   const spriteRef = useRef<THREE.Sprite>(null);
   const directionRef = useRef<Direction>(SUN_DIRECTION);
-  /** The pointer currently holding the sun, and where it was last seen. */
-  const heldRef = useRef<{ id: number; x: number; y: number } | null>(null);
+  /** The id of the pointer currently holding the sun. */
+  const heldRef = useRef<number | null>(null);
 
   // The one thing here that is React state rather than a ref: it changes on
   // enter, leave, press and release — a handful of times, never per frame — and
@@ -105,57 +113,56 @@ export default function Sun({ draggingRef }: Props) {
 
   const camera = useThree((state) => state.camera);
   const canvas = useThree((state) => state.gl.domElement);
+  const { orbitZoom, activeSection } = useAppState();
+  /**
+   * Whether the sun is on show and in reach. `activeSection` as well as the
+   * altitude: clicking a marker focuses an area without touching `orbitZoom`,
+   * so "far" and "a building fills the frame" can be true at once.
+   */
+  const reachable = orbitZoom === "far" && !activeSection;
   /** Scratch for the sun's depth along the camera's forward axis; never kept. */
   const viewSpace = useRef(new THREE.Vector3());
-  const viewDirection = useRef(new THREE.Vector3());
 
   /**
    * The drag itself lives on `window`, not on the sprite.
    *
-   * The sun is a small target and the pointer leaves it almost immediately once
-   * it starts moving; a `onPointerMove` on the sprite would only fire while the
-   * pointer was still over it, so the sun would come unstuck the moment it was
-   * actually dragged. Listening on `window` is also how `useViewInput` runs the
+   * The sun is a small target and the pointer leaves it for a moment on every
+   * fast drag; a `onPointerMove` on the sprite would only fire while the
+   * pointer was still over it, so the sun would come unstuck exactly when it
+   * was being moved quickly. Listening on `window` is also how `useViewInput` runs the
    * planet's own drag, so the two behave the same way at the edges of the
    * screen and when the button is released outside the window.
    */
   useEffect(() => {
     const onMove = (event: PointerEvent) => {
-      const held = heldRef.current;
-      if (!held || held.id !== event.pointerId) return;
+      if (heldRef.current !== event.pointerId) return;
       event.preventDefault();
 
-      // The camera's own axes, this frame. Read out of its matrix rather than
-      // assumed: `camera.up` is a building's normal while a section is framed,
-      // not the world's +Y.
-      camera.updateMatrixWorld();
-      cameraRight.setFromMatrixColumn(camera.matrixWorld, 0);
-      cameraUp.setFromMatrixColumn(camera.matrixWorld, 1);
-
-      // A pixel of travel, in radians. Derived rather than tuned: at the
-      // sprite's own distance a pixel subtends `fov / viewportHeight`, so this
-      // is what keeps the sun under the finger holding it at any window size or
-      // field of view. A constant would track at exactly one window size.
-      const height = Math.max(1, canvas.clientHeight);
-      const radiansPerPixel = (((camera as THREE.PerspectiveCamera).fov * Math.PI) / 180) / height;
-
-      directionRef.current = dragSunDirection(
-        directionRef.current,
-        event.clientX - held.x,
-        event.clientY - held.y,
-        [cameraRight.x, cameraRight.y, cameraRight.z],
-        [cameraUp.x, cameraUp.y, cameraUp.z],
-        radiansPerPixel
+      // Straight to where the pointer is, rather than turned by how far it
+      // moved — see `sunDirectionAlong` for why no scaling of a delta can
+      // track. The camera's matrices have to be current before a ray is built
+      // from them: `camera-controls` writes position and quaternion each frame
+      // and leaves the matrices to `gl.render()`, so an event arriving between
+      // the two would otherwise aim with the previous frame's camera.
+      const rect = canvas.getBoundingClientRect();
+      pointerNdc.set(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
       );
-      held.x = event.clientX;
-      held.y = event.clientY;
+      camera.updateMatrixWorld();
+      pointerRay.setFromCamera(pointerNdc, camera);
+      const { origin, direction } = pointerRay.ray;
+      directionRef.current = sunDirectionAlong(
+        [origin.x, origin.y, origin.z],
+        [direction.x, direction.y, direction.z]
+      );
     };
 
     // Let go on release *anywhere* — a pointer that comes up outside the window
     // would otherwise leave the sun stuck to it and the free orbit locked out
     // behind it.
     const release = () => {
-      if (!heldRef.current) return;
+      if (heldRef.current === null) return;
       heldRef.current = null;
       draggingRef.current = false;
       setGrip((current) => (current === "held" ? "none" : current));
@@ -170,6 +177,16 @@ export default function Sun({ draggingRef }: Props) {
       window.removeEventListener("pointercancel", release);
     };
   }, [camera, canvas, draggingRef]);
+
+  // Leaving the overview mid-drag — the zoom control is a DOM button and does
+  // not go through the pointer the sun is holding — would otherwise leave the
+  // sun stuck to it and the free orbit locked out behind it.
+  useEffect(() => {
+    if (reachable || heldRef.current === null) return;
+    heldRef.current = null;
+    draggingRef.current = false;
+    setGrip("none");
+  }, [reachable, draggingRef]);
 
   useFrame((state) => {
     const light = lightRef.current;
@@ -194,14 +211,6 @@ export default function Sun({ draggingRef }: Props) {
       );
     }
 
-    // Fade the object out once it is between the eye and the world — at those
-    // angles the sun is really behind the viewer, and the planet being fully
-    // lit is the whole of what should be left. See `sunVisibility`. Hidden
-    // outright at zero so it stops taking the pointer as well as light.
-    const eye = viewDirection.current.copy(perspective.position).normalize();
-    const showing = sunVisibility(directionRef.current, [eye.x, eye.y, eye.z]);
-    (sprite.material as THREE.SpriteMaterial).opacity = showing;
-    sprite.visible = showing > 0.01;
   });
 
   return (
@@ -232,6 +241,9 @@ export default function Sun({ draggingRef }: Props) {
 
       <sprite
         ref={spriteRef}
+        // Not rendered and not raycast anywhere but the overview, which is what
+        // makes "only there can it be moved" one rule rather than two.
+        visible={reachable}
         onPointerOver={(e) => {
           e.stopPropagation();
           setGrip((current) => (current === "held" ? current : "over"));
@@ -242,7 +254,7 @@ export default function Sun({ draggingRef }: Props) {
         onPointerDown={(e) => {
           e.stopPropagation();
           draggingRef.current = true;
-          heldRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+          heldRef.current = e.pointerId;
           setGrip("held");
         }}
       >

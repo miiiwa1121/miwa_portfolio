@@ -51,6 +51,17 @@ export const BUILDING_POSITIONS = Object.fromEntries(
 export const ORBIT_RADIUS = 100;
 
 /**
+ * The camera's vertical field of view, in degrees.
+ *
+ * Named rather than left inline on the `<Canvas>` because things are sized
+ * against it: `focalOffsetX`/`focalOffsetY` and `frameDistance` all take it as
+ * an argument, and the sun's own radius is only correct for one angle (see
+ * `SUN_ORB_RADIUS`). A literal here would let the frame widen with nothing
+ * anywhere noticing.
+ */
+export const CAMERA_FOV = 45;
+
+/**
  * Which of the free orbit's two fixed altitudes the satellite is currently
  * at — "far" is `ORBIT_RADIUS` itself (the original overview), "near" is
  * `NEAR_ORBIT_RADIUS` (the closer default added afterwards). A third,
