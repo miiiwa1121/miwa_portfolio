@@ -39,19 +39,13 @@ import {
 } from "./worldLayout";
 import { PLANET_TOUR, sectionU, facingSectionOnPlanet } from "./planet/tour";
 import { PLANET_SECTION_KEYS, sectionDirection } from "./planet/sections";
-import { normalize, type Direction } from "./planet/planetLayout";
+import { type Direction } from "./planet/planetLayout";
 import { advanceFlight, beginFlight, type Flight } from "./cameraFlight";
 import { sceneClock } from "./sceneClock";
 import { aboutReturn } from "@/hub/about/aboutScroll";
 import { useAppState, type SectionType } from "@/state/AppStateContext";
 import { publishFacing } from "@/state/facingChannel";
-import {
-  SUN_DISTANCE,
-  SUN_SHADOW_FAR,
-  SUN_SHADOW_NEAR,
-  SCENE_BOUNDING_RADIUS,
-  sunDirection,
-} from "./sunLight";
+import { SCENE_BOUNDING_RADIUS, SUN_SHADOW_FAR, SUN_SHADOW_NEAR, sunPosition } from "./sunLight";
 
 // Rotation sensitivity (kept gentle).
 const DRAG_SENSITIVITY = 0.002; // radians per px of pointer drag, both axes
@@ -341,63 +335,6 @@ function IdleHeartbeat({ obscured }: { obscured: boolean }) {
   }, [obscured, invalidate]);
 
   return null;
-}
-
-/**
- * The sun, carried along with the camera at a fixed offset.
- *
- * A fixed sun cannot light this world: the five areas span 149.5° of sphere, so
- * whichever way it points at least one of them is past the terminator (see
- * `sunLight.ts` for the search and the measurements). Riding with the camera
- * means the area in front is always the lit one, and `SUN_TILT` is what keeps
- * that from collapsing into a headlight.
- *
- * Written from a frame loop rather than from props: the direction is a function
- * of where the camera is, which changes every frame and must never go through
- * React state (see `facingChannel`). The camera's matrices do not need to be up
- * to date here — only its position and `up`, both of which `camera-controls`
- * has already written by the time a priority-0 `useFrame` runs.
- */
-function SunLight() {
-  const lightRef = useRef<THREE.DirectionalLight>(null);
-
-  useFrame(({ camera }) => {
-    const light = lightRef.current;
-    if (!light) return;
-    // The direction from the planet's centre out towards the camera. The
-    // planet sits at the origin, so the camera's own position is that, up to
-    // scale — and it stays continuous through the focal offset, which nudges
-    // the camera off the pure orbit.
-    const view = normalize([camera.position.x, camera.position.y, camera.position.z]);
-    const [x, y, z] = sunDirection(view, [camera.up.x, camera.up.y, camera.up.z]);
-    // On the sphere the shadow bounds below were derived for; turning the sun
-    // anywhere on it leaves every one of them exactly as correct as it was when
-    // the sun never moved.
-    light.position.set(x * SUN_DISTANCE, y * SUN_DISTANCE, z * SUN_DISTANCE);
-  });
-
-  return (
-    <directionalLight
-      ref={lightRef}
-      intensity={1.5}
-      color="#fff3d6"
-      castShadow
-      // Halved from 2048. The shadows here are large soft shapes cast by blocky
-      // geometry, where the extra resolution bought detail nobody could see for
-      // four times the shadow-pass cost.
-      shadow-mapSize={[1024, 1024]}
-      // All four the same, and direction-independent: an orthographic shadow
-      // camera's bounds hold the projected size of what it frames, so they only
-      // have to cover the scene's own bounding radius. See SCENE_BOUNDING_RADIUS.
-      shadow-camera-left={-SCENE_BOUNDING_RADIUS}
-      shadow-camera-right={SCENE_BOUNDING_RADIUS}
-      shadow-camera-top={SCENE_BOUNDING_RADIUS}
-      shadow-camera-bottom={-SCENE_BOUNDING_RADIUS}
-      shadow-camera-near={SUN_SHADOW_NEAR}
-      shadow-camera-far={SUN_SHADOW_FAR}
-      shadow-bias={-0.0005}
-    />
-  );
 }
 
 /**
@@ -1136,11 +1073,31 @@ export default function Scene({
           universe outside the frame rather than a studio. */}
       <ambientLight intensity={0.2} />
       <hemisphereLight args={["#fff7e0", "#1c2440", 0.45]} />
+      <directionalLight
+        position={sunPosition()}
+        intensity={1.5}
+        color="#fff3d6"
+        castShadow
+        // Halved from 2048. The shadows here are large soft shapes cast by
+        // blocky geometry, where the extra resolution bought detail nobody
+        // could see for four times the shadow-pass cost.
+        shadow-mapSize={[1024, 1024]}
+        // All four the same, and direction-independent: an orthographic shadow
+        // camera's bounds hold the projected size of what it frames, so they
+        // only have to cover the scene's own bounding radius. See sunLight.ts,
+        // where these and their relationship to SUN_DISTANCE are kept.
+        shadow-camera-left={-SCENE_BOUNDING_RADIUS}
+        shadow-camera-right={SCENE_BOUNDING_RADIUS}
+        shadow-camera-top={SCENE_BOUNDING_RADIUS}
+        shadow-camera-bottom={-SCENE_BOUNDING_RADIUS}
+        shadow-camera-near={SUN_SHADOW_NEAR}
+        shadow-camera-far={SUN_SHADOW_FAR}
+        shadow-bias={-0.0005}
+      />
       <directionalLight position={[-20, 16, -18]} intensity={0.6} color="#dff0ff" />
 
       <Diorama />
 
-      <SunLight />
       <CameraController />
       <ScenePause />
       <IdleHeartbeat obscured={obscured} />
