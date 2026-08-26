@@ -45,7 +45,7 @@ import { sceneClock } from "./sceneClock";
 import { aboutReturn } from "@/hub/about/aboutScroll";
 import { useAppState, type SectionType } from "@/state/AppStateContext";
 import { publishFacing } from "@/state/facingChannel";
-import { SCENE_BOUNDING_RADIUS, SUN_SHADOW_FAR, SUN_SHADOW_NEAR, sunPosition } from "./sunLight";
+import Sun from "./Sun";
 
 // Rotation sensitivity (kept gentle).
 const DRAG_SENSITIVITY = 0.002; // radians per px of pointer drag, both axes
@@ -143,6 +143,7 @@ function useViewInput(
   returningRef: React.RefObject<boolean>,
   orbitLockedRef: React.RefObject<boolean>,
   flightRef: React.RefObject<unknown>,
+  sunDraggingRef: React.RefObject<boolean>,
   onPinchZoom: (zoom: OrbitZoom) => void
 ) {
   useEffect(() => {
@@ -161,8 +162,12 @@ function useViewInput(
     let pinchConsumed = false;
 
     // A camera flight owns the camera outright; gestures during one would be
-    // fighting it, and would land as a jump the moment it finished.
-    const locked = () => orbitLockedRef.current || flightRef.current !== null;
+    // fighting it, and would land as a jump the moment it finished. A hand on
+    // the sun is the same press this would otherwise read as a drag of the
+    // planet — the sun claims it first (see `Sun`), and this is where that is
+    // honoured.
+    const locked = () =>
+      orbitLockedRef.current || flightRef.current !== null || sunDraggingRef.current;
 
     const resync = () => {
       tourURef.current = PLANET_TOUR.nearestU(directionAt(azimuthTargetRef.current, polarTargetRef.current));
@@ -311,6 +316,7 @@ function useViewInput(
     returningRef,
     orbitLockedRef,
     flightRef,
+    sunDraggingRef,
     onPinchZoom,
   ]);
 }
@@ -356,7 +362,7 @@ function ScenePause() {
   return null;
 }
 
-function CameraController() {
+function CameraController({ sunDraggingRef }: { sunDraggingRef: React.RefObject<boolean> }) {
   const controlsRef = useRef<CameraControls>(null);
   const { activeSection, pageOpen, homeNonce, turnRequest, paused, orbitZoom, setOrbitZoom } = useAppState();
   const scene = useThree((state) => state.scene);
@@ -578,6 +584,7 @@ function CameraController() {
     returningRef,
     orbitLockedRef,
     glideRef,
+    sunDraggingRef,
     setOrbitZoom
   );
 
@@ -1024,6 +1031,11 @@ export default function Scene({
   interactive?: boolean;
 }) {
   const home = orbitAnglesOf(PLANET_TOUR.direction(0));
+  // Shared by the two things that read the same pointer press: the sun raises
+  // it when it is grabbed, and the free orbit's drag stands down while it is up.
+  // A ref rather than state — it flips on `pointerdown` and must not re-render
+  // the Canvas (see facingChannel for what that costs).
+  const sunDraggingRef = useRef(false);
   return (
     <Canvas
       shadows
@@ -1071,34 +1083,14 @@ export default function Scene({
           on purpose — it is starlight, and keeping one light fixed leaves a
           cool rim on the night limb, which is part of what says there is a
           universe outside the frame rather than a studio. */}
-      <ambientLight intensity={0.2} />
-      <hemisphereLight args={["#fff7e0", "#1c2440", 0.45]} />
-      <directionalLight
-        position={sunPosition()}
-        intensity={1.5}
-        color="#fff3d6"
-        castShadow
-        // Halved from 2048. The shadows here are large soft shapes cast by
-        // blocky geometry, where the extra resolution bought detail nobody
-        // could see for four times the shadow-pass cost.
-        shadow-mapSize={[1024, 1024]}
-        // All four the same, and direction-independent: an orthographic shadow
-        // camera's bounds hold the projected size of what it frames, so they
-        // only have to cover the scene's own bounding radius. See sunLight.ts,
-        // where these and their relationship to SUN_DISTANCE are kept.
-        shadow-camera-left={-SCENE_BOUNDING_RADIUS}
-        shadow-camera-right={SCENE_BOUNDING_RADIUS}
-        shadow-camera-top={SCENE_BOUNDING_RADIUS}
-        shadow-camera-bottom={-SCENE_BOUNDING_RADIUS}
-        shadow-camera-near={SUN_SHADOW_NEAR}
-        shadow-camera-far={SUN_SHADOW_FAR}
-        shadow-bias={-0.0005}
-      />
+      <ambientLight intensity={0.42} />
+      <hemisphereLight args={["#fff7e0", "#2b3654", 0.52]} />
+      <Sun draggingRef={sunDraggingRef} />
       <directionalLight position={[-20, 16, -18]} intensity={0.6} color="#dff0ff" />
 
       <Diorama />
 
-      <CameraController />
+      <CameraController sunDraggingRef={sunDraggingRef} />
       <ScenePause />
       <IdleHeartbeat obscured={obscured} />
     </Canvas>
