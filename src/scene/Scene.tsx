@@ -39,12 +39,19 @@ import {
 } from "./worldLayout";
 import { PLANET_TOUR, sectionU, facingSectionOnPlanet } from "./planet/tour";
 import { PLANET_SECTION_KEYS, sectionDirection } from "./planet/sections";
-import { type Direction } from "./planet/planetLayout";
+import { normalize, type Direction } from "./planet/planetLayout";
 import { advanceFlight, beginFlight, type Flight } from "./cameraFlight";
 import { sceneClock } from "./sceneClock";
 import { aboutReturn } from "@/hub/about/aboutScroll";
 import { useAppState, type SectionType } from "@/state/AppStateContext";
 import { publishFacing } from "@/state/facingChannel";
+import {
+  SUN_DISTANCE,
+  SUN_SHADOW_FAR,
+  SUN_SHADOW_NEAR,
+  SCENE_BOUNDING_RADIUS,
+  sunDirection,
+} from "./sunLight";
 
 // Rotation sensitivity (kept gentle).
 const DRAG_SENSITIVITY = 0.002; // radians per px of pointer drag, both axes
@@ -334,6 +341,63 @@ function IdleHeartbeat({ obscured }: { obscured: boolean }) {
   }, [obscured, invalidate]);
 
   return null;
+}
+
+/**
+ * The sun, carried along with the camera at a fixed offset.
+ *
+ * A fixed sun cannot light this world: the five areas span 149.5° of sphere, so
+ * whichever way it points at least one of them is past the terminator (see
+ * `sunLight.ts` for the search and the measurements). Riding with the camera
+ * means the area in front is always the lit one, and `SUN_TILT` is what keeps
+ * that from collapsing into a headlight.
+ *
+ * Written from a frame loop rather than from props: the direction is a function
+ * of where the camera is, which changes every frame and must never go through
+ * React state (see `facingChannel`). The camera's matrices do not need to be up
+ * to date here — only its position and `up`, both of which `camera-controls`
+ * has already written by the time a priority-0 `useFrame` runs.
+ */
+function SunLight() {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+
+  useFrame(({ camera }) => {
+    const light = lightRef.current;
+    if (!light) return;
+    // The direction from the planet's centre out towards the camera. The
+    // planet sits at the origin, so the camera's own position is that, up to
+    // scale — and it stays continuous through the focal offset, which nudges
+    // the camera off the pure orbit.
+    const view = normalize([camera.position.x, camera.position.y, camera.position.z]);
+    const [x, y, z] = sunDirection(view, [camera.up.x, camera.up.y, camera.up.z]);
+    // On the sphere the shadow bounds below were derived for; turning the sun
+    // anywhere on it leaves every one of them exactly as correct as it was when
+    // the sun never moved.
+    light.position.set(x * SUN_DISTANCE, y * SUN_DISTANCE, z * SUN_DISTANCE);
+  });
+
+  return (
+    <directionalLight
+      ref={lightRef}
+      intensity={1.5}
+      color="#fff3d6"
+      castShadow
+      // Halved from 2048. The shadows here are large soft shapes cast by blocky
+      // geometry, where the extra resolution bought detail nobody could see for
+      // four times the shadow-pass cost.
+      shadow-mapSize={[1024, 1024]}
+      // All four the same, and direction-independent: an orthographic shadow
+      // camera's bounds hold the projected size of what it frames, so they only
+      // have to cover the scene's own bounding radius. See SCENE_BOUNDING_RADIUS.
+      shadow-camera-left={-SCENE_BOUNDING_RADIUS}
+      shadow-camera-right={SCENE_BOUNDING_RADIUS}
+      shadow-camera-top={SCENE_BOUNDING_RADIUS}
+      shadow-camera-bottom={-SCENE_BOUNDING_RADIUS}
+      shadow-camera-near={SUN_SHADOW_NEAR}
+      shadow-camera-far={SUN_SHADOW_FAR}
+      shadow-bias={-0.0005}
+    />
+  );
 }
 
 /**
@@ -1065,45 +1129,18 @@ export default function Scene({
        */}
       <Stars radius={320} depth={150} count={6500} factor={30} saturation={0} fade speed={0} />
 
-      {/* Sunlight from one side, a dim cool starlight fill from the other —
-          low ambient is what lets the two sides of the sphere read as day
-          and night instead of one flat wash. */}
+      {/* A low ambient and a dim cool fill from the far side; the sun itself
+          is `SunLight` below, which rides with the camera. The fill stays put
+          on purpose — it is starlight, and keeping one light fixed leaves a
+          cool rim on the night limb, which is part of what says there is a
+          universe outside the frame rather than a studio. */}
       <ambientLight intensity={0.2} />
       <hemisphereLight args={["#fff7e0", "#1c2440", 0.45]} />
-      <directionalLight
-        position={[18, 34, 14]}
-        intensity={1.5}
-        color="#fff3d6"
-        castShadow
-        // Halved from 2048. The shadows here are large soft shapes cast by
-        // blocky geometry, where the extra resolution bought detail nobody
-        // could see for four times the shadow-pass cost.
-        shadow-mapSize={[1024, 1024]}
-        /*
-         * Stage 5: retuned for the current (halved-diameter) planet. The
-         * ±48/1..140 shim from stage 2 was sized for the pre-halving radius
-         * (33.6) and was never retightened when that became permanent — an
-         * orthographic camera's left/right/top/bottom bound the true
-         * projected size of what it frames, so the box only has to be the
-         * scene's own bounding radius: SMOOTH_PLANET_RADIUS (16.8) + the
-         * tallest building's peak above its own anchor (the pink tower's
-         * antenna tip, voxel y=30 at VS=0.42 ≈ 12.9) ≈ 29.7, rounded up to
-         * ±34 for margin. near/far are that same ±34 slid along the light's
-         * own distance from the origin (hypot(18,34,14) ≈ 40.9): 40.9∓34 ≈
-         * 6.9/74.9, rounded outward to 5/78.
-         */
-        shadow-camera-left={-34}
-        shadow-camera-right={34}
-        shadow-camera-top={34}
-        shadow-camera-bottom={-34}
-        shadow-camera-near={5}
-        shadow-camera-far={78}
-        shadow-bias={-0.0005}
-      />
       <directionalLight position={[-20, 16, -18]} intensity={0.6} color="#dff0ff" />
 
       <Diorama />
 
+      <SunLight />
       <CameraController />
       <ScenePause />
       <IdleHeartbeat obscured={obscured} />

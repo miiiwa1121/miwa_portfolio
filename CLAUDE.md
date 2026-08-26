@@ -17,7 +17,7 @@ Next.js 16 には破壊的変更が入っている。API・規約・ファイル
 ```bash
 npm run dev          # 開発サーバー (:3000)
 npm run build        # 静的書き出し → out/
-npm test             # Vitest 一回実行（425件で1秒未満）
+npm test             # Vitest 一回実行（434件で1秒未満）
 npm run test:watch
 npm run lint
 ```
@@ -75,6 +75,8 @@ Vitest（node 環境）で、**React も three.js も含まない純粋ロジッ
 - **1モデル＝1ドローコール。** 街は `InstancedMesh` で数千ブロックを描いている。共通格子で足りるものは `VoxelModel`、1個ずつ向きが違うものは姉妹コンポーネントの `PlacedVoxels` を使う。オブジェクトを増やすときもこの原則を崩さない
 - **プラザ（観覧車・木・街灯・住人の共有地）のような「みんなが立つ場所」は、決め打たずに探す。** `scene/planet/decor.ts` の `pickClearing()` — 条件（地表が草・既存の建物と重ならない）を満たす候補が無いときの段階的なフォールバックまで含めて設計する。見つからなかったときの分岐を呼び出し側に持たせない
 - **移動する経路が閉じた式（`offsetDirection` など）なら向きもその微分の閉じた式で求め、経路がブラックボックス（スプラインなど）なら `tangentOf()` で数値的に接平面へ射影する。** どちらも `scene/planet/planetLayout.ts` にある
+- **太陽は固定できない。カメラと一緒に回す**（`scene/sunLight.ts` の `sunDirection`）。5エリアは球面上で149.5°に散らばっており、全球総当たりでも「最も暗いエリア」を0より上げられる固定方向は存在しない（旧固定光では contact が skills の7分の1）。**ただし視線軸そのものに置かない**——ボクセルの立体感が消え、影が自分の裏に落ちて見えなくなり、惑星がスタジオの球に見える。`SUN_TILT`（28.6°）と `SUN_ROLL`（34°）は実測で決めてある（正面エリアはカメラ方向から中央値18.1°・最大40.1°ずれる／θ>19.6°でないとターミネーターが画面に出ない）
+- **太陽は半径 `SUN_DISTANCE`（41）の球面から出さない。** `shadow-camera-*` の4値はこの距離とシーンの外接半径だけから導かれていて向きに依存しないので、球面上で回すかぎり再調整が要らない。外すと影のフラスタムがシーンを取りこぼす（`sunLight.test.ts` が見張っている）
 - **カメラの行き先を決める effect は `scene/Scene.tsx` に1つだけ。** 経路も7つだけ（セクションへ寄る／Aboutへ寄る／リセットでツアー先頭へ／Aboutを読み切った＝何も飛ばさない／セクションを離れてツアー再開／自由回転のズーム段階が変わった（ピンチ／ズームコントロール）／初回マウント）。ここを分散させない
 - **自由回転には2つの固定高度（`OrbitZoom`＝`"near"`/`"far"`）があり、AppStateContextの`orbitZoom`が真実。** `near`（新デフォルト）と`far`（俯瞰、旧来の唯一の高度）を`worldLayout.ts`の`orbitRadiusForZoom()`で解決し、`Scene.tsx`内で`ORBIT_RADIUS`を直書きしていた箇所は全部これに置き換わっている。HOME/ロゴ/セクション離脱は**必ず`near`に戻る**（`goHome`/`closePage`/`openPage`/URL同期の`applyUrl`がそれぞれ`setOrbitZoom("near")`を呼ぶ）——`far`はピンチかズームコントロールで能動的に選んだときだけの一時的な状態
 - **`near` の縦オフセット（`NEAR_VERTICAL_SHARE = 0.636`）は「カード↔マーカーの点線」を承知で捨てている。勝手に直さない。** 惑星を画面下へ押すと**カードが説明しているエリアごと画面の下へ出る**——正面のエリアは円盤の中心ではなく5アンカーの最近傍で、ツアーにつれて円盤全体を動き回るため。一周実測で 0.78 は20サンプル中16が画面外、全部収まる上限は 0.04＝実質ゼロ。惑星を半径185（About と同じ豆粒）まで引かない限り**両立しない**。`reference/image7.png` の構図を取る判断が下されており、`worldLayout.test.ts` の `it("is knowingly past the point where the facing marker stays in frame")` がそれをピン留めしている（**緑になったら仕様変更**）。実測表は [docs/review.md](docs/review.md) A-3
