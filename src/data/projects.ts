@@ -52,17 +52,17 @@ export const PROJECTS: ProjectSource[] = [
   },
   {
     slug: "mesen",
-    title: { ja: "mesen", en: "mesen" },
+    title: { ja: "Michaw（見ちゃう）", en: "Michaw" },
     description: {
-      ja: "視線推定・顔認識を行い、結果をGIFやMP4で出力できるWebアプリケーションです。MediaPipeを用いてブラウザ上で動作します。",
-      en: "A web application that performs gaze estimation and face recognition, and can output the results as GIF or MP4. It runs on the browser using MediaPipe.",
+      ja: "視線推定・アイトラッキングを活用し、画像の中の「つい見てしまう場所」を見てしまうまでの時間を計測するブラウザゲーム・エンタメWebアプリです。",
+      en: "An entertainment web app and browser game using eye tracking to measure how long it takes before looking at irresistible points in an image.",
     },
     image: "/images/mesen.webp",
-    tags: ["Next.js", "MediaPipe", "Tailwind CSS"],
+    tags: ["Next.js", "MediaPipe", "Cloudflare Workers", "D1"],
     category: "WEB",
     status: "Public",
-    githubUrl: "#",
-    demoUrl: "https://mesen.miiiwa.workers.dev/",
+    githubUrl: "https://github.com/miiiwa1121/michaw",
+    demoUrl: "https://michaw.miiiwa.com",
   },
   {
     slug: "reallog",

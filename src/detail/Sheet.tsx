@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { RefObject } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { SectionType } from "@/types";
@@ -55,6 +57,16 @@ export default function Sheet({ pageOpen, activeSection, exitDirection, scroller
                   {activeSection === "contact" && <Contact />}
                 </motion.div>
               </AnimatePresence>
+            </div>
+
+            {/* Footer link in detail sheet */}
+            <div className="mt-16 text-center border-t border-gray-100 pt-8">
+              <Link
+                href="/privacy"
+                className="text-xs text-gray-400 hover:text-orange-500 underline font-mono transition-colors"
+              >
+                Privacy Policy
+              </Link>
             </div>
           </div>
 

@@ -12,6 +12,7 @@ import CardLeaderLine from "./CardLeaderLine";
 import AreaCard from "./AreaCard";
 import HubHeader from "./HubHeader";
 import HubDock from "./HubDock";
+import SemanticSEO from "./SemanticSEO";
 import About from "./about/About";
 import type { ZoomStage } from "./ZoomControl";
 import { adjacentOnTour, TOUR_ORDER } from "@/scene/planet/tour";
@@ -209,6 +210,8 @@ export default function Hub() {
 
   return (
     <main className="w-full h-screen overflow-hidden relative font-sans">
+      {/* Accessibility & Crawler semantic HTML for SEO and AdSense crawler review */}
+      <SemanticSEO />
       {/* Bottom layer: flat space colour. Split out from the canvas (below)
           so the canvas itself can be left transparent — see Scene.tsx's own
           note on why there's no `<color attach="background">` there any

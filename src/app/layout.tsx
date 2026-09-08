@@ -16,8 +16,43 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Miiiwa | Portfolio",
-  description: "Miiiwaのポートフォリオサイト - 面白いを最優先！",
+  metadataBase: new URL("https://miiiwa.com"),
+  title: {
+    default: "Miiiwa | Portfolio - 面白いを最優先！",
+    template: "%s | Miiiwa Portfolio",
+  },
+  description: "エンジニアMiiiwaのポートフォリオサイト。「面白いを最優先！」をモットーに、Webサービスやブラウザゲーム、3Dグラフィックスを開発しています。",
+  keywords: ["Miiiwa", "ポートフォリオ", "エンジニア", "Web開発", "Next.js", "Three.js", "Michaw", "見ちゃう"],
+  authors: [{ name: "Miiiwa", url: "https://miiiwa.com" }],
+  creator: "Miiiwa",
+  alternates: {
+    canonical: "https://miiiwa.com",
+  },
+  openGraph: {
+    type: "website",
+    locale: "ja_JP",
+    url: "https://miiiwa.com",
+    siteName: "Miiiwa Portfolio",
+    title: "Miiiwa | Portfolio - 面白いを最優先！",
+    description: "エンジニアMiiiwaのポートフォリオサイト。「面白いを最優先！」をモットーに、Webサービスやブラウザゲーム、3Dグラフィックスを開発しています。",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Miiiwa | Portfolio - 面白いを最優先！",
+    description: "エンジニアMiiiwaのポートフォリオサイト。「面白いを最優先！」をモットーに、Webサービスやブラウザゲーム、3Dグラフィックスを開発しています。",
+    creator: "@miiiwa3330",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
 };
 
 // userScalable: false — without it, a two-finger gesture over the planet
