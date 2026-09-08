@@ -34,6 +34,13 @@ export default function RootLayout({
       lang="ja"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark overscroll-none`}
     >
+      <head>
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3824645900927410"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className="min-h-full flex flex-col relative overscroll-none">
         <LanguageProvider>
           <TerminalProvider>
