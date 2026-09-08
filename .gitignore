@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local design references (mood boards, competitor screenshots, source video) — not build output
+/reference/

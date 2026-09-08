@@ -1,0 +1,194 @@
+"use client";
+
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, ReactNode } from "react";
+import { hashForSection, sectionFromHash } from "./sectionUrl";
+import type { SectionType } from "@/types";
+import type { OrbitZoom } from "@/scene/worldLayout";
+
+export type { OrbitZoom };
+
+export type { SectionType };
+
+interface AppStateContextType {
+  /** Which building the camera is focused on (null = home diorama view). */
+  activeSection: SectionType;
+  setActiveSection: (section: SectionType) => void;
+  /** Whether the detail page (About…Footer) is shown and scrollable. */
+  pageOpen: boolean;
+  setPageOpen: (open: boolean) => void;
+  /** Open the detail page focused on a section (also focuses the camera). */
+  openPage: (section: NonNullable<SectionType>) => void;
+  /**
+   * Close the detail page and unfocus, leaving the camera exactly where the
+   * section framing put it. This is what scrolling off either end does: you
+   * stay looking at the area you were just reading about.
+   */
+  closePage: () => void;
+  /** Full reset: close the page and fly the camera back to the default view. */
+  goHome: () => void;
+  /** Bumps every time goHome() runs; the camera watches it to reset its view. */
+  homeNonce: number;
+  /**
+   * Ask the camera to turn to an area without focusing it — what swiping the
+   * card does. Carries a nonce so asking twice for the same area still turns.
+   */
+  turnTo: (section: NonNullable<SectionType>) => void;
+  turnRequest: { section: NonNullable<SectionType>; nonce: number } | null;
+  /**
+   * Whether the diorama is frozen. Motion only: the idle orbit and everything
+   * that moves by itself stop where they are, while the camera can still be
+   * turned by hand and areas can still be opened — a paused town you can walk
+   * around is the point, a dead canvas is not.
+   */
+  paused: boolean;
+  togglePaused: () => void;
+  /**
+   * Which of the free orbit's two altitudes the satellite sits at while no
+   * section is focused — "near" (the default) or "far" (the original
+   * overview). Only ever changes while resting in the orbit; every way of
+   * leaving a section resets it back to "near", so "far" is always a
+   * deliberate, temporary choice (a pinch or the zoom control), never
+   * something you can get stuck in.
+   */
+  orbitZoom: OrbitZoom;
+  setOrbitZoom: (zoom: OrbitZoom) => void;
+  /**
+   * Ask the free orbit for a specific altitude, unfocusing whatever section
+   * was open to get there if one was. What the zoom control's far/near
+   * stages do — unlike `setOrbitZoom` alone (what a pinch does, only ever
+   * while already unfocused), this can also back out of a section, landing
+   * at the requested altitude instead of the "near" every other way of
+   * leaving a section resets to.
+   */
+  goToOrbit: (zoom: OrbitZoom) => void;
+}
+
+const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
+
+export function AppStateProvider({ children }: { children: ReactNode }) {
+  const [activeSection, setActiveSection] = useState<SectionType>(null);
+  const [pageOpen, setPageOpen] = useState(false);
+  const [homeNonce, setHomeNonce] = useState(0);
+  const [turnRequest, setTurnRequest] = useState<{ section: NonNullable<SectionType>; nonce: number } | null>(null);
+  const [paused, setPaused] = useState(false);
+  const [orbitZoom, setOrbitZoom] = useState<OrbitZoom>("near");
+
+  const togglePaused = useCallback(() => setPaused((p) => !p), []);
+
+  const openPage = useCallback((section: NonNullable<SectionType>) => {
+    setActiveSection(section);
+    if (section !== "about") {
+      setPageOpen(true);
+    } else {
+      setPageOpen(false);
+    }
+    // Normalizes the eventual return-to-orbit altitude the moment a section
+    // is entered, not just when it's left. Needed for About specifically:
+    // its scroll-driven return blends towards this altitude for the whole
+    // time the column is open (Scene.tsx's `homeward` pose), not only at the
+    // instant it finishes, so leaving this until closePage() would mean the
+    // blend spends the entire read heading for the wrong altitude and then
+    // hops the last frame.
+    setOrbitZoom("near");
+  }, []);
+
+  const turnTo = useCallback((section: NonNullable<SectionType>) => {
+    setTurnRequest((previous) => ({ section, nonce: (previous?.nonce ?? 0) + 1 }));
+  }, []);
+
+  const closePage = useCallback(() => {
+    setActiveSection(null);
+    setPageOpen(false);
+    setOrbitZoom("near");
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "auto" });
+  }, []);
+
+  const goHome = useCallback(() => {
+    closePage();
+    setHomeNonce((n) => n + 1);
+  }, [closePage]);
+
+  /**
+   * What the zoom control's far/near stages call — unlike closePage()/
+   * goHome(), which always settle on "near", this can leave the visitor at
+   * "far" if that's what they asked for.
+   */
+  const goToOrbit = useCallback((zoom: OrbitZoom) => {
+    setActiveSection(null);
+    setPageOpen(false);
+    setOrbitZoom(zoom);
+  }, []);
+
+  // --- The URL ---------------------------------------------------------
+  // The open section is mirrored into the hash so the back button closes the
+  // panel instead of leaving the site, and a section can be linked to.
+
+  /** False until the hash we arrived with has been honoured. */
+  const urlApplied = useRef(false);
+
+  useEffect(() => {
+    const applyUrl = (fromHistory: boolean) => {
+      const section = sectionFromHash(window.location.hash);
+      setActiveSection(section);
+      setPageOpen(!!section && section !== "about");
+      // Bypasses openPage()/closePage() (it calls the raw setters above
+      // directly, to apply both section and page-open in one pass), so the
+      // same "always land at near" normalization those two carry has to be
+      // repeated here — otherwise the back button or a direct link could
+      // leave the visitor stranded at "far".
+      setOrbitZoom("near");
+      // Going back to no section is a request to see the diorama again.
+      if (fromHistory && !section) setHomeNonce((n) => n + 1);
+      urlApplied.current = true;
+    };
+
+    // Honour a hash the visitor arrived with, deferred a frame rather than run
+    // during render: the page is prerendered without it, so applying it in the
+    // render pass would make the first client render disagree with the markup.
+    const initial = requestAnimationFrame(() => applyUrl(false));
+    const onPopState = () => applyUrl(true);
+
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      cancelAnimationFrame(initial);
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Until the incoming hash has been read, writing to the URL would erase it.
+    if (!urlApplied.current) return;
+
+    const wanted = hashForSection(pageOpen ? activeSection : null);
+    // Already correct — which is exactly the case when this state came *from*
+    // the URL, so following a link or going back never pushes a second entry.
+    if (window.location.hash === wanted) return;
+
+    // pushState, not replaceState: each opened section is its own step back,
+    // which is what makes the back button close the panel.
+    window.history.pushState(null, "", wanted || window.location.pathname);
+  }, [pageOpen, activeSection]);
+
+  // Memoised so a re-render of the provider that changed none of this — a
+  // parent re-rendering, a state set to the value it already held — does not
+  // hand every consumer a new object. Every consumer here is above the
+  // `<Canvas>`, whose setup effect has no dependency array and re-renders the
+  // whole three.js tree when it runs (see `facingChannel` for the full note).
+  const value = useMemo(
+    () => ({
+      activeSection, setActiveSection, pageOpen, setPageOpen, openPage, closePage, goHome, homeNonce,
+      turnTo, turnRequest, paused, togglePaused, orbitZoom, setOrbitZoom, goToOrbit,
+    }),
+    [activeSection, pageOpen, openPage, closePage, goHome, homeNonce, turnTo, turnRequest, paused, togglePaused, orbitZoom, goToOrbit]
+  );
+
+  return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
+}
+
+export function useAppState() {
+  const context = useContext(AppStateContext);
+  if (context === undefined) {
+    throw new Error("useAppState must be used within an AppStateProvider");
+  }
+  return context;
+}
