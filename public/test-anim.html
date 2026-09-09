@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Miiiwa. フルシーケンス「1111 2222 3333 4444 5555 44545445454444」プレビュー</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Geist:wght@900&display=swap');
+  * { font-family: 'Geist', sans-serif; box-sizing: border-box; }
+  body { background-color: #090b10 !important; color: #f3f4f6; margin: 0; }
+
+  /* ------------------------------------------------------------------
+     CSS @property for smooth color transitions on native font glyphs
+     ------------------------------------------------------------------ */
+  @property --c1 { syntax: '<color>'; inherits: true; initial-value: rgba(249, 115, 22, 0.22); }
+  @property --c2 { syntax: '<color>'; inherits: true; initial-value: rgba(249, 115, 22, 0.22); }
+  @property --c3 { syntax: '<color>'; inherits: true; initial-value: rgba(249, 115, 22, 0.22); }
+  @property --c4 { syntax: '<color>'; inherits: true; initial-value: rgba(249, 115, 22, 0.22); }
+
+  :root {
+    --seq-duration: 40s; /* 20 loops * 2.0s */
+  }
+
+  /* ==================================================================
+     新構成フルシーケンス：1111 2222 3333 444 55 6 44 (全20ループ・完全等長)
+     ※「6」はチカチカして消えるリアル電球フリッカー消灯、「44」は静寂の消灯余白
+     ================================================================== */
+  @keyframes seq_dark_d1 {
+    /* --- 1111 (順次ウェーブ x 4) [0.00% - 20.00%] --- */
+    0.00% { --c1: rgba(249, 115, 22, 0.22); }
+    0.36%, 0.72% { --c1: #f97316; }
+    1.26%, 4.99% { --c1: rgba(249, 115, 22, 0.22); }
+    5.00% { --c1: rgba(249, 115, 22, 0.22); }
+    5.36%, 5.72% { --c1: #f97316; }
+    6.26%, 9.99% { --c1: rgba(249, 115, 22, 0.22); }
+    10.00% { --c1: rgba(249, 115, 22, 0.22); }
+    10.36%, 10.72% { --c1: #f97316; }
+    11.26%, 14.99% { --c1: rgba(249, 115, 22, 0.22); }
+    15.00% { --c1: rgba(249, 115, 22, 0.22); }
+    15.36%, 15.72% { --c1: #f97316; }
+    16.26%, 19.99% { --c1: rgba(249, 115, 22, 0.22); }
+    /* --- 2222 (交互点滅 [1,3] ⇔ [2,4] x 4) [20.00% - 40.00%] --- */
+    20.00%, 22.49% { --c1: #f97316; }
+    22.50%, 24.99% { --c1: rgba(249, 115, 22, 0.22); }
+    25.00%, 27.49% { --c1: #f97316; }
+    27.50%, 29.99% { --c1: rgba(249, 115, 22, 0.22); }
+    30.00%, 32.49% { --c1: #f97316; }
+    32.50%, 34.99% { --c1: rgba(249, 115, 22, 0.22); }
+    35.00%, 37.49% { --c1: #f97316; }
+    37.50%, 39.99% { --c1: rgba(249, 115, 22, 0.22); }
+    /* --- 3333 (単灯 [1]->[2]->[3]->[4] x 4) [40.00% - 60.00%] --- */
+    40.00%, 41.24% { --c1: #f97316; }
+    41.25%, 42.49% { --c1: rgba(249, 115, 22, 0.22); }
+    42.50%, 43.74% { --c1: rgba(249, 115, 22, 0.22); }
+    43.75%, 44.99% { --c1: rgba(249, 115, 22, 0.22); }
+    45.00%, 46.24% { --c1: #f97316; }
+    46.25%, 47.49% { --c1: rgba(249, 115, 22, 0.22); }
+    47.50%, 48.74% { --c1: rgba(249, 115, 22, 0.22); }
+    48.75%, 49.99% { --c1: rgba(249, 115, 22, 0.22); }
+    50.00%, 51.24% { --c1: #f97316; }
+    51.25%, 52.49% { --c1: rgba(249, 115, 22, 0.22); }
+    52.50%, 53.74% { --c1: rgba(249, 115, 22, 0.22); }
+    53.75%, 54.99% { --c1: rgba(249, 115, 22, 0.22); }
+    55.00%, 56.24% { --c1: #f97316; }
+    56.25%, 57.49% { --c1: rgba(249, 115, 22, 0.22); }
+    57.50%, 58.74% { --c1: rgba(249, 115, 22, 0.22); }
+    58.75%, 59.99% { --c1: rgba(249, 115, 22, 0.22); }
+    /* --- 444 (全消灯待機 3ループ) [60.00% - 75.00%] --- */
+    60.00%, 74.99% { --c1: rgba(249, 115, 22, 0.22); }
+    /* --- 55 (全点灯 2ループ) [75.00% - 85.00%] --- */
+    75.00%, 84.99% { --c1: #f97316; }
+    /* --- 6 (チカチカして消える電球フリッカー 1ループ) [85.00% - 90.00%] --- */
+    85.00%, 85.37% { --c1: rgba(249, 115, 22, 0.22); } /* フッと暗転 */
+    85.38%, 85.60% { --c1: #f97316; } /* バチッ！(1回目) */
+    85.61%, 85.84% { --c1: rgba(249, 115, 22, 0.22); } /* 暗転 */
+    85.85%, 86.20% { --c1: #f97316; } /* バチッ！(2回目) */
+    86.21%, 86.35% { --c1: rgba(249, 115, 22, 0.22); } /* 微小暗転 */
+    86.36%, 86.75% { --c1: #f97316; } /* バチバチッ！(3回目) */
+    86.76%, 87.19% { --c1: rgba(249, 115, 22, 0.22); } /* 暗転 */
+    87.20%, 87.40% { --c1: #f97316; } /* 最後のパチッ(4回目) */
+    87.41%, 89.99% { --c1: rgba(249, 115, 22, 0.22); } /* 静かに完全消灯 */
+    /* --- 44 (全消灯余白 2ループ) [90.00% - 100.00%] --- */
+    90.00%, 100.00% { --c1: rgba(249, 115, 22, 0.22); }
+  }
+
+  @keyframes seq_dark_d2 {
+    /* --- 1111 (順次ウェーブ x 4) [0.00% - 20.00%] --- */
+    0.00%, 0.65% { --c2: rgba(249, 115, 22, 0.22); }
+    1.09%, 1.62% { --c2: #f97316; }
+    2.16%, 4.99% { --c2: rgba(249, 115, 22, 0.22); }
+    5.00%, 5.65% { --c2: rgba(249, 115, 22, 0.22); }
+    6.09%, 6.62% { --c2: #f97316; }
+    7.16%, 9.99% { --c2: rgba(249, 115, 22, 0.22); }
+    10.00%, 10.65% { --c2: rgba(249, 115, 22, 0.22); }
+    11.09%, 11.62% { --c2: #f97316; }
+    12.16%, 14.99% { --c2: rgba(249, 115, 22, 0.22); }
+    15.00%, 15.65% { --c2: rgba(249, 115, 22, 0.22); }
+    16.09%, 16.62% { --c2: #f97316; }
+    17.16%, 19.99% { --c2: rgba(249, 115, 22, 0.22); }
+    /* --- 2222 (交互点滅 [1,3] ⇔ [2,4] x 4) [20.00% - 40.00%] --- */
+    20.00%, 22.49% { --c2: rgba(249, 115, 22, 0.22); }
+    22.50%, 24.99% { --c2: #f97316; }
+    25.00%, 27.49% { --c2: rgba(249, 115, 22, 0.22); }
+    27.50%, 29.99% { --c2: #f97316; }
+    30.00%, 32.49% { --c2: rgba(249, 115, 22, 0.22); }
+    32.50%, 34.99% { --c2: #f97316; }
+    35.00%, 37.49% { --c2: rgba(249, 115, 22, 0.22); }
+    37.50%, 39.99% { --c2: #f97316; }
+    /* --- 3333 (単灯 [1]->[2]->[3]->[4] x 4) [40.00% - 60.00%] --- */
+    40.00%, 41.24% { --c2: rgba(249, 115, 22, 0.22); }
+    41.25%, 42.49% { --c2: #f97316; }
+    42.50%, 43.74% { --c2: rgba(249, 115, 22, 0.22); }
+    43.75%, 44.99% { --c2: rgba(249, 115, 22, 0.22); }
+    45.00%, 46.24% { --c2: rgba(249, 115, 22, 0.22); }
+    46.25%, 47.49% { --c2: #f97316; }
+    47.50%, 48.74% { --c2: rgba(249, 115, 22, 0.22); }
+    48.75%, 49.99% { --c2: rgba(249, 115, 22, 0.22); }
+    50.00%, 51.24% { --c2: rgba(249, 115, 22, 0.22); }
+    51.25%, 52.49% { --c2: #f97316; }
+    52.50%, 53.74% { --c2: rgba(249, 115, 22, 0.22); }
+    53.75%, 54.99% { --c2: rgba(249, 115, 22, 0.22); }
+    55.00%, 56.24% { --c2: rgba(249, 115, 22, 0.22); }
+    56.25%, 57.49% { --c2: #f97316; }
+    57.50%, 58.74% { --c2: rgba(249, 115, 22, 0.22); }
+    58.75%, 59.99% { --c2: rgba(249, 115, 22, 0.22); }
+    /* --- 444 (全消灯待機 3ループ) [60.00% - 75.00%] --- */
+    60.00%, 74.99% { --c2: rgba(249, 115, 22, 0.22); }
+    /* --- 55 (全点灯 2ループ) [75.00% - 85.00%] --- */
+    75.00%, 84.99% { --c2: #f97316; }
+    /* --- 6 (チカチカして消える電球フリッカー 1ループ) [85.00% - 90.00%] --- */
+    85.00%, 85.37% { --c2: rgba(249, 115, 22, 0.22); } /* フッと暗転 */
+    85.38%, 85.60% { --c2: #f97316; } /* バチッ！(1回目) */
+    85.61%, 85.84% { --c2: rgba(249, 115, 22, 0.22); } /* 暗転 */
+    85.85%, 86.20% { --c2: #f97316; } /* バチッ！(2回目) */
+    86.21%, 86.35% { --c2: rgba(249, 115, 22, 0.22); } /* 微小暗転 */
+    86.36%, 86.75% { --c2: #f97316; } /* バチバチッ！(3回目) */
+    86.76%, 87.19% { --c2: rgba(249, 115, 22, 0.22); } /* 暗転 */
+    87.20%, 87.40% { --c2: #f97316; } /* 最後のパチッ(4回目) */
+    87.41%, 89.99% { --c2: rgba(249, 115, 22, 0.22); } /* 静かに完全消灯 */
+    /* --- 44 (全消灯余白 2ループ) [90.00% - 100.00%] --- */
+    90.00%, 100.00% { --c2: rgba(249, 115, 22, 0.22); }
+  }
+
+  @keyframes seq_dark_d3 {
+    /* --- 1111 (順次ウェーブ x 4) [0.00% - 20.00%] --- */
+    0.00%, 1.44% { --c3: rgba(249, 115, 22, 0.22); }
+    1.97%, 2.52% { --c3: #f97316; }
+    3.06%, 4.99% { --c3: rgba(249, 115, 22, 0.22); }
+    5.00%, 6.44% { --c3: rgba(249, 115, 22, 0.22); }
+    6.97%, 7.52% { --c3: #f97316; }
+    8.06%, 9.99% { --c3: rgba(249, 115, 22, 0.22); }
+    10.00%, 11.44% { --c3: rgba(249, 115, 22, 0.22); }
+    11.97%, 12.52% { --c3: #f97316; }
+    13.06%, 14.99% { --c3: rgba(249, 115, 22, 0.22); }
+    15.00%, 16.44% { --c3: rgba(249, 115, 22, 0.22); }
+    16.97%, 17.52% { --c3: #f97316; }
+    18.06%, 19.99% { --c3: rgba(249, 115, 22, 0.22); }
+    /* --- 2222 (交互点滅 [1,3] ⇔ [2,4] x 4) [20.00% - 40.00%] --- */
+    20.00%, 22.49% { --c3: #f97316; }
+    22.50%, 24.99% { --c3: rgba(249, 115, 22, 0.22); }
+    25.00%, 27.49% { --c3: #f97316; }
+    27.50%, 29.99% { --c3: rgba(249, 115, 22, 0.22); }
+    30.00%, 32.49% { --c3: #f97316; }
+    32.50%, 34.99% { --c3: rgba(249, 115, 22, 0.22); }
+    35.00%, 37.49% { --c3: #f97316; }
+    37.50%, 39.99% { --c3: rgba(249, 115, 22, 0.22); }
+    /* --- 3333 (単灯 [1]->[2]->[3]->[4] x 4) [40.00% - 60.00%] --- */
+    40.00%, 41.24% { --c3: rgba(249, 115, 22, 0.22); }
+    41.25%, 42.49% { --c3: rgba(249, 115, 22, 0.22); }
+    42.50%, 43.74% { --c3: #f97316; }
+    43.75%, 44.99% { --c3: rgba(249, 115, 22, 0.22); }
+    45.00%, 46.24% { --c3: rgba(249, 115, 22, 0.22); }
+    46.25%, 47.49% { --c3: rgba(249, 115, 22, 0.22); }
+    47.50%, 48.74% { --c3: #f97316; }
+    48.75%, 49.99% { --c3: rgba(249, 115, 22, 0.22); }
+    50.00%, 51.24% { --c3: rgba(249, 115, 22, 0.22); }
+    51.25%, 52.49% { --c3: rgba(249, 115, 22, 0.22); }
+    52.50%, 53.74% { --c3: #f97316; }
+    53.75%, 54.99% { --c3: rgba(249, 115, 22, 0.22); }
+    55.00%, 56.24% { --c3: rgba(249, 115, 22, 0.22); }
+    56.25%, 57.49% { --c3: rgba(249, 115, 22, 0.22); }
+    57.50%, 58.74% { --c3: #f97316; }
+    58.75%, 59.99% { --c3: rgba(249, 115, 22, 0.22); }
+    /* --- 444 (全消灯待機 3ループ) [60.00% - 75.00%] --- */
+    60.00%, 74.99% { --c3: rgba(249, 115, 22, 0.22); }
+    /* --- 55 (全点灯 2ループ) [75.00% - 85.00%] --- */
+    75.00%, 84.99% { --c3: #f97316; }
+    /* --- 6 (チカチカして消える電球フリッカー 1ループ) [85.00% - 90.00%] --- */
+    85.00%, 85.37% { --c3: rgba(249, 115, 22, 0.22); } /* フッと暗転 */
+    85.38%, 85.60% { --c3: #f97316; } /* バチッ！(1回目) */
+    85.61%, 85.84% { --c3: rgba(249, 115, 22, 0.22); } /* 暗転 */
+    85.85%, 86.20% { --c3: #f97316; } /* バチッ！(2回目) */
+    86.21%, 86.35% { --c3: rgba(249, 115, 22, 0.22); } /* 微小暗転 */
+    86.36%, 86.75% { --c3: #f97316; } /* バチバチッ！(3回目) */
+    86.76%, 87.19% { --c3: rgba(249, 115, 22, 0.22); } /* 暗転 */
+    87.20%, 87.40% { --c3: #f97316; } /* 最後のパチッ(4回目) */
+    87.41%, 89.99% { --c3: rgba(249, 115, 22, 0.22); } /* 静かに完全消灯 */
+    /* --- 44 (全消灯余白 2ループ) [90.00% - 100.00%] --- */
+    90.00%, 100.00% { --c3: rgba(249, 115, 22, 0.22); }
+  }
+
+  @keyframes seq_dark_d4 {
+    /* --- 1111 (順次ウェーブ x 4) [0.00% - 20.00%] --- */
+    0.00%, 2.34% { color: rgba(249, 115, 22, 0.22); }
+    2.87%, 3.24% { color: #f97316; }
+    3.60%, 4.99% { color: rgba(249, 115, 22, 0.22); }
+    5.00%, 7.34% { color: rgba(249, 115, 22, 0.22); }
+    7.87%, 8.24% { color: #f97316; }
+    8.60%, 9.99% { color: rgba(249, 115, 22, 0.22); }
+    10.00%, 12.34% { color: rgba(249, 115, 22, 0.22); }
+    12.87%, 13.24% { color: #f97316; }
+    13.60%, 14.99% { color: rgba(249, 115, 22, 0.22); }
+    15.00%, 17.34% { color: rgba(249, 115, 22, 0.22); }
+    17.87%, 18.24% { color: #f97316; }
+    18.60%, 19.99% { color: rgba(249, 115, 22, 0.22); }
+    /* --- 2222 (交互点滅 [1,3] ⇔ [2,4] x 4) [20.00% - 40.00%] --- */
+    20.00%, 22.49% { color: rgba(249, 115, 22, 0.22); }
+    22.50%, 24.99% { color: #f97316; }
+    25.00%, 27.49% { color: rgba(249, 115, 22, 0.22); }
+    27.50%, 29.99% { color: #f97316; }
+    30.00%, 32.49% { color: rgba(249, 115, 22, 0.22); }
+    32.50%, 34.99% { color: #f97316; }
+    35.00%, 37.49% { color: rgba(249, 115, 22, 0.22); }
+    37.50%, 39.99% { color: #f97316; }
+    /* --- 3333 (単灯 [1]->[2]->[3]->[4] x 4) [40.00% - 60.00%] --- */
+    40.00%, 41.24% { color: rgba(249, 115, 22, 0.22); }
+    41.25%, 42.49% { color: rgba(249, 115, 22, 0.22); }
+    42.50%, 43.74% { color: rgba(249, 115, 22, 0.22); }
+    43.75%, 44.99% { color: #f97316; }
+    45.00%, 46.24% { color: rgba(249, 115, 22, 0.22); }
+    46.25%, 47.49% { color: rgba(249, 115, 22, 0.22); }
+    47.50%, 48.74% { color: rgba(249, 115, 22, 0.22); }
+    48.75%, 49.99% { color: #f97316; }
+    50.00%, 51.24% { color: rgba(249, 115, 22, 0.22); }
+    51.25%, 52.49% { color: rgba(249, 115, 22, 0.22); }
+    52.50%, 53.74% { color: rgba(249, 115, 22, 0.22); }
+    53.75%, 54.99% { color: #f97316; }
+    55.00%, 56.24% { color: rgba(249, 115, 22, 0.22); }
+    56.25%, 57.49% { color: rgba(249, 115, 22, 0.22); }
+    57.50%, 58.74% { color: rgba(249, 115, 22, 0.22); }
+    58.75%, 59.99% { color: #f97316; }
+    /* --- 444 (全消灯待機 3ループ) [60.00% - 75.00%] --- */
+    60.00%, 74.99% { color: rgba(249, 115, 22, 0.22); }
+    /* --- 55 (全点灯 2ループ) [75.00% - 85.00%] --- */
+    75.00%, 84.99% { color: #f97316; }
+    /* --- 6 (チカチカして消える電球フリッカー 1ループ) [85.00% - 90.00%] --- */
+    85.00%, 85.37% { color: rgba(249, 115, 22, 0.22); } /* フッと暗転 */
+    85.38%, 85.60% { color: #f97316; } /* バチッ！(1回目) */
+    85.61%, 85.84% { color: rgba(249, 115, 22, 0.22); } /* 暗転 */
+    85.85%, 86.20% { color: #f97316; } /* バチッ！(2回目) */
+    86.21%, 86.35% { color: rgba(249, 115, 22, 0.22); } /* 微小暗転 */
+    86.36%, 86.75% { color: #f97316; } /* バチバチッ！(3回目) */
+    86.76%, 87.19% { color: rgba(249, 115, 22, 0.22); } /* 暗転 */
+    87.20%, 87.40% { color: #f97316; } /* 最後のパチッ(4回目) */
+    87.41%, 89.99% { color: rgba(249, 115, 22, 0.22); } /* 静かに完全消灯 */
+    /* --- 44 (全消灯余白 2ループ) [90.00% - 100.00%] --- */
+    90.00%, 100.00% { color: rgba(249, 115, 22, 0.22); }
+  }
+
+  @keyframes seq_light_d1 {
+    /* --- 1111 (順次ウェーブ x 4) [0.00% - 20.00%] --- */
+    0.00% { --c1: rgba(234, 88, 12, 0.22); }
+    0.36%, 0.72% { --c1: #ea580c; }
+    1.26%, 4.99% { --c1: rgba(234, 88, 12, 0.22); }
+    5.00% { --c1: rgba(234, 88, 12, 0.22); }
+    5.36%, 5.72% { --c1: #ea580c; }
+    6.26%, 9.99% { --c1: rgba(234, 88, 12, 0.22); }
+    10.00% { --c1: rgba(234, 88, 12, 0.22); }
+    10.36%, 10.72% { --c1: #ea580c; }
+    11.26%, 14.99% { --c1: rgba(234, 88, 12, 0.22); }
+    15.00% { --c1: rgba(234, 88, 12, 0.22); }
+    15.36%, 15.72% { --c1: #ea580c; }
+    16.26%, 19.99% { --c1: rgba(234, 88, 12, 0.22); }
+    /* --- 2222 (交互点滅 [1,3] ⇔ [2,4] x 4) [20.00% - 40.00%] --- */
+    20.00%, 22.49% { --c1: #ea580c; }
+    22.50%, 24.99% { --c1: rgba(234, 88, 12, 0.22); }
+    25.00%, 27.49% { --c1: #ea580c; }
+    27.50%, 29.99% { --c1: rgba(234, 88, 12, 0.22); }
+    30.00%, 32.49% { --c1: #ea580c; }
+    32.50%, 34.99% { --c1: rgba(234, 88, 12, 0.22); }
+    35.00%, 37.49% { --c1: #ea580c; }
+    37.50%, 39.99% { --c1: rgba(234, 88, 12, 0.22); }
+    /* --- 3333 (単灯 [1]->[2]->[3]->[4] x 4) [40.00% - 60.00%] --- */
+    40.00%, 41.24% { --c1: #ea580c; }
+    41.25%, 42.49% { --c1: rgba(234, 88, 12, 0.22); }
+    42.50%, 43.74% { --c1: rgba(234, 88, 12, 0.22); }
+    43.75%, 44.99% { --c1: rgba(234, 88, 12, 0.22); }
+    45.00%, 46.24% { --c1: #ea580c; }
+    46.25%, 47.49% { --c1: rgba(234, 88, 12, 0.22); }
+    47.50%, 48.74% { --c1: rgba(234, 88, 12, 0.22); }
+    48.75%, 49.99% { --c1: rgba(234, 88, 12, 0.22); }
+    50.00%, 51.24% { --c1: #ea580c; }
+    51.25%, 52.49% { --c1: rgba(234, 88, 12, 0.22); }
+    52.50%, 53.74% { --c1: rgba(234, 88, 12, 0.22); }
+    53.75%, 54.99% { --c1: rgba(234, 88, 12, 0.22); }
+    55.00%, 56.24% { --c1: #ea580c; }
+    56.25%, 57.49% { --c1: rgba(234, 88, 12, 0.22); }
+    57.50%, 58.74% { --c1: rgba(234, 88, 12, 0.22); }
+    58.75%, 59.99% { --c1: rgba(234, 88, 12, 0.22); }
+    /* --- 444 (全消灯待機 3ループ) [60.00% - 75.00%] --- */
+    60.00%, 74.99% { --c1: rgba(234, 88, 12, 0.22); }
+    /* --- 55 (全点灯 2ループ) [75.00% - 85.00%] --- */
+    75.00%, 84.99% { --c1: #ea580c; }
+    /* --- 6 (チカチカして消える電球フリッカー 1ループ) [85.00% - 90.00%] --- */
+    85.00%, 85.37% { --c1: rgba(234, 88, 12, 0.22); } /* フッと暗転 */
+    85.38%, 85.60% { --c1: #ea580c; } /* バチッ！(1回目) */
+    85.61%, 85.84% { --c1: rgba(234, 88, 12, 0.22); } /* 暗転 */
+    85.85%, 86.20% { --c1: #ea580c; } /* バチッ！(2回目) */
+    86.21%, 86.35% { --c1: rgba(234, 88, 12, 0.22); } /* 微小暗転 */
+    86.36%, 86.75% { --c1: #ea580c; } /* バチバチッ！(3回目) */
+    86.76%, 87.19% { --c1: rgba(234, 88, 12, 0.22); } /* 暗転 */
+    87.20%, 87.40% { --c1: #ea580c; } /* 最後のパチッ(4回目) */
+    87.41%, 89.99% { --c1: rgba(234, 88, 12, 0.22); } /* 静かに完全消灯 */
+    /* --- 44 (全消灯余白 2ループ) [90.00% - 100.00%] --- */
+    90.00%, 100.00% { --c1: rgba(234, 88, 12, 0.22); }
+  }
+
+  @keyframes seq_light_d2 {
+    /* --- 1111 (順次ウェーブ x 4) [0.00% - 20.00%] --- */
+    0.00%, 0.65% { --c2: rgba(234, 88, 12, 0.22); }
+    1.09%, 1.62% { --c2: #ea580c; }
+    2.16%, 4.99% { --c2: rgba(234, 88, 12, 0.22); }
+    5.00%, 5.65% { --c2: rgba(234, 88, 12, 0.22); }
+    6.09%, 6.62% { --c2: #ea580c; }
+    7.16%, 9.99% { --c2: rgba(234, 88, 12, 0.22); }
+    10.00%, 10.65% { --c2: rgba(234, 88, 12, 0.22); }
+    11.09%, 11.62% { --c2: #ea580c; }
+    12.16%, 14.99% { --c2: rgba(234, 88, 12, 0.22); }
+    15.00%, 15.65% { --c2: rgba(234, 88, 12, 0.22); }
+    16.09%, 16.62% { --c2: #ea580c; }
+    17.16%, 19.99% { --c2: rgba(234, 88, 12, 0.22); }
+    /* --- 2222 (交互点滅 [1,3] ⇔ [2,4] x 4) [20.00% - 40.00%] --- */
+    20.00%, 22.49% { --c2: rgba(234, 88, 12, 0.22); }
+    22.50%, 24.99% { --c2: #ea580c; }
+    25.00%, 27.49% { --c2: rgba(234, 88, 12, 0.22); }
+    27.50%, 29.99% { --c2: #ea580c; }
+    30.00%, 32.49% { --c2: rgba(234, 88, 12, 0.22); }
+    32.50%, 34.99% { --c2: #ea580c; }
+    35.00%, 37.49% { --c2: rgba(234, 88, 12, 0.22); }
+    37.50%, 39.99% { --c2: #ea580c; }
+    /* --- 3333 (単灯 [1]->[2]->[3]->[4] x 4) [40.00% - 60.00%] --- */
+    40.00%, 41.24% { --c2: rgba(234, 88, 12, 0.22); }
+    41.25%, 42.49% { --c2: #ea580c; }
+    42.50%, 43.74% { --c2: rgba(234, 88, 12, 0.22); }
+    43.75%, 44.99% { --c2: rgba(234, 88, 12, 0.22); }
+    45.00%, 46.24% { --c2: rgba(234, 88, 12, 0.22); }
+    46.25%, 47.49% { --c2: #ea580c; }
+    47.50%, 48.74% { --c2: rgba(234, 88, 12, 0.22); }
+    48.75%, 49.99% { --c2: rgba(234, 88, 12, 0.22); }
+    50.00%, 51.24% { --c2: rgba(234, 88, 12, 0.22); }
+    51.25%, 52.49% { --c2: #ea580c; }
+    52.50%, 53.74% { --c2: rgba(234, 88, 12, 0.22); }
+    53.75%, 54.99% { --c2: rgba(234, 88, 12, 0.22); }
+    55.00%, 56.24% { --c2: rgba(234, 88, 12, 0.22); }
+    56.25%, 57.49% { --c2: #ea580c; }
+    57.50%, 58.74% { --c2: rgba(234, 88, 12, 0.22); }
+    58.75%, 59.99% { --c2: rgba(234, 88, 12, 0.22); }
+    /* --- 444 (全消灯待機 3ループ) [60.00% - 75.00%] --- */
+    60.00%, 74.99% { --c2: rgba(234, 88, 12, 0.22); }
+    /* --- 55 (全点灯 2ループ) [75.00% - 85.00%] --- */
+    75.00%, 84.99% { --c2: #ea580c; }
+    /* --- 6 (チカチカして消える電球フリッカー 1ループ) [85.00% - 90.00%] --- */
+    85.00%, 85.37% { --c2: rgba(234, 88, 12, 0.22); } /* フッと暗転 */
+    85.38%, 85.60% { --c2: #ea580c; } /* バチッ！(1回目) */
+    85.61%, 85.84% { --c2: rgba(234, 88, 12, 0.22); } /* 暗転 */
+    85.85%, 86.20% { --c2: #ea580c; } /* バチッ！(2回目) */
+    86.21%, 86.35% { --c2: rgba(234, 88, 12, 0.22); } /* 微小暗転 */
+    86.36%, 86.75% { --c2: #ea580c; } /* バチバチッ！(3回目) */
+    86.76%, 87.19% { --c2: rgba(234, 88, 12, 0.22); } /* 暗転 */
+    87.20%, 87.40% { --c2: #ea580c; } /* 最後のパチッ(4回目) */
+    87.41%, 89.99% { --c2: rgba(234, 88, 12, 0.22); } /* 静かに完全消灯 */
+    /* --- 44 (全消灯余白 2ループ) [90.00% - 100.00%] --- */
+    90.00%, 100.00% { --c2: rgba(234, 88, 12, 0.22); }
+  }
+
+  @keyframes seq_light_d3 {
+    /* --- 1111 (順次ウェーブ x 4) [0.00% - 20.00%] --- */
+    0.00%, 1.44% { --c3: rgba(234, 88, 12, 0.22); }
+    1.97%, 2.52% { --c3: #ea580c; }
+    3.06%, 4.99% { --c3: rgba(234, 88, 12, 0.22); }
+    5.00%, 6.44% { --c3: rgba(234, 88, 12, 0.22); }
+    6.97%, 7.52% { --c3: #ea580c; }
+    8.06%, 9.99% { --c3: rgba(234, 88, 12, 0.22); }
+    10.00%, 11.44% { --c3: rgba(234, 88, 12, 0.22); }
+    11.97%, 12.52% { --c3: #ea580c; }
+    13.06%, 14.99% { --c3: rgba(234, 88, 12, 0.22); }
+    15.00%, 16.44% { --c3: rgba(234, 88, 12, 0.22); }
+    16.97%, 17.52% { --c3: #ea580c; }
+    18.06%, 19.99% { --c3: rgba(234, 88, 12, 0.22); }
+    /* --- 2222 (交互点滅 [1,3] ⇔ [2,4] x 4) [20.00% - 40.00%] --- */
+    20.00%, 22.49% { --c3: #ea580c; }
+    22.50%, 24.99% { --c3: rgba(234, 88, 12, 0.22); }
+    25.00%, 27.49% { --c3: #ea580c; }
+    27.50%, 29.99% { --c3: rgba(234, 88, 12, 0.22); }
+    30.00%, 32.49% { --c3: #ea580c; }
+    32.50%, 34.99% { --c3: rgba(234, 88, 12, 0.22); }
+    35.00%, 37.49% { --c3: #ea580c; }
+    37.50%, 39.99% { --c3: rgba(234, 88, 12, 0.22); }
+    /* --- 3333 (単灯 [1]->[2]->[3]->[4] x 4) [40.00% - 60.00%] --- */
+    40.00%, 41.24% { --c3: rgba(234, 88, 12, 0.22); }
+    41.25%, 42.49% { --c3: rgba(234, 88, 12, 0.22); }
+    42.50%, 43.74% { --c3: #ea580c; }
+    43.75%, 44.99% { --c3: rgba(234, 88, 12, 0.22); }
+    45.00%, 46.24% { --c3: rgba(234, 88, 12, 0.22); }
+    46.25%, 47.49% { --c3: rgba(234, 88, 12, 0.22); }
+    47.50%, 48.74% { --c3: #ea580c; }
+    48.75%, 49.99% { --c3: rgba(234, 88, 12, 0.22); }
+    50.00%, 51.24% { --c3: rgba(234, 88, 12, 0.22); }
+    51.25%, 52.49% { --c3: rgba(234, 88, 12, 0.22); }
+    52.50%, 53.74% { --c3: #ea580c; }
+    53.75%, 54.99% { --c3: rgba(234, 88, 12, 0.22); }
+    55.00%, 56.24% { --c3: rgba(234, 88, 12, 0.22); }
+    56.25%, 57.49% { --c3: rgba(234, 88, 12, 0.22); }
+    57.50%, 58.74% { --c3: #ea580c; }
+    58.75%, 59.99% { --c3: rgba(234, 88, 12, 0.22); }
+    /* --- 444 (全消灯待機 3ループ) [60.00% - 75.00%] --- */
+    60.00%, 74.99% { --c3: rgba(234, 88, 12, 0.22); }
+    /* --- 55 (全点灯 2ループ) [75.00% - 85.00%] --- */
+    75.00%, 84.99% { --c3: #ea580c; }
+    /* --- 6 (チカチカして消える電球フリッカー 1ループ) [85.00% - 90.00%] --- */
+    85.00%, 85.37% { --c3: rgba(234, 88, 12, 0.22); } /* フッと暗転 */
+    85.38%, 85.60% { --c3: #ea580c; } /* バチッ！(1回目) */
+    85.61%, 85.84% { --c3: rgba(234, 88, 12, 0.22); } /* 暗転 */
+    85.85%, 86.20% { --c3: #ea580c; } /* バチッ！(2回目) */
+    86.21%, 86.35% { --c3: rgba(234, 88, 12, 0.22); } /* 微小暗転 */
+    86.36%, 86.75% { --c3: #ea580c; } /* バチバチッ！(3回目) */
+    86.76%, 87.19% { --c3: rgba(234, 88, 12, 0.22); } /* 暗転 */
+    87.20%, 87.40% { --c3: #ea580c; } /* 最後のパチッ(4回目) */
+    87.41%, 89.99% { --c3: rgba(234, 88, 12, 0.22); } /* 静かに完全消灯 */
+    /* --- 44 (全消灯余白 2ループ) [90.00% - 100.00%] --- */
+    90.00%, 100.00% { --c3: rgba(234, 88, 12, 0.22); }
+  }
+
+  @keyframes seq_light_d4 {
+    /* --- 1111 (順次ウェーブ x 4) [0.00% - 20.00%] --- */
+    0.00%, 2.34% { color: rgba(234, 88, 12, 0.22); }
+    2.87%, 3.24% { color: #ea580c; }
+    3.60%, 4.99% { color: rgba(234, 88, 12, 0.22); }
+    5.00%, 7.34% { color: rgba(234, 88, 12, 0.22); }
+    7.87%, 8.24% { color: #ea580c; }
+    8.60%, 9.99% { color: rgba(234, 88, 12, 0.22); }
+    10.00%, 12.34% { color: rgba(234, 88, 12, 0.22); }
+    12.87%, 13.24% { color: #ea580c; }
+    13.60%, 14.99% { color: rgba(234, 88, 12, 0.22); }
+    15.00%, 17.34% { color: rgba(234, 88, 12, 0.22); }
+    17.87%, 18.24% { color: #ea580c; }
+    18.60%, 19.99% { color: rgba(234, 88, 12, 0.22); }
+    /* --- 2222 (交互点滅 [1,3] ⇔ [2,4] x 4) [20.00% - 40.00%] --- */
+    20.00%, 22.49% { color: rgba(234, 88, 12, 0.22); }
+    22.50%, 24.99% { color: #ea580c; }
+    25.00%, 27.49% { color: rgba(234, 88, 12, 0.22); }
+    27.50%, 29.99% { color: #ea580c; }
+    30.00%, 32.49% { color: rgba(234, 88, 12, 0.22); }
+    32.50%, 34.99% { color: #ea580c; }
+    35.00%, 37.49% { color: rgba(234, 88, 12, 0.22); }
+    37.50%, 39.99% { color: #ea580c; }
+    /* --- 3333 (単灯 [1]->[2]->[3]->[4] x 4) [40.00% - 60.00%] --- */
+    40.00%, 41.24% { color: rgba(234, 88, 12, 0.22); }
+    41.25%, 42.49% { color: rgba(234, 88, 12, 0.22); }
+    42.50%, 43.74% { color: rgba(234, 88, 12, 0.22); }
+    43.75%, 44.99% { color: #ea580c; }
+    45.00%, 46.24% { color: rgba(234, 88, 12, 0.22); }
+    46.25%, 47.49% { color: rgba(234, 88, 12, 0.22); }
+    47.50%, 48.74% { color: rgba(234, 88, 12, 0.22); }
+    48.75%, 49.99% { color: #ea580c; }
+    50.00%, 51.24% { color: rgba(234, 88, 12, 0.22); }
+    51.25%, 52.49% { color: rgba(234, 88, 12, 0.22); }
+    52.50%, 53.74% { color: rgba(234, 88, 12, 0.22); }
+    53.75%, 54.99% { color: #ea580c; }
+    55.00%, 56.24% { color: rgba(234, 88, 12, 0.22); }
+    56.25%, 57.49% { color: rgba(234, 88, 12, 0.22); }
+    57.50%, 58.74% { color: rgba(234, 88, 12, 0.22); }
+    58.75%, 59.99% { color: #ea580c; }
+    /* --- 444 (全消灯待機 3ループ) [60.00% - 75.00%] --- */
+    60.00%, 74.99% { color: rgba(234, 88, 12, 0.22); }
+    /* --- 55 (全点灯 2ループ) [75.00% - 85.00%] --- */
+    75.00%, 84.99% { color: #ea580c; }
+    /* --- 6 (チカチカして消える電球フリッカー 1ループ) [85.00% - 90.00%] --- */
+    85.00%, 85.37% { color: rgba(234, 88, 12, 0.22); } /* フッと暗転 */
+    85.38%, 85.60% { color: #ea580c; } /* バチッ！(1回目) */
+    85.61%, 85.84% { color: rgba(234, 88, 12, 0.22); } /* 暗転 */
+    85.85%, 86.20% { color: #ea580c; } /* バチッ！(2回目) */
+    86.21%, 86.35% { color: rgba(234, 88, 12, 0.22); } /* 微小暗転 */
+    86.36%, 86.75% { color: #ea580c; } /* バチバチッ！(3回目) */
+    86.76%, 87.19% { color: rgba(234, 88, 12, 0.22); } /* 暗転 */
+    87.20%, 87.40% { color: #ea580c; } /* 最後のパチッ(4回目) */
+    87.41%, 89.99% { color: rgba(234, 88, 12, 0.22); } /* 静かに完全消灯 */
+    /* --- 44 (全消灯余白 2ループ) [90.00% - 100.00%] --- */
+    90.00%, 100.00% { color: rgba(234, 88, 12, 0.22); }
+  }
+
+  /* Full Sequence Class Attachments */
+  .anim-dark-d1 { animation: seq_dark_d1 var(--seq-duration) linear infinite; }
+  .anim-dark-d2 { animation: seq_dark_d2 var(--seq-duration) linear infinite; }
+  .anim-dark-d3 { animation: seq_dark_d3 var(--seq-duration) linear infinite; }
+  .anim-dark-d4 { animation: seq_dark_d4 var(--seq-duration) linear infinite; }
+
+  .anim-light-d1 { animation: seq_light_d1 var(--seq-duration) linear infinite; }
+  .anim-light-d2 { animation: seq_light_d2 var(--seq-duration) linear infinite; }
+  .anim-light-d3 { animation: seq_light_d3 var(--seq-duration) linear infinite; }
+  .anim-light-d4 { animation: seq_light_d4 var(--seq-duration) linear infinite; }
+
+  /* Native font glyph stem splits */
+  .stem-split-dark-1 { background-image: linear-gradient(to bottom, var(--c1) 0%, var(--c1) 33%, #ffffff 33%, #ffffff 100%); }
+  .stem-split-dark-2 { background-image: linear-gradient(to bottom, var(--c2) 0%, var(--c2) 33%, #ffffff 33%, #ffffff 100%); }
+  .stem-split-dark-3 { background-image: linear-gradient(to bottom, var(--c3) 0%, var(--c3) 33%, #ffffff 33%, #ffffff 100%); }
+
+  .stem-split-light-1 { background-image: linear-gradient(to bottom, var(--c1) 0%, var(--c1) 33%, #111827 33%, #111827 100%); }
+  .stem-split-light-2 { background-image: linear-gradient(to bottom, var(--c2) 0%, var(--c2) 33%, #111827 33%, #111827 100%); }
+  .stem-split-light-3 { background-image: linear-gradient(to bottom, var(--c3) 0%, var(--c3) 33%, #111827 33%, #111827 100%); }
+
+  /* ------------------------------------------------------------------
+     Individual reference animations (kept below for verification)
+     ------------------------------------------------------------------ */
+  @keyframes ref_wave {
+    0%, 100% { --c1: rgba(249, 115, 22, 0.22); color: rgba(249, 115, 22, 0.22); }
+    15%, 32% { --c1: #f97316; color: #f97316; }
+    48% { --c1: rgba(249, 115, 22, 0.22); color: rgba(249, 115, 22, 0.22); }
+  }
+  .ref-w1 { animation: ref_wave 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite 0s; }
+  .ref-w2 { animation: ref_wave 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite 0.22s; }
+  .ref-w3 { animation: ref_wave 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite 0.44s; }
+  .ref-w4 { animation: ref_wave 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite 0.66s; }
+
+  @keyframes ref_alt_odd {
+    0%, 48% { --c1: #f97316; }
+    50%, 98% { --c1: rgba(249, 115, 22, 0.22); }
+    100% { --c1: #f97316; }
+  }
+  @keyframes ref_alt_even {
+    0%, 48% { --c2: rgba(249, 115, 22, 0.22); color: rgba(249, 115, 22, 0.22); }
+    50%, 98% { --c2: #f97316; color: #f97316; }
+    100% { --c2: rgba(249, 115, 22, 0.22); color: rgba(249, 115, 22, 0.22); }
+  }
+  .ref-alt-o { animation: ref_alt_odd 1.2s steps(1, end) infinite; }
+  .ref-alt-e { animation: ref_alt_even 1.2s steps(1, end) infinite; }
+
+  @keyframes ref_single_1 { 0%, 24% { --c1: #f97316; } 25%, 100% { --c1: rgba(249, 115, 22, 0.22); } }
+  @keyframes ref_single_2 { 0%, 24% { --c2: rgba(249, 115, 22, 0.22); } 25%, 49% { --c2: #f97316; } 50%, 100% { --c2: rgba(249, 115, 22, 0.22); } }
+  @keyframes ref_single_3 { 0%, 49% { --c3: rgba(249, 115, 22, 0.22); } 50%, 74% { --c3: #f97316; } 75%, 100% { --c3: rgba(249, 115, 22, 0.22); } }
+  @keyframes ref_single_4 { 0%, 74% { color: rgba(249, 115, 22, 0.22); } 75%, 99% { color: #f97316; } 100% { color: rgba(249, 115, 22, 0.22); } }
+  .ref-s1 { animation: ref_single_1 1.6s steps(1, end) infinite; }
+  .ref-s2 { animation: ref_single_2 1.6s steps(1, end) infinite; }
+  .ref-s3 { animation: ref_single_3 1.6s steps(1, end) infinite; }
+  .ref-s4 { animation: ref_single_4 1.6s steps(1, end) infinite; }
+
+  /* Variation 4-B (選択された消灯トーン) */
+  .v4b-dark { background-image: linear-gradient(to bottom, rgba(249, 115, 22, 0.22) 0%, rgba(249, 115, 22, 0.22) 33%, #ffffff 33%, #ffffff 100%) !important; }
+  .v4b-light { background-image: linear-gradient(to bottom, rgba(234, 88, 12, 0.22) 0%, rgba(234, 88, 12, 0.22) 33%, #111827 33%, #111827 100%) !important; }
+  .v4b-d4-dark { color: rgba(249, 115, 22, 0.22) !important; }
+  .v4b-d4-light { color: rgba(234, 88, 12, 0.22) !important; }
+
+  /* Variation 5 (全点灯) */
+  .v5-dark { background-image: linear-gradient(to bottom, #f97316 0%, #f97316 33%, #ffffff 33%, #ffffff 100%) !important; }
+  .v5-light { background-image: linear-gradient(to bottom, #ea580c 0%, #ea580c 33%, #111827 33%, #111827 100%) !important; }
+  .v5-d4-dark { color: #f97316 !important; }
+  .v5-d4-light { color: #ea580c !important; }
+
+    @keyframes ref_flicker_dark {
+    0%, 7% { --c1: rgba(249, 115, 22, 0.22); --c2: rgba(249, 115, 22, 0.22); --c3: rgba(249, 115, 22, 0.22); color: rgba(249, 115, 22, 0.22); }
+    8%, 12% { --c1: #f97316; --c2: #f97316; --c3: #f97316; color: #f97316; }
+    13%, 16% { --c1: rgba(249, 115, 22, 0.22); --c2: rgba(249, 115, 22, 0.22); --c3: rgba(249, 115, 22, 0.22); color: rgba(249, 115, 22, 0.22); }
+    17%, 24% { --c1: #f97316; --c2: #f97316; --c3: #f97316; color: #f97316; }
+    25%, 27% { --c1: rgba(249, 115, 22, 0.22); --c2: rgba(249, 115, 22, 0.22); --c3: rgba(249, 115, 22, 0.22); color: rgba(249, 115, 22, 0.22); }
+    28%, 35% { --c1: #f97316; --c2: #f97316; --c3: #f97316; color: #f97316; }
+    36%, 43% { --c1: rgba(249, 115, 22, 0.22); --c2: rgba(249, 115, 22, 0.22); --c3: rgba(249, 115, 22, 0.22); color: rgba(249, 115, 22, 0.22); }
+    44%, 48% { --c1: #f97316; --c2: #f97316; --c3: #f97316; color: #f97316; }
+    49%, 100% { --c1: rgba(249, 115, 22, 0.22); --c2: rgba(249, 115, 22, 0.22); --c3: rgba(249, 115, 22, 0.22); color: rgba(249, 115, 22, 0.22); }
+  }
+  .ref-flicker-dark { animation: ref_flicker_dark 2.0s infinite; }
+
+  /* Dedicated UI styling */
+  .badge-orange { background-color: rgba(249, 115, 22, 0.15); border: 1px solid rgba(249, 115, 22, 0.35); color: #fb923c; }
+  .badge-phase { background-color: rgba(67, 20, 7, 0.9); border: 1px solid rgba(154, 52, 18, 0.8); color: #fff; }
+  .step-card { background-color: #0d1117; border: 1px solid #1f2937; }
+  .step-card.active { background-color: rgba(234, 88, 12, 0.25) !important; border-color: #f97316 !important; color: #fdba74 !important; box-shadow: 0 0 12px rgba(249, 115, 22, 0.3); }
+  .card-main { background-color: #0e121b; border: 2px solid rgba(249, 115, 22, 0.35); }
+  .card-dark-preview { background-color: #080a0f; border: 1px solid #1e2533; }
+  .card-light-preview { background-color: #ffffff; border: 1px solid #e5e7eb; }
+</style>
+</head>
+<body class="bg-[#07090e] text-gray-100 min-h-screen p-4 sm:p-8">
+  <div class="max-w-5xl mx-auto flex flex-col gap-8">
+
+    <!-- Top Status Banner -->
+    <header class="border-b border-gray-800 pb-6 flex flex-col gap-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-orange-950 text-orange-400 border border-orange-800/80">LIVE PREVIEW</span>
+          <span class="text-xs text-gray-400 font-mono">http://localhost:3000/test-anim.html</span>
+        </div>
+        <!-- Speed Control Buttons -->
+        <div class="flex flex-wrap items-center gap-2 bg-gray-900 border border-gray-800 p-1.5 rounded-xl text-xs">
+          <span class="text-orange-400 font-bold px-2 flex items-center gap-1">
+            ⏱ 1ループの長さ:
+          </span>
+          <button onclick="changeLoopSec(2.0, this)" class="px-3 py-1.5 rounded-lg bg-orange-600 text-white font-bold transition-colors">★ 指示通り: 2.0秒 (全体40秒)</button>
+          <button onclick="changeLoopSec(1.5, this)" class="px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition-colors">1.5秒 (全体30秒)</button>
+          <button onclick="changeLoopSec(1.0, this)" class="px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition-colors">1.0秒 (全体20秒)</button>
+          <button onclick="changeLoopSec(0.5, this)" class="px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition-colors">0.5秒 (全体10秒)</button>
+          <div class="flex items-center gap-1 pl-2 border-l border-gray-800">
+            <span class="text-gray-400">自由設定:</span>
+            <input type="number" id="customSecInput" value="2.0" step="0.1" min="0.2" max="10" oninput="onCustomSec(this.value)" class="w-16 bg-gray-950 border border-gray-700 rounded px-1.5 py-0.5 text-center text-orange-400 font-mono text-xs focus:outline-none focus:border-orange-500">
+            <span class="text-gray-400">秒</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h1 class="text-2xl sm:text-4xl font-black tracking-tight text-white flex items-center gap-3">
+          <span>Miiiwa. ロゴ 点滅フルシーケンス</span>
+          <span class="text-xs px-2.5 py-1 rounded-md badge-orange font-mono font-normal">Choreography Preview</span>
+        </h1>
+        <p class="text-gray-400 mt-2 text-sm max-w-3xl leading-relaxed">
+          ご指示に基づき、新シーケンス<strong>「1111 2222 3333 444 55 6 44」</strong>（全20ループ）を実装しました！<br>
+          新設の<strong>「６」は案A（電球・ネオン管のリアルなチカチカ消灯フリッカー）</strong>として、全点灯の直後にバチバチッと瞬いてスッと消灯し、最後の「44」（2ループの静寂な全消灯余白）を経て再び「1111」へ戻ります。<br>
+          <span class="text-orange-400 font-bold font-mono">1ループ = 2.0秒の場合、全体で40.0秒</span>の心地よいストーリー構成です。
+        </p>
+      </div>
+
+      <!-- Score Track / Sequence Map -->
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col gap-2 shadow-lg">
+        <div class="flex flex-wrap items-center justify-between text-xs text-gray-400 font-mono gap-2">
+          <span class="text-orange-400 font-bold flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-orange-500 animate-ping"></span>
+            再生中のフェーズ: <span id="currentPhaseLabel" class="badge-phase px-2.5 py-0.5 rounded font-bold">1111 (順次ウェーブ 1/4ループ目)</span>
+          </span>
+          <span id="timeCounter" class="text-gray-400">0.0s / 68.0s (ループ 1/34)</span>
+        </div>
+
+        <!-- Live Progress Bar -->
+        <div class="w-full bg-gray-950 rounded-full h-2.5 overflow-hidden border border-gray-800 relative">
+          <div id="progressBar" class="bg-gradient-to-r from-orange-600 via-amber-500 to-orange-400 h-full w-0 transition-all duration-75"></div>
+        </div>
+
+        <!-- Sequence Step Labels -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 text-[11px] font-mono text-center pt-1">
+          <div id="step-1" class="step-card active py-1.5 px-1 rounded text-gray-400 transition-all">
+            <span class="font-bold text-white">1111</span><br><span id="time-step-1" class="text-[10px] text-gray-400">4ループ (8.0s)</span>
+          </div>
+          <div id="step-2" class="step-card py-1.5 px-1 rounded text-gray-400 transition-all">
+            <span class="font-bold text-white">2222</span><br><span id="time-step-2" class="text-[10px] text-gray-400">4ループ (8.0s)</span>
+          </div>
+          <div id="step-3" class="step-card py-1.5 px-1 rounded text-gray-400 transition-all">
+            <span class="font-bold text-white">3333</span><br><span id="time-step-3" class="text-[10px] text-gray-400">4ループ (8.0s)</span>
+          </div>
+          <div id="step-4a" class="step-card py-1.5 px-1 rounded text-gray-400 transition-all">
+            <span class="font-bold text-orange-300">444</span><br><span id="time-step-4a" class="text-[10px] text-gray-400">3ループ (6.0s)</span>
+          </div>
+          <div id="step-5" class="step-card py-1.5 px-1 rounded text-gray-400 transition-all">
+            <span class="font-bold text-white">55</span><br><span id="time-step-5" class="text-[10px] text-gray-400">2ループ (4.0s)</span>
+          </div>
+          <div id="step-6" class="step-card py-1.5 px-1 rounded text-gray-400 transition-all border-orange-500/40">
+            <span class="font-bold text-orange-400">★ 6（チカチカ）</span><br><span id="time-step-6" class="text-[10px] text-gray-400">1ループ (2.0s)</span>
+          </div>
+          <div id="step-4b" class="step-card py-1.5 px-1 rounded text-gray-400 transition-all">
+            <span class="font-bold text-orange-300">44（消灯余白）</span><br><span id="time-step-4b" class="text-[10px] text-gray-400">2ループ (4.0s)</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============================================================
+         ★ MAIN PREVIEW: 決定版フルシーケンス (Dark & Light)
+         ============================================================ -->
+    <section class="card-main rounded-2xl p-6 sm:p-8 flex flex-col gap-6 shadow-2xl relative overflow-hidden">
+      <!-- Glow accent -->
+      <div class="absolute -top-24 -right-24 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="flex flex-wrap items-center justify-between gap-3 relative z-10">
+        <div>
+          <span class="text-xs font-mono font-bold badge-orange px-2.5 py-0.5 rounded">
+            ★ FINAL CHOREOGRAPHY
+          </span>
+          <h2 class="text-xl sm:text-2xl font-black text-white mt-1.5">
+            決定版フルシーケンス（実機プレビュー）
+          </h2>
+          <p class="text-xs sm:text-sm text-gray-400 mt-1">
+            フォント本来の四角いドット・字間バランスを100%維持したまま、一連のストーリーとして滑らかに自動ループします。
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="restartAnimation()" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs text-gray-200 border border-gray-700 font-bold flex items-center gap-1.5 transition-colors">
+            ↺ 最初から再生
+          </button>
+        </div>
+      </div>
+
+      <!-- Preview Displays -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 relative z-10">
+
+        <!-- Dark Mode -->
+        <div class="card-dark-preview rounded-xl p-8 flex flex-col items-center justify-center gap-3 min-h-[180px] shadow-inner">
+          <div class="flex items-center justify-between w-full text-xs font-mono text-gray-500">
+            <span>Dark Mode</span>
+            <span class="text-[11px] text-orange-400 font-bold">#f97316 (Orange-500)</span>
+          </div>
+          <div id="logo-dark" class="font-black text-5xl sm:text-7xl tracking-tight text-white select-none">
+            <span>M</span><span class="bg-clip-text text-transparent stem-split-dark-1 anim-dark-d1" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent stem-split-dark-2 anim-dark-d2" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent stem-split-dark-3 anim-dark-d3" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span>wa</span><span class="anim-dark-d4">.</span>
+          </div>
+          <span class="text-[10px] text-gray-600 font-mono">背景が黒い時（通常時）</span>
+        </div>
+
+        <!-- Light Mode -->
+        <div class="card-light-preview rounded-xl p-8 flex flex-col items-center justify-center gap-3 min-h-[180px] shadow-sm">
+          <div class="flex items-center justify-between w-full text-xs font-mono text-gray-400">
+            <span>Light Mode</span>
+            <span class="text-[11px] text-orange-600 font-bold">#ea580c (Orange-600)</span>
+          </div>
+          <div id="logo-light" class="font-black text-5xl sm:text-7xl tracking-tight text-gray-900 select-none">
+            <span>M</span><span class="bg-clip-text text-transparent stem-split-light-1 anim-light-d1" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent stem-split-light-2 anim-light-d2" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent stem-split-light-3 anim-light-d3" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span>wa</span><span class="anim-light-d4">.</span>
+          </div>
+          <span class="text-[10px] text-gray-400 font-mono">背景が白い時（詳細シート展開時）</span>
+        </div>
+      </div>
+
+      <!-- Choreography Flow Details -->
+      <div class="bg-black/40 border border-gray-800/80 rounded-xl p-4 text-xs font-mono text-gray-300 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-orange-400 text-xs tracking-wider uppercase">演出の流れ（全20ループ / 1ループ各2.0秒 = 40.0秒）:</span>
+          <span class="text-[11px] text-gray-400">※ 1111 2222 3333 444 55 6 44</span>
+        </div>
+        <ol class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-gray-400 text-[11px] leading-relaxed">
+          <li class="bg-gray-900/60 p-2.5 rounded border border-gray-800">
+            <strong class="text-white">① 1111（順次ウェーブ 4ループ）:</strong><br>
+            光が波紋のように滑らかに受け渡される有機的ウェーブ。各ループ末尾に消灯余白を挟み、<strong>1から2への切り替え時も重ならず完全に完結してから2へ移ります</strong>。<br>
+            <span class="text-orange-400/80 font-mono">[0.0s〜8.0s] 4ループ (全体の20.0%)</span>
+          </li>
+          <li class="bg-gray-900/60 p-2.5 rounded border border-gray-800">
+            <strong class="text-white">② 2222（交互点滅 4ループ）:</strong><br>
+            奇数[1,3]と偶数[2,4]が交互に点滅。グラデーションによる滲みなく、<strong>はっきりと即座に点滅が切り替わります</strong>。<br>
+            <span class="text-orange-400/80 font-mono">[8.0s〜16.0s] 4ループ (全体の20.0%)</span>
+          </li>
+          <li class="bg-gray-900/60 p-2.5 rounded border border-gray-800">
+            <strong class="text-white">③ 3333（単灯 4ループ）:</strong><br>
+            ウェーブとは明確に異なり、<strong>常に1つの点だけが100%点灯してステップ移動</strong>（[1]→[2]→[3]→[4]）。4番目の点も含めグラデーション消灯を完全排除し、カチッと切り替わります。<br>
+            <span class="text-orange-400/80 font-mono">[16.0s〜24.0s] 4ループ (全体の20.0%)</span>
+          </li>
+          <li class="bg-gray-900/60 p-2.5 rounded border border-orange-900/50 bg-orange-950/10">
+            <strong class="text-white">④ 444（全消灯待機 3ループ）:</strong><br>
+            全消灯を6.0秒間キープ。途中でじんわり明るくなるグラデーションを排除し、<strong>最後まで完全消灯を維持</strong>します。<br>
+            <span class="text-orange-400/80 font-mono">[24.0s〜30.0s] 3ループ (全体の15.0%)</span>
+          </li>
+          <li class="bg-gray-900/60 p-2.5 rounded border border-gray-800">
+            <strong class="text-white">⑤ 55（全点灯 2ループ）:</strong><br>
+            444が終わった瞬間、<strong>グラデーションなしで一斉にパンッと全点灯</strong>し、4.0秒間鮮やかに全点灯をキープします。<br>
+            <span class="text-orange-400/80 font-mono">[30.0s〜34.0s] 2ループ (全体の10.0%)</span>
+          </li>
+          <li class="bg-gray-900/60 p-2.5 rounded border border-orange-500/50 bg-orange-950/20">
+            <strong class="text-orange-300">⑥ 6（電球フリッカー消灯 1ループ ★新設）:</strong><br>
+            全点灯の直後にフッと暗転し、<strong>0.1秒前後の鋭いスパークで「バチッ…バチバチッ…パッ」と瞬いてスーッと静かに完全消灯</strong>に至るリアルな電球消灯。<br>
+            <span class="text-orange-400 font-mono font-bold">[34.0s〜36.0s] 1ループ (全体の5.0%)</span>
+          </li>
+          <li class="bg-gray-900/60 p-2.5 rounded border border-gray-800 col-span-1 sm:col-span-2 lg:col-span-3">
+            <strong class="text-white">⑦ 44（全消灯余白 2ループ）:</strong><br>
+            6で消えた後、<strong>4.0秒間の静寂な完全消灯</strong>を経て、再び①の1111へ滑らかにループします。<br>
+            <span class="text-orange-400/80 font-mono">[36.0s〜40.0s] 2ループ (全体の10.0%)</span>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         個別パーツ確認用リファレンス（比較用）
+         ============================================================ -->
+    <div class="border-t border-gray-800 pt-8 flex flex-col gap-6">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-bold text-gray-300">各個別バリエーションの確認（リファレンス）</h3>
+        <span class="text-xs text-gray-500">※ 単体での動きを確認したい場合にご覧ください</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Ref 1 -->
+        <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4 flex flex-col gap-2">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="font-bold text-orange-400">1. 順次ウェーブ</span>
+            <span class="text-gray-500">1→2→3→4</span>
+          </div>
+          <div class="bg-[#0a0a0f] rounded-lg p-3 flex justify-center text-3xl font-black tracking-tight text-white select-none">
+            <span>M</span><span class="bg-clip-text text-transparent stem-split-dark-1 ref-w1" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent stem-split-dark-2 ref-w2" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent stem-split-dark-3 ref-w3" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span>wa</span><span class="ref-w4">.</span>
+          </div>
+        </div>
+
+        <!-- Ref 2 -->
+        <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4 flex flex-col gap-2">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="font-bold text-orange-400">2. 交互点滅</span>
+            <span class="text-gray-500">[1,3]⇔[2,4]</span>
+          </div>
+          <div class="bg-[#0a0a0f] rounded-lg p-3 flex justify-center text-3xl font-black tracking-tight text-white select-none">
+            <span>M</span><span class="bg-clip-text text-transparent stem-split-dark-1 ref-alt-o" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent stem-split-dark-2 ref-alt-e" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent stem-split-dark-3 ref-alt-o" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span>wa</span><span class="ref-alt-e">.</span>
+          </div>
+        </div>
+
+        <!-- Ref 3 -->
+        <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4 flex flex-col gap-2">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="font-bold text-orange-400">3. 1つだけ走査</span>
+            <span class="text-gray-500">[1]→[2]→[3]→[4]</span>
+          </div>
+          <div class="bg-[#0a0a0f] rounded-lg p-3 flex justify-center text-3xl font-black tracking-tight text-white select-none">
+            <span>M</span><span class="bg-clip-text text-transparent stem-split-dark-1 ref-s1" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent stem-split-dark-2 ref-s2" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent stem-split-dark-3 ref-s3" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span>wa</span><span class="ref-s4">.</span>
+          </div>
+        </div>
+
+        <!-- Ref 4-B -->
+        <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4 flex flex-col gap-2">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="font-bold text-orange-400">4-B. 選択された消灯トーン</span>
+            <span class="text-gray-500">減光オレンジ</span>
+          </div>
+          <div class="bg-[#0a0a0f] rounded-lg p-3 flex justify-center text-3xl font-black tracking-tight text-white select-none">
+            <span>M</span><span class="bg-clip-text text-transparent v4b-dark" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent v4b-dark" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent v4b-dark" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span>wa</span><span class="v4b-d4-dark">.</span>
+          </div>
+        </div>
+
+                <!-- Ref 6 (新設: 電球フリッカー消灯) -->
+        <div class="bg-gray-900/60 border border-orange-500/40 rounded-xl p-4 flex flex-col gap-2">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="font-bold text-orange-400">★ 6. チカチカ消灯（電球フリッカー）</span>
+            <span class="text-orange-400 font-bold">Flicker & Off</span>
+          </div>
+          <div class="bg-[#0a0a0f] rounded-lg p-3 flex justify-center text-3xl font-black tracking-tight text-white select-none">
+            <span>M</span><span class="bg-clip-text text-transparent stem-split-dark-1 ref-flicker-dark" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent stem-split-dark-2 ref-flicker-dark" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent stem-split-dark-3 ref-flicker-dark" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span>wa</span><span class="ref-flicker-dark">.</span>
+          </div>
+        </div>
+
+        <!-- Ref 5 -->
+        <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4 flex flex-col gap-2">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="font-bold text-orange-400">5. 全点灯（基準）</span>
+            <span class="text-gray-500">Solid ON</span>
+          </div>
+          <div class="bg-[#0a0a0f] rounded-lg p-3 flex justify-center text-3xl font-black tracking-tight text-white select-none">
+            <span>M</span><span class="bg-clip-text text-transparent v5-dark" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent v5-dark" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span class="bg-clip-text text-transparent v5-dark" style="-webkit-background-clip: text; -webkit-text-fill-color: transparent;">i</span><span>wa</span><span class="v5-d4-dark">.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Note -->
+    <footer class="border-t border-gray-800 pt-6 text-center text-xs text-gray-500 flex flex-col gap-1 pb-10">
+      <p>※ ご指示いただくまで、本番コード（<code>src/hub/HubHeader.tsx</code> 等）への組み込みは行いません。</p>
+      <p>このリズムや各セクションの速度・タイミングで問題なければ、本番コードに適用いたします。</p>
+    </footer>
+
+  </div>
+
+  <script>
+    let loopSeconds = 2.0;
+    const TOTAL_BEATS = 20;
+    let durationSeconds = loopSeconds * TOTAL_BEATS; // 40.0s
+    let startTime = performance.now();
+
+    function updateStepTimes() {
+      const s4 = (4 * loopSeconds).toFixed(1);
+      const s3 = (3 * loopSeconds).toFixed(1);
+      const s2 = (2 * loopSeconds).toFixed(1);
+      const s1 = (1 * loopSeconds).toFixed(1);
+      const t1 = document.getElementById('time-step-1');
+      const t2 = document.getElementById('time-step-2');
+      const t3 = document.getElementById('time-step-3');
+      const t4a = document.getElementById('time-step-4a');
+      const t5 = document.getElementById('time-step-5');
+      const t6 = document.getElementById('time-step-6');
+      const t4b = document.getElementById('time-step-4b');
+      if (t1) t1.textContent = '4ループ (' + s4 + 's)';
+      if (t2) t2.textContent = '4ループ (' + s4 + 's)';
+      if (t3) t3.textContent = '4ループ (' + s4 + 's)';
+      if (t4a) t4a.textContent = '3ループ (' + s3 + 's)';
+      if (t5) t5.textContent = '2ループ (' + s2 + 's)';
+      if (t6) t6.textContent = '1ループ (' + s1 + 's)';
+      if (t4b) t4b.textContent = '2ループ (' + s2 + 's)';
+    }
+
+    function changeLoopSec(sec, btn) {
+      loopSeconds = parseFloat(sec);
+      durationSeconds = loopSeconds * TOTAL_BEATS;
+      document.documentElement.style.setProperty('--seq-duration', durationSeconds + 's');
+      
+      const customInput = document.getElementById('customSecInput');
+      if (customInput) customInput.value = loopSeconds;
+
+      const buttons = btn.parentElement.querySelectorAll('button');
+      buttons.forEach(b => {
+        b.className = 'px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition-colors';
+      });
+      btn.className = 'px-3 py-1.5 rounded-lg bg-orange-600 text-white font-bold transition-colors';
+      updateStepTimes();
+      restartAnimation();
+    }
+
+    function onCustomSec(val) {
+      const sec = parseFloat(val);
+      if (!isNaN(sec) && sec > 0.1) {
+        loopSeconds = sec;
+        durationSeconds = loopSeconds * TOTAL_BEATS;
+        document.documentElement.style.setProperty('--seq-duration', durationSeconds + 's');
+        const buttons = document.querySelectorAll('header button');
+        buttons.forEach(b => {
+          b.className = 'px-3 py-1.5 rounded-lg text-gray-400 hover:text-white transition-colors';
+        });
+        updateStepTimes();
+        restartAnimation();
+      }
+    }
+
+    function restartAnimation() {
+      const darkLogo = document.getElementById('logo-dark');
+      const lightLogo = document.getElementById('logo-light');
+      [darkLogo, lightLogo].forEach(logo => {
+        const animEls = logo.querySelectorAll('[class*="anim-"]');
+        animEls.forEach(el => {
+          el.style.animation = 'none';
+          el.offsetHeight; // trigger reflow
+          el.style.animation = '';
+        });
+      });
+      startTime = performance.now();
+    }
+
+    // Tracker Loop for Live Visual Progress (Directly synced with Web Animations API)
+    function getExactCurrentSeconds() {
+      const targetEl = document.querySelector('#logo-dark .anim-dark-d1');
+      if (targetEl && typeof targetEl.getAnimations === 'function') {
+        const anims = targetEl.getAnimations();
+        if (anims.length > 0 && anims[0].currentTime !== null) {
+          const durMs = durationSeconds * 1000;
+          return (((anims[0].currentTime % durMs) + durMs) % durMs) / 1000;
+        }
+      }
+      return ((performance.now() - startTime) / 1000) % durationSeconds;
+    }
+
+    function updateProgress() {
+      const elapsed = getExactCurrentSeconds();
+      const progressPercent = (elapsed / durationSeconds) * 100;
+      const beatProgress = (elapsed / durationSeconds) * TOTAL_BEATS;
+      const currentBeat = Math.min(TOTAL_BEATS - 1, Math.floor(beatProgress)); // 0-indexed: 0 to 19
+      const beatNum = currentBeat + 1; // 1 to 20
+      
+      const progressBar = document.getElementById('progressBar');
+      if (progressBar) progressBar.style.width = progressPercent + '%';
+
+      const timeCounter = document.getElementById('timeCounter');
+      if (timeCounter) timeCounter.textContent = elapsed.toFixed(1) + 's / ' + durationSeconds.toFixed(1) + 's (ループ ' + beatNum + '/' + TOTAL_BEATS + ')';
+
+      // Determine active step and detailed label based on exact beat index (0 to 33)
+      let label = '';
+      let activeStep = '';
+
+      if (currentBeat < 4) {
+        // Beats 0, 1, 2, 3 (1111)
+        label = '1111 (順次ウェーブ ' + (currentBeat + 1) + '/4ループ目)';
+        activeStep = 'step-1';
+      } else if (currentBeat < 8) {
+        // Beats 4, 5, 6, 7 (2222)
+        label = '2222 (交互点滅 ' + (currentBeat - 4 + 1) + '/4ループ目)';
+        activeStep = 'step-2';
+      } else if (currentBeat < 12) {
+        // Beats 8, 9, 10, 11 (3333)
+        label = '3333 (単灯走査 ' + (currentBeat - 8 + 1) + '/4ループ目)';
+        activeStep = 'step-3';
+      } else if (currentBeat < 15) {
+        // Beats 12, 13, 14 (444)
+        label = '444 (全消灯待機 ' + (currentBeat - 12 + 1) + '/3ループ目)';
+        activeStep = 'step-4a';
+      } else if (currentBeat < 17) {
+        // Beats 15, 16 (55)
+        label = '55 (全点灯 ' + (currentBeat - 15 + 1) + '/2ループ目)';
+        activeStep = 'step-5';
+      } else if (currentBeat === 17) {
+        // Beat 17 (6: チカチカ消灯フリッカー)
+        label = '★ 6 (電球フリッカー消灯: バチバチッと瞬いて消灯)';
+        activeStep = 'step-6';
+      } else {
+        // Beats 18, 19 (44: 全消灯余白)
+        label = '44 (全消灯余白 ' + (currentBeat - 18 + 1) + '/2ループ目)';
+        activeStep = 'step-4b';
+      }
+
+      const phaseEl = document.getElementById('currentPhaseLabel');
+      if (phaseEl) phaseEl.textContent = label;
+
+      // Highlight active step pill
+      ['step-1', 'step-2', 'step-3', 'step-4a', 'step-5', 'step-6', 'step-4b'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          if (id === activeStep) {
+            el.classList.add('active');
+          } else {
+            el.classList.remove('active');
+          }
+        }
+      });
+
+      requestAnimationFrame(updateProgress);
+    }
+
+    requestAnimationFrame(updateProgress);
+  </script>
+</body>
+</html>

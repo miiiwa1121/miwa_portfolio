@@ -47,12 +47,55 @@ export default function HubHeader({
        */}
       <button
         onClick={onLogoClick}
-        className={`pointer-events-auto font-black text-2xl sm:text-4xl md:text-5xl tracking-tight hover:scale-[1.03] active:scale-[0.98] transition-transform ${onLightBackground
-            ? "text-gray-900"
-            : "text-white [text-shadow:0_1px_8px_rgba(255,255,255,0.7)]"
-          }`}
+        aria-label="Miiiwa."
+        className={`pointer-events-auto font-black text-2xl sm:text-4xl md:text-5xl tracking-tight hover:scale-[1.03] active:scale-[0.98] transition-transform select-none ${
+          onLightBackground ? "text-gray-900" : "text-white"
+        }`}
       >
-        Miiiwa<span className="text-orange-500">.</span>
+        <span>M</span>
+        <span
+          className={`bg-clip-text text-transparent ${
+            onLightBackground
+              ? "stem-split-light-1 anim-light-d1"
+              : "stem-split-dark-1 anim-dark-d1"
+          }`}
+          style={{
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
+          i
+        </span>
+        <span
+          className={`bg-clip-text text-transparent ${
+            onLightBackground
+              ? "stem-split-light-2 anim-light-d2"
+              : "stem-split-dark-2 anim-dark-d2"
+          }`}
+          style={{
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
+          i
+        </span>
+        <span
+          className={`bg-clip-text text-transparent ${
+            onLightBackground
+              ? "stem-split-light-3 anim-light-d3"
+              : "stem-split-dark-3 anim-dark-d3"
+          }`}
+          style={{
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
+          i
+        </span>
+        <span>wa</span>
+        <span className={onLightBackground ? "anim-light-d4" : "anim-dark-d4"}>
+          .
+        </span>
       </button>
 
       {/* Nav + language + actions */}
