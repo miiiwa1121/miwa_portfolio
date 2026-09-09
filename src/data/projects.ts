@@ -27,7 +27,7 @@ export const PROJECTS: ProjectSource[] = [
     title: { ja: "Umoja (ぐるディス)", en: "Umoja (GruDis)" },
     description: {
       ja: "「文字にはわからないことがある」グループディスカッション（GD）をオンラインで評価し、参加者が自分の意思で企業へ評価データを送れるプラットフォームです。",
-      en: '"Some things can\'t be understood through text." A platform that evaluates online group discussions (GD) and allows participants to send evaluation data to companies at their own discretion.',
+      en: "Some things cannot be understood through text. A platform that evaluates online group discussions (GD) and allows participants to send evaluation data to companies at their own discretion.",
     },
     image: "/images/project_placeholder.webp",
     tags: ["Next.js", "Supabase", "LiveKit", "Gemini", "Whisper"],
@@ -47,7 +47,7 @@ export const PROJECTS: ProjectSource[] = [
     tags: ["Next.js", "Supabase", "Tailwind CSS", "Leaflet"],
     category: "WEB",
     status: "Public",
-    githubUrl: "#",
+    githubUrl: "https://github.com/miiiwa1121/imadoko",
     demoUrl: "https://imadoko.miiiwa.com",
   },
   {
@@ -63,6 +63,20 @@ export const PROJECTS: ProjectSource[] = [
     status: "Public",
     githubUrl: "https://github.com/miiiwa1121/michaw",
     demoUrl: "https://michaw.miiiwa.com",
+  },
+  {
+    slug: "synesthesium",
+    title: { ja: "Synesthesium", en: "Synesthesium" },
+    description: {
+      ja: "音階、色覚、モールス、リズムなど、様々な感覚を研ぎ澄ます無料の神経衰弱ゲーム・コレクション。ブラウザでいつでも手軽にプレイできます。",
+      en: "A sensory memory matching game collection challenging sound pitch, color perception, Morse code, and rhythm in the browser.",
+    },
+    image: "/images/synesthesium.png",
+    tags: ["Next.js", "React", "Web Audio API", "Tailwind CSS"],
+    category: "WEB",
+    status: "Public",
+    githubUrl: "https://github.com/miiiwa1121/synesthesium",
+    demoUrl: "https://synesthesium.miiiwa.com",
   },
   {
     slug: "reallog",
@@ -91,33 +105,5 @@ export const PROJECTS: ProjectSource[] = [
     status: "dev",
     githubUrl: "#",
     demoUrl: "#",
-  },
-  {
-    slug: "sound-card-game",
-    title: { ja: "音階神経衰弱", en: "Sound Memory Game" },
-    description: {
-      ja: "音を頼りに同じ音階のカードペアを探す神経衰弱（メモリー）ゲームです。カードをめくると音階が鳴ります。",
-      en: "A memory game where you rely on sound to find matching card pairs of the same musical scale. When you flip a card, a musical scale is played.",
-    },
-    image: "/images/音階神経衰弱.webp",
-    tags: ["Next.js", "React", "Web Audio API"],
-    category: "WEB",
-    status: "Public",
-    githubUrl: "https://github.com/miiiwa1121/synesthesium",
-    demoUrl: "https://synesthesium.miiiwa.com/sound",
-  },
-  {
-    slug: "vegetable-card-game",
-    title: { ja: "野菜神経衰弱", en: "Vegetable Memory Game" },
-    description: {
-      ja: "野菜画像を使ったメモリーカードゲーム（神経衰弱）です。",
-      en: "A memory card game (concentration) using vegetable images.",
-    },
-    image: "/images/野菜神経衰弱.webp",
-    tags: ["Next.js", "React", "CSS Modules"],
-    category: "WEB",
-    status: "Public",
-    githubUrl: "https://github.com/miiiwa1121/synesthesium",
-    demoUrl: "https://synesthesium.miiiwa.com/vegetable",
   },
 ];
