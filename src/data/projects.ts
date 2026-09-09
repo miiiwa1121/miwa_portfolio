@@ -48,7 +48,7 @@ export const PROJECTS: ProjectSource[] = [
     category: "WEB",
     status: "Public",
     githubUrl: "#",
-    demoUrl: "https://imadoko.link",
+    demoUrl: "https://imadoko.miiiwa.com",
   },
   {
     slug: "mesen",
