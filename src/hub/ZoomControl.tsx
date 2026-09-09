@@ -51,9 +51,9 @@ export default function ZoomControl({ isJa, stage, onSelect }: Props) {
       onClick={() => onSelect(NEXT[stage])}
       title={isJa ? `ズーム: ${label}` : `Zoom: ${label}`}
       aria-label={isJa ? `ズーム: ${label}` : `Zoom: ${label}`}
-      className={`w-14 h-14 rounded-full flex items-center justify-center hover:scale-105 transition-transform border border-black/5 pointer-events-auto ${FILL[stage]}`}
+      className={`w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 border border-black/5 pointer-events-auto shadow-sm ${FILL[stage]}`}
     >
-      <ZoomIn size={20} />
+      <ZoomIn className="w-4 h-4 sm:w-5 sm:h-5" />
     </button>
   );
 }

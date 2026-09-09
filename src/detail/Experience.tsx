@@ -132,33 +132,57 @@ const experiencesEN = [
 
 export default function Experience() {
   const { language } = useLanguage();
-  const experiences = language === "ja" ? experiencesJP : experiencesEN;
-  
+  const isJa = language === "ja";
+  const experiences = isJa ? experiencesJP : experiencesEN;
+
   return (
     <Section id="experience" title="Experience">
-      <div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-[var(--primary)] before:via-[var(--secondary)] before:to-transparent before:opacity-60">
-        {experiences.map((exp, index) => (
-          <motion.div 
-            key={index}
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-50px" }}
-            transition={{ duration: 0.5, delay: index * 0.1 }}
-            className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active"
-          >
-            <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-[var(--primary)] shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 relative z-10">
-              <div className="w-2 h-2 bg-white rounded-full" />
-            </div>
-
-            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-6 rounded-2xl bg-white border border-black/5 hover:border-[var(--primary)]/50 transition-all">
-              <div className="flex flex-col md:flex-row md:items-center justify-between mb-2 gap-2">
-                <h3 className="font-bold text-gray-900 text-xl">{exp.title}</h3>
-                <span className="text-[var(--primary)] font-mono text-sm font-semibold bg-[var(--primary)]/10 px-3 py-1 rounded-full w-fit">{exp.year}</span>
+      <div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-orange-500 before:via-orange-300 before:to-gray-200">
+        {experiences.map((exp, index) => {
+          const isLatest = index === experiences.length - 1;
+          return (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.4, delay: Math.min(index * 0.05, 0.3) }}
+              className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group"
+            >
+              {/* Timeline node */}
+              <div
+                className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-[#fffdf7] shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 relative z-10 shadow-sm transition-transform duration-200 group-hover:scale-110 ${isLatest
+                    ? "bg-orange-600 ring-4 ring-orange-500/20"
+                    : "bg-orange-500"
+                  }`}
+              >
+                <div className="w-2.5 h-2.5 bg-white rounded-full" />
               </div>
-              <p className="text-gray-600 leading-relaxed">{exp.description}</p>
-            </div>
-          </motion.div>
-        ))}
+
+              {/* Timeline card */}
+              <div className="w-[calc(100%-3.5rem)] md:w-[calc(50%-2.5rem)] p-6 sm:p-7 rounded-2xl bg-white border border-black/5 hover:border-orange-300/80 shadow-sm hover:shadow-md transition-all duration-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-gray-950 text-lg sm:text-xl">
+                      {exp.title}
+                    </h3>
+                    {isLatest && (
+                      <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300/60 animate-pulse">
+                        {isJa ? "現在" : "Current"}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-orange-700 font-mono text-xs sm:text-sm font-bold bg-orange-50 border border-orange-200/60 px-3 py-1 rounded-full w-fit shrink-0">
+                    {exp.year}
+                  </span>
+                </div>
+                <p className="text-gray-600 text-sm sm:text-base leading-relaxed">
+                  {exp.description}
+                </p>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
     </Section>
   );

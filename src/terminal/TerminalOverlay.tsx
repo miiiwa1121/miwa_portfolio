@@ -103,7 +103,7 @@ export default function TerminalOverlay() {
         setHistory([]);
         setCurrentDir("~");
       }, 0);
-      
+
       const sequence = [
         "Establishing secure connection to miiiwa.dev...",
         "Connection established. Handshake OK.",
@@ -119,7 +119,7 @@ export default function TerminalOverlay() {
 
       let delay = 0;
       const timeouts: NodeJS.Timeout[] = [];
-      
+
       sequence.forEach((line, index) => {
         const timeout = setTimeout(() => {
           setDownloadLines(prev => [...prev, line]);
@@ -162,13 +162,13 @@ export default function TerminalOverlay() {
     setHistory(prev => [...prev, { type: "command", content: trimmed, dir: currentDir }]);
     setCommandHistory(prev => [...prev, trimmed]);
     setHistoryIndex(-1);
-    
+
     const args = trimmed.split(" ").filter(Boolean);
     const command = args[0].toLowerCase();
-    
+
     let output: ReactNode = "";
-    
-    switch(command) {
+
+    switch (command) {
       case "help":
         output = (
           <div className="space-y-1">
@@ -180,7 +180,7 @@ export default function TerminalOverlay() {
             <div>  clear    - Clear terminal output</div>
             <div>  date     - Print current date and time</div>
             <div>  whoami   - Print current user</div>
-            <br/>
+            <br />
             <div><span className="text-white font-bold">SHORTCUTS:</span></div>
             <div>  about, skills, experience, products, exit</div>
           </div>
@@ -235,7 +235,7 @@ export default function TerminalOverlay() {
           output = `cat: ${file}: No such file or directory`;
         }
         break;
-      
+
       // Shortcuts
       case "about":
         output = <pre className="text-green-300 leading-tight whitespace-pre-wrap font-mono">{ASCII_ABOUT}</pre>;
@@ -265,7 +265,7 @@ export default function TerminalOverlay() {
       default:
         output = `Command not found: ${command}. Type 'help' for a list of commands.`;
     }
-    
+
     setHistory(prev => [...prev, { type: "output", content: output }]);
     setInput("");
   };
@@ -343,10 +343,10 @@ export default function TerminalOverlay() {
               </div>
             </div>
           )}
-          
+
           <div ref={bottomRef} className="h-8" />
-          
-          <button 
+
+          <button
             onClick={closeTerminal}
             className="fixed top-4 right-4 z-50 text-green-500 hover:text-white transition-colors text-sm border border-green-500/30 px-3 py-1 rounded bg-black/50"
           >

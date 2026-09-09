@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { ChevronRight } from "lucide-react";
 import { useCardGestures } from "./useCardGestures";
 import { initialWheelState, stepForWheel, wheelPixels } from "./cardWheel";
@@ -70,17 +70,50 @@ const CARD: Record<
 const PEEK_OFFSETS = [11, 21];
 
 /**
- * Cards enter from the side the gesture pulled them from, so the movement
- * agrees with the hand that caused it: scrolling down (step -1) pulls the next
- * card up from below, and the one being replaced leaves through the top.
+ * 3D Deck Card Shuffle:
+ * Cards transition like a deck of playing cards being dealt or shuffled.
+ * The exiting card peels off with a subtle tilt and rotation, while the
+ * incoming card rises from the stack with smooth spring physics.
  */
-const CARD_VARIANTS = {
-  enter: (step: number) => ({ opacity: 0, y: step < 0 ? 34 : -34, scale: 0.97 }),
-  center: { opacity: 1, y: 0, scale: 1 },
-  exit: (step: number) => ({ opacity: 0, y: step < 0 ? -34 : 34, scale: 0.97 }),
+const CARD_VARIANTS: Variants = {
+  enter: (step: number) => ({
+    opacity: 0,
+    y: step < 0 ? 52 : -52,
+    x: step < 0 ? -24 : 24,
+    rotateZ: step < 0 ? -4.5 : 4.5,
+    rotateX: step < 0 ? -8 : 8,
+    scale: 0.93,
+    filter: "blur(2px)",
+  }),
+  center: {
+    opacity: 1,
+    y: 0,
+    x: 0,
+    rotateZ: 0,
+    rotateX: 0,
+    scale: 1,
+    filter: "blur(0px)",
+    transition: {
+      type: "spring",
+      stiffness: 340,
+      damping: 26,
+      mass: 0.85,
+    },
+  },
+  exit: (step: number) => ({
+    opacity: 0,
+    y: step < 0 ? -64 : 64,
+    x: step < 0 ? 36 : -36,
+    rotateZ: step < 0 ? 6.5 : -6.5,
+    rotateX: step < 0 ? 10 : -10,
+    scale: 0.91,
+    filter: "blur(3px)",
+    transition: {
+      duration: 0.28,
+      ease: [0.32, 0, 0.67, 0],
+    },
+  }),
 };
-
-const CARD_SPRING = { type: "spring", stiffness: 420, damping: 38, mass: 0.7 } as const;
 
 /**
  * How long a card that has just arrived gets before another step is taken.
@@ -235,7 +268,7 @@ export default function AreaCard({
     <div
       ref={stackRef}
       {...gestures}
-      className="relative w-full max-w-xs sm:max-w-sm cursor-pointer select-none touch-none pointer-events-auto"
+      className="relative w-full max-w-xs sm:max-w-sm cursor-pointer select-none touch-none pointer-events-auto [perspective:1000px]"
     >
       {/* The rest of the stack. Positioned, so they paint under the card,
           which takes a stacking context of its own below. */}
@@ -243,39 +276,19 @@ export default function AreaCard({
         <div
           key={offset}
           aria-hidden="true"
-          className="absolute inset-0 rounded-3xl border border-black/5"
+          className="absolute inset-0 rounded-3xl border border-black/5 shadow-md pointer-events-none transition-transform duration-300"
           style={{
-            transform: `translateY(${offset}px) scaleX(${1 - (i + 1) * 0.045})`,
-            background: "#ffffff",
+            transform: `translateY(${offset}px) scale(${1 - (i + 1) * 0.04}) rotate(${i === 0 ? -1.2 : 1.5}deg)`,
+            background: i === 0 ? "#fcfbf7" : "#f5f4ee",
           }}
         />
       ))}
 
-      {/* Where the trail leaves the card, and the trail's near end.
-          On the stack rather than on the card, though it is the card's corner
-          it marks — the stack is what stays put. The card inside is keyed on
-          the area and remounts every time another one comes round, and with
-          two copies briefly alive during the swap, the *outgoing* one's ref
-          callback fires with null after the incoming one has already claimed
-          it. That left `anchorRef.current` empty, the trail's draw() bailing
-          on every frame afterwards, and the line frozen at wherever it had
-          last been drawn — a stale line, detached from the dot, from the first
-          time the card changed.
-          Gone once an area is focused, along with the trail itself: it is the
-          trail's near end, and a lone dot on the corner of the card with
-          nothing leaving it reads as a stray mark. */}
+      {/* Where the trail leaves the card, and the trail's near end. */}
       {!focused && (
         <span
           ref={anchorRef}
           aria-hidden="true"
-          // Starts hidden and is shown by CardLeaderLine, which is the thing
-          // that knows whether there is a trail to leave from it. Fading
-          // rather than switching, so an area passing behind the card does
-          // not make the dot blink.
-          // The colour lives in `markerBolt.ts` with the trail's, not in a
-          // Tailwind arbitrary value: the class scanner needs a literal, and a
-          // second literal is a second thing to forget when the marker's blue
-          // is next adjusted.
           style={{
             opacity: 0,
             transition: "opacity 240ms ease",
@@ -293,24 +306,31 @@ export default function AreaCard({
           initial="enter"
           animate="center"
           exit="exit"
-          whileHover={{ y: -4 }}
-          transition={CARD_SPRING}
-          className="relative z-10 bg-white rounded-3xl p-6 sm:p-8 border border-black/5"
+          whileHover={{ y: -5, rotateZ: 0.8, scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          style={{ transformStyle: "preserve-3d" }}
+          className="relative z-10 bg-white rounded-3xl p-6 sm:p-8 border border-black/10 shadow-xl shadow-black/5"
         >
-          <p className="text-orange-500 font-black text-lg">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-orange-700 bg-orange-50 border border-orange-200/60 px-2.5 py-0.5 rounded-full">
+              {card.sub}
+            </span>
+          </div>
+
+          <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-2">
             {isJa ? card.jaTitle : card.enTitle}
-          </p>
-          <p className="text-xs text-gray-400 font-bold mb-4 uppercase tracking-[0.2em]">
-            {card.sub}
-          </p>
-          <p className="text-gray-700 font-medium mb-6 leading-relaxed text-sm">
+          </h3>
+
+          <p className="text-gray-600 text-sm leading-relaxed mb-6 font-normal">
             {isJa ? card.ja : card.en}
           </p>
+
           <button
             onClick={onOpen}
-            className="inline-flex bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 px-7 rounded-full shadow-[0_4px_0_#c2410c] active:shadow-[0_0px_0_#c2410c] active:translate-y-1 transition-all items-center gap-1.5"
+            className="group/btn inline-flex items-center gap-2 bg-[#ea580c] hover:bg-[#c2410c] text-white font-bold py-2.5 px-6 rounded-full shadow-[0_4px_0_#9a3412] hover:shadow-[0_2px_0_#9a3412] hover:translate-y-[2px] active:shadow-none active:translate-y-1 transition-all text-sm"
           >
-            {isJa ? "詳しく見る" : "More"} <ChevronRight size={18} />
+            <span>{isJa ? "詳しく見る" : "More"}</span>
+            <ChevronRight size={16} className="group-hover/btn:translate-x-0.5 transition-transform" />
           </button>
         </motion.div>
       </AnimatePresence>
