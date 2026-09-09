@@ -103,8 +103,8 @@ export const PROJECTS: ProjectSource[] = [
     tags: ["Next.js", "React", "Web Audio API"],
     category: "WEB",
     status: "Public",
-    githubUrl: "https://github.com/miiiwa1121/sound_card_game",
-    demoUrl: "https://sound-card-game.miiiwa.workers.dev/",
+    githubUrl: "https://github.com/miiiwa1121/synesthesium",
+    demoUrl: "https://synesthesium.miiiwa.com/sound",
   },
   {
     slug: "vegetable-card-game",
@@ -117,7 +117,7 @@ export const PROJECTS: ProjectSource[] = [
     tags: ["Next.js", "React", "CSS Modules"],
     category: "WEB",
     status: "Public",
-    githubUrl: "https://github.com/miiiwa1121/vegetable_card_game",
-    demoUrl: "https://vegetable-card-game.miiiwa.workers.dev/",
+    githubUrl: "https://github.com/miiiwa1121/synesthesium",
+    demoUrl: "https://synesthesium.miiiwa.com/vegetable",
   },
 ];
