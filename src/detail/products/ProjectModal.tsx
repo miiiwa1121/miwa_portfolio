@@ -49,9 +49,9 @@ export default function ProjectModal({ project, onClose, onBlockedLink }: Props)
         <button
           onClick={onClose}
           aria-label={language === "ja" ? "閉じる" : "Close"}
-          className="absolute top-4 right-4 z-10 p-2 bg-white/85 hover:bg-orange-500 hover:text-white text-gray-800 rounded-full backdrop-blur-md transition-colors"
+          className="absolute top-4 right-4 z-30 p-2.5 bg-white/90 hover:bg-white text-gray-800 hover:text-gray-950 rounded-full backdrop-blur-md shadow-md border border-black/10 transition-all hover:scale-105 active:scale-95 cursor-pointer"
         >
-          <X size={20} />
+          <X size={18} />
         </button>
 
         <div className="relative h-64 md:h-96 w-full shrink-0 border-b border-black/5 bg-gray-50">
@@ -62,37 +62,37 @@ export default function ProjectModal({ project, onClose, onBlockedLink }: Props)
             sizes="(min-width: 1024px) 1024px, 100vw"
             className="object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-white via-white/30 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent"></div>
           <div className="absolute top-6 left-6 z-20">
             <span
-              className={`flex items-center gap-2 text-sm font-bold px-4 py-1.5 rounded-full border backdrop-blur-md ${
+              className={`flex items-center gap-2 text-xs sm:text-sm font-bold px-3.5 py-1.5 rounded-full border backdrop-blur-md shadow-sm ${
                 project.status === "Public"
-                  ? "bg-green-50/90 text-green-700 border-green-600/30"
-                  : "bg-orange-50/90 text-orange-700 border-orange-600/30"
+                  ? "bg-emerald-50/90 text-emerald-700 border-emerald-300/40"
+                  : "bg-orange-50/90 text-orange-700 border-orange-300/40"
               }`}
             >
-              <div
+              <span
                 className={`w-2 h-2 rounded-full ${
                   project.status === "Public"
-                    ? "bg-green-500 shadow-[0_0_8px_#22c55e]"
+                    ? "bg-emerald-500 shadow-[0_0_8px_#22c55e]"
                     : "bg-orange-500 shadow-[0_0_8px_#f97316]"
                 }`}
               />
-              {statusLabel(project.status, language)}
+              <span>{statusLabel(project.status, language)}</span>
             </span>
           </div>
         </div>
 
         <div className="p-6 md:p-10 overflow-y-auto custom-scrollbar">
-          <div className="flex items-center gap-4 mb-6">
-            <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tighter">
+          <div className="flex items-center gap-3 sm:gap-4 mb-6">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-950 tracking-tight">
               {project.title}
             </h2>
             <span
               className={`px-3 py-1 rounded-full text-xs font-bold border ${
                 project.category === "WEB"
-                  ? "bg-green-50 text-green-700 border-green-600/30"
-                  : "bg-red-50 text-red-700 border-red-600/30"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200/50"
+                  : "bg-purple-50 text-purple-700 border-purple-200/50"
               }`}
             >
               {project.category}
@@ -101,21 +101,21 @@ export default function ProjectModal({ project, onClose, onBlockedLink }: Props)
 
           <div className="space-y-6">
             <div>
-              <h3 className="font-bold mb-3 border-b border-black/10 pb-2 text-sm tracking-widest uppercase text-gray-500">
+              <h3 className="font-bold mb-3 border-b border-black/5 pb-2 text-xs tracking-widest uppercase text-gray-500">
                 Overview
               </h3>
-              <p className="text-gray-700 text-lg leading-relaxed">{project.description}</p>
+              <p className="text-gray-700 text-base sm:text-lg leading-relaxed">{project.description}</p>
             </div>
 
             <div>
-              <h3 className="font-bold mb-3 border-b border-black/10 pb-2 text-sm tracking-widest uppercase text-gray-500">
+              <h3 className="font-bold mb-3 border-b border-black/5 pb-2 text-xs tracking-widest uppercase text-gray-500">
                 Tech Stack
               </h3>
               <div className="flex flex-wrap gap-2">
                 {project.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="px-3 py-1.5 bg-gray-50 border border-black/10 rounded-lg text-gray-700 text-sm font-medium"
+                    className="px-3 py-1.5 bg-gray-50 border border-black/5 rounded-xl text-gray-700 text-sm font-medium"
                   >
                     {tag}
                   </span>
@@ -124,15 +124,15 @@ export default function ProjectModal({ project, onClose, onBlockedLink }: Props)
             </div>
           </div>
 
-          <div className="flex gap-4 mt-12 pt-6 border-t border-black/10">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-10 pt-6 border-t border-black/5">
             <ProjectLinks
               project={project}
               onBlocked={onBlockedLink}
-              iconSize={20}
+              iconSize={18}
               codeLabel="View Code"
               demoLabel="Play Now"
-              codeClassName="flex-1 py-4 flex items-center justify-center gap-2 rounded-xl bg-white hover:bg-gray-50 border border-black/10 text-gray-800 font-bold transition-all hover:scale-[1.02]"
-              demoClassName="flex-1 py-4 flex items-center justify-center gap-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold transition-all shadow-[0_4px_0_var(--primary-strong)] active:shadow-none active:translate-y-1"
+              codeClassName="flex-1 py-3.5 sm:py-4 flex items-center justify-center gap-2 rounded-2xl bg-white hover:bg-gray-50 border border-black/10 text-gray-800 font-bold transition-all hover:scale-[1.01] active:scale-95 text-sm sm:text-base cursor-pointer"
+              demoClassName="flex-1 py-3.5 sm:py-4 flex items-center justify-center gap-2 rounded-2xl bg-[#ea580c] hover:bg-[#c2410c] text-white font-bold transition-all shadow-[0_4px_0_#9a3412] hover:shadow-[0_2px_0_#9a3412] hover:translate-y-[2px] active:shadow-none active:translate-y-1 text-sm sm:text-base cursor-pointer"
             />
           </div>
         </div>

@@ -284,6 +284,7 @@ export default function Hub() {
           // header. About is deliberately not one: it has no sheet, its text
           // sits straight on the starfield, and the logo stays white there.
           onLightBackground={pageOpen}
+          onClose={() => closeToHome("down", false)}
         />
 
         {/* Middle: contextual card (orbit mode only, and not while the

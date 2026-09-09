@@ -23,7 +23,13 @@ type Props = {
  * The HTML detail page (About…Footer), bracketed by two transparent spacers.
  * Scrolling off either end returns home — see `onScroll` in the caller.
  */
-export default function Sheet({ pageOpen, activeSection, exitDirection, scrollerRef, onScroll }: Props) {
+export default function Sheet({
+  pageOpen,
+  activeSection,
+  exitDirection,
+  scrollerRef,
+  onScroll,
+}: Props) {
   return (
     <AnimatePresence custom={exitDirection}>
       {pageOpen && activeSection && activeSection !== "about" && (
@@ -41,7 +47,7 @@ export default function Sheet({ pageOpen, activeSection, exitDirection, scroller
           {/* Transparent spacer: scrolling up into it returns home */}
           <div className="h-screen pointer-events-none" />
 
-          <div className="bg-white pt-24 pb-24 min-h-screen flex flex-col relative z-30">
+          <div className="bg-[#fffdf7] pt-24 pb-24 min-h-screen flex flex-col relative z-30">
             <div className="flex-grow">
               <AnimatePresence mode="wait">
                 <motion.div

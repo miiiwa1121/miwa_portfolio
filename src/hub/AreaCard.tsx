@@ -243,39 +243,19 @@ export default function AreaCard({
         <div
           key={offset}
           aria-hidden="true"
-          className="absolute inset-0 rounded-3xl border border-black/5"
+          className="absolute inset-0 rounded-3xl border border-black/5 shadow-md"
           style={{
             transform: `translateY(${offset}px) scaleX(${1 - (i + 1) * 0.045})`,
-            background: "#ffffff",
+            background: i === 0 ? "#fbfaf6" : "#f5f4ef",
           }}
         />
       ))}
 
-      {/* Where the trail leaves the card, and the trail's near end.
-          On the stack rather than on the card, though it is the card's corner
-          it marks — the stack is what stays put. The card inside is keyed on
-          the area and remounts every time another one comes round, and with
-          two copies briefly alive during the swap, the *outgoing* one's ref
-          callback fires with null after the incoming one has already claimed
-          it. That left `anchorRef.current` empty, the trail's draw() bailing
-          on every frame afterwards, and the line frozen at wherever it had
-          last been drawn — a stale line, detached from the dot, from the first
-          time the card changed.
-          Gone once an area is focused, along with the trail itself: it is the
-          trail's near end, and a lone dot on the corner of the card with
-          nothing leaving it reads as a stray mark. */}
+      {/* Where the trail leaves the card, and the trail's near end. */}
       {!focused && (
         <span
           ref={anchorRef}
           aria-hidden="true"
-          // Starts hidden and is shown by CardLeaderLine, which is the thing
-          // that knows whether there is a trail to leave from it. Fading
-          // rather than switching, so an area passing behind the card does
-          // not make the dot blink.
-          // The colour lives in `markerBolt.ts` with the trail's, not in a
-          // Tailwind arbitrary value: the class scanner needs a literal, and a
-          // second literal is a second thing to forget when the marker's blue
-          // is next adjusted.
           style={{
             opacity: 0,
             transition: "opacity 240ms ease",
@@ -295,22 +275,28 @@ export default function AreaCard({
           exit="exit"
           whileHover={{ y: -4 }}
           transition={CARD_SPRING}
-          className="relative z-10 bg-white rounded-3xl p-6 sm:p-8 border border-black/5"
+          className="relative z-10 bg-white/95 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-black/10 shadow-xl shadow-black/5"
         >
-          <p className="text-orange-500 font-black text-lg">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-orange-700 bg-orange-50 border border-orange-200/60 px-2.5 py-0.5 rounded-full">
+              {card.sub}
+            </span>
+          </div>
+
+          <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-2">
             {isJa ? card.jaTitle : card.enTitle}
-          </p>
-          <p className="text-xs text-gray-400 font-bold mb-4 uppercase tracking-[0.2em]">
-            {card.sub}
-          </p>
-          <p className="text-gray-700 font-medium mb-6 leading-relaxed text-sm">
+          </h3>
+
+          <p className="text-gray-600 text-sm leading-relaxed mb-6 font-normal">
             {isJa ? card.ja : card.en}
           </p>
+
           <button
             onClick={onOpen}
-            className="inline-flex bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 px-7 rounded-full shadow-[0_4px_0_#c2410c] active:shadow-[0_0px_0_#c2410c] active:translate-y-1 transition-all items-center gap-1.5"
+            className="group/btn inline-flex items-center gap-2 bg-[#ea580c] hover:bg-[#c2410c] text-white font-bold py-2.5 px-6 rounded-full shadow-[0_4px_0_#9a3412] hover:shadow-[0_2px_0_#9a3412] hover:translate-y-[2px] active:shadow-none active:translate-y-1 transition-all text-sm"
           >
-            {isJa ? "詳しく見る" : "More"} <ChevronRight size={18} />
+            <span>{isJa ? "詳しく見る" : "More"}</span>
+            <ChevronRight size={16} className="group-hover/btn:translate-x-0.5 transition-transform" />
           </button>
         </motion.div>
       </AnimatePresence>

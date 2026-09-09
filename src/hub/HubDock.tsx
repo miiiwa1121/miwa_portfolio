@@ -26,11 +26,12 @@ export default function HubDock({ isJa, openTerminal, pageOpen }: Props) {
           onClick={() => setToolsOpen((o) => !o)}
           title={isJa ? "リンク" : "Links"}
           aria-expanded={toolsOpen}
-          className={`w-11 h-11 rounded-full flex items-center justify-center hover:scale-110 transition-all border border-black/5 ${
-            toolsOpen ? "bg-orange-500 text-white" : "bg-white text-gray-800"
+          aria-label={isJa ? "リンク" : "Links"}
+          className={`w-11 h-11 rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all border border-black/5 shadow-sm backdrop-blur-md ${
+            toolsOpen ? "bg-orange-600 text-white" : "bg-white/90 text-gray-800 hover:bg-white"
           }`}
         >
-          <Monitor size={20} />
+          <Monitor size={19} />
         </button>
         {toolsOpen && (
           <div className="flex items-center gap-2 ml-2 animate-[fadeIn_0.25s_ease]">
@@ -39,25 +40,28 @@ export default function HubDock({ isJa, openTerminal, pageOpen }: Props) {
               target="_blank"
               rel="noopener noreferrer"
               title="GitHub"
-              className="w-11 h-11 bg-white rounded-full flex items-center justify-center text-gray-800 hover:scale-110 transition-transform border border-black/5 shrink-0"
+              aria-label="GitHub"
+              className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-gray-800 hover:text-gray-950 hover:bg-white hover:scale-110 active:scale-95 transition-all border border-black/5 shadow-sm shrink-0"
             >
-              <GithubIcon size={20} />
+              <GithubIcon size={19} />
             </a>
             <a
               href="https://x.com/miiiwa3330"
               target="_blank"
               rel="noopener noreferrer"
               title="X"
-              className="w-11 h-11 bg-white rounded-full flex items-center justify-center text-gray-900 hover:scale-110 transition-transform border border-black/5 shrink-0"
+              aria-label="X"
+              className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-gray-900 hover:bg-white hover:scale-110 active:scale-95 transition-all border border-black/5 shadow-sm shrink-0"
             >
-              <XIcon size={18} />
+              <XIcon size={17} />
             </a>
             <button
               onClick={openTerminal}
               title="Terminal mode"
-              className="w-11 h-11 bg-white rounded-full flex items-center justify-center text-green-600 hover:scale-110 transition-transform border border-black/5 shrink-0"
+              aria-label="Terminal mode"
+              className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-emerald-600 hover:text-emerald-700 hover:bg-white hover:scale-110 active:scale-95 transition-all border border-black/5 shadow-sm shrink-0"
             >
-              <Terminal size={20} />
+              <Terminal size={19} />
             </button>
           </div>
         )}
