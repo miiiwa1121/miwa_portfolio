@@ -10,10 +10,11 @@ import {
   SiPython, SiC, SiPhp, SiDart, SiLaravel,
   SiMysql, SiSqlite, SiFlutter, SiSupabase,
   SiCloudflare, SiVercel, SiGooglecloud,
-  SiCypress, SiPostgresql, SiSwift, SiAnthropic
+  SiCypress, SiPostgresql, SiSwift, SiAnthropic,
+  SiGooglegemini
 } from "react-icons/si";
 import { FaJava, FaAws } from "react-icons/fa6";
-import { TbBrandCSharp } from "react-icons/tb";
+import { TbBrandCSharp, TbBrandOpenai } from "react-icons/tb";
 import type { IconType } from "react-icons";
 
 type SkillItem = {
@@ -77,16 +78,25 @@ const CATEGORIES: SkillCategory[] = [
     ],
   },
   {
-    id: "cloud-db",
-    titleJa: "クラウド & データベース",
-    titleEn: "Cloud & Databases",
-    descriptionJa: "リレーショナルDBからBaaS、ホスティング環境まで",
-    descriptionEn: "RDBMS, BaaS platforms, hosting & edge infrastructure",
+    id: "database",
+    titleJa: "データベース",
+    titleEn: "Databases",
+    descriptionJa: "リレーショナルDBからBaaS、データモデリングまで",
+    descriptionEn: "RDBMS, BaaS platforms & data modeling",
     skills: [
       { name: "PostgreSQL", icon: SiPostgresql, color: "#4169E1" },
       { name: "MySQL", icon: SiMysql, color: "#4479A1" },
       { name: "SQLite", icon: SiSqlite, color: "#003B57" },
       { name: "Supabase", icon: SiSupabase, color: "#3ECF8E" },
+    ],
+  },
+  {
+    id: "cloud",
+    titleJa: "クラウド",
+    titleEn: "Cloud",
+    descriptionJa: "クラウドインフラ、エッジサーバーレス、ホスティング環境",
+    descriptionEn: "Cloud infrastructure, serverless edge & hosting platforms",
+    skills: [
       { name: "AWS", icon: FaAws, color: "#FF9900" },
       { name: "GCP", icon: SiGooglecloud, color: "#4285F4" },
       { name: "Cloudflare", icon: SiCloudflare, color: "#F38020" },
@@ -95,16 +105,27 @@ const CATEGORIES: SkillCategory[] = [
   },
   {
     id: "tools",
-    titleJa: "ツール & AI",
-    titleEn: "Tools & AI",
-    descriptionJa: "バージョン管理、テスト、デザインツール、AIアシスタント",
-    descriptionEn: "Version control, testing, design tooling & AI assistant",
+    titleJa: "ツール",
+    titleEn: "Tools",
+    descriptionJa: "バージョン管理、テスト、デザインツール",
+    descriptionEn: "Version control, testing & UI/UX design tooling",
     skills: [
       { name: "Git", icon: SiGit, color: "#F05032" },
       { name: "GitHub", icon: SiGithub, color: "#000000" },
       { name: "Cypress", icon: SiCypress, color: "#04C38E" },
       { name: "Figma", icon: SiFigma, color: "#F24E1E" },
+    ],
+  },
+  {
+    id: "ai",
+    titleJa: "AI",
+    titleEn: "AI",
+    descriptionJa: "LLM API、プロンプトエンジニアリング、AI搭載アプリ開発",
+    descriptionEn: "LLM integration, prompt engineering & AI-assisted development",
+    skills: [
       { name: "Claude", icon: SiAnthropic, color: "#D97757" },
+      { name: "Gemini", icon: SiGooglegemini, color: "#8E75FF" },
+      { name: "ChatGPT", icon: TbBrandOpenai, color: "#10A37F" },
     ],
   },
 ];

@@ -41,18 +41,16 @@ export default function ProjectCard({ project, onOpen, onBlockedLink }: Props) {
         />
         <div className="absolute top-3.5 right-3.5 z-20">
           <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold backdrop-blur-md border shadow-sm ${
-              project.status === "Public"
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold backdrop-blur-md border shadow-sm ${project.status === "Public"
                 ? "bg-emerald-50/90 text-emerald-700 border-emerald-300/40"
                 : "bg-orange-50/90 text-orange-700 border-orange-300/40"
-            }`}
+              }`}
           >
             <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                project.status === "Public"
+              className={`w-1.5 h-1.5 rounded-full ${project.status === "Public"
                   ? "bg-emerald-500 shadow-[0_0_6px_#22c55e]"
                   : "bg-orange-500 shadow-[0_0_6px_#f97316]"
-              }`}
+                }`}
             />
             <span>{statusLabel(project.status, language)}</span>
           </span>
@@ -71,11 +69,10 @@ export default function ProjectCard({ project, onOpen, onBlockedLink }: Props) {
             {project.title}
           </h3>
           <span
-            className={`text-xs px-2.5 py-0.5 rounded-full font-bold shrink-0 border ${
-              project.category === "WEB"
+            className={`text-xs px-2.5 py-0.5 rounded-full font-bold shrink-0 border ${project.category === "WEB"
                 ? "bg-emerald-50 text-emerald-700 border-emerald-200/50"
                 : "bg-purple-50 text-purple-700 border-purple-200/50"
-            }`}
+              }`}
           >
             {project.category}
           </span>

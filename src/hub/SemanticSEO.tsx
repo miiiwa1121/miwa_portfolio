@@ -62,9 +62,12 @@ export default function SemanticSEO() {
         <h2 id="seo-skills-heading">保有スキル・技術スタック (Technical Skills)</h2>
         <ul>
           <li>フロントエンド: HTML, CSS, JavaScript, TypeScript, React, Next.js, Tailwind CSS, Three.js</li>
-          <li>バックエンド・DB: Python, C, C#, Java, PHP, Laravel, Node.js, MySQL, PostgreSQL, SQLite, Supabase</li>
-          <li>モバイル・クラウド・インフラ: Swift, Flutter, Dart, Cloudflare, Vercel, AWS, GCP, Docker, Git, GitHub</li>
-          <li>AI・その他: MediaPipe, AI API (Gemini, Whisper, Claude), Figma</li>
+          <li>バックエンド: Python, C, C#, Java, PHP, Laravel, Node.js</li>
+          <li>モバイル: Swift, Flutter, Dart</li>
+          <li>データベース: PostgreSQL, MySQL, SQLite, Supabase</li>
+          <li>クラウド・インフラ: AWS, GCP, Cloudflare, Vercel</li>
+          <li>ツール: Git, GitHub, Cypress, Figma</li>
+          <li>AI: Claude, Gemini, ChatGPT</li>
         </ul>
       </section>
 

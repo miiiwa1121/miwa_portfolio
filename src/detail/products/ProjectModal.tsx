@@ -65,18 +65,16 @@ export default function ProjectModal({ project, onClose, onBlockedLink }: Props)
           <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent"></div>
           <div className="absolute top-6 left-6 z-20">
             <span
-              className={`flex items-center gap-2 text-xs sm:text-sm font-bold px-3.5 py-1.5 rounded-full border backdrop-blur-md shadow-sm ${
-                project.status === "Public"
+              className={`flex items-center gap-2 text-xs sm:text-sm font-bold px-3.5 py-1.5 rounded-full border backdrop-blur-md shadow-sm ${project.status === "Public"
                   ? "bg-emerald-50/90 text-emerald-700 border-emerald-300/40"
                   : "bg-orange-50/90 text-orange-700 border-orange-300/40"
-              }`}
+                }`}
             >
               <span
-                className={`w-2 h-2 rounded-full ${
-                  project.status === "Public"
+                className={`w-2 h-2 rounded-full ${project.status === "Public"
                     ? "bg-emerald-500 shadow-[0_0_8px_#22c55e]"
                     : "bg-orange-500 shadow-[0_0_8px_#f97316]"
-                }`}
+                  }`}
               />
               <span>{statusLabel(project.status, language)}</span>
             </span>
@@ -89,11 +87,10 @@ export default function ProjectModal({ project, onClose, onBlockedLink }: Props)
               {project.title}
             </h2>
             <span
-              className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                project.category === "WEB"
+              className={`px-3 py-1 rounded-full text-xs font-bold border ${project.category === "WEB"
                   ? "bg-emerald-50 text-emerald-700 border-emerald-200/50"
                   : "bg-purple-50 text-purple-700 border-purple-200/50"
-              }`}
+                }`}
             >
               {project.category}
             </span>

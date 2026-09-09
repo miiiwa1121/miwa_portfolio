@@ -151,11 +151,10 @@ export default function Experience() {
             >
               {/* Timeline node */}
               <div
-                className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-[#fffdf7] shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 relative z-10 shadow-sm transition-transform duration-200 group-hover:scale-110 ${
-                  isLatest
+                className={`flex items-center justify-center w-10 h-10 rounded-full border-4 border-[#fffdf7] shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 relative z-10 shadow-sm transition-transform duration-200 group-hover:scale-110 ${isLatest
                     ? "bg-orange-600 ring-4 ring-orange-500/20"
                     : "bg-orange-500"
-                }`}
+                  }`}
               >
                 <div className="w-2.5 h-2.5 bg-white rounded-full" />
               </div>
