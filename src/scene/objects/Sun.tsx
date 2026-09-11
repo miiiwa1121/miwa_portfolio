@@ -13,9 +13,9 @@ import {
   SUN_ORB_RADIUS,
   SUN_ORB_SCREEN_RADIUS,
   sunDirectionAlong,
-} from "./sunLight";
-import { markerScaleForScreenRadius } from "./worldLayout";
-import type { Direction } from "./planet/planetLayout";
+} from "../sunLight";
+import { markerScaleForScreenRadius } from "../camera/cameraLayout";
+import type { Direction } from "../planet/geometry";
 import { useAppState } from "@/state/AppStateContext";
 
 /**
@@ -201,7 +201,7 @@ export default function Sun({ draggingRef }: Props) {
     // distance is a different number and would size it wrongly towards the
     // edges of the frame. `camera-controls` writes position and quaternion but
     // does not restate the matrices, so they have to be brought up to date
-    // before matrixWorldInverse is read (the same trap `AreaMarkers` documents).
+    // before matrixWorldInverse is read (the same trap `SectionMarkers` documents).
     const perspective = state.camera as THREE.PerspectiveCamera;
     perspective.updateMatrixWorld();
     const depth = -viewSpace.current.copy(sprite.position).applyMatrix4(perspective.matrixWorldInverse).z;

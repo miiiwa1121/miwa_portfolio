@@ -4,23 +4,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useCursor } from "@react-three/drei";
 import * as THREE from "three";
+import { markerScaleForScreenRadius } from "../camera/cameraLayout";
 import {
+  BOLT_PATH,
   MARKER_CLEARANCE,
+  MARKER_FACING_INK,
   MARKER_GLOW_FILL,
   MARKER_GLYPH_FILL,
   MARKER_GLYPH_RIM,
-  markerScaleForScreenRadius,
-} from "./worldLayout";
-import {
-  BOLT_PATH,
-  MARKER_FACING_INK,
   MARKER_IDLE_INK,
   boltFlicker,
   strikeIndex,
-} from "./markerBolt";
-import { PLANET_SECTION_KEYS, sectionDirection } from "./planet/sections";
-import { markerOnScreen, publishMarkerScreen } from "./markerScreen";
-import { sceneClock } from "./sceneClock";
+} from "../markerBolt";
+import { PLANET_SECTION_KEYS, sectionDirection } from "../planet/sections";
+import { markerOnScreen, publishMarkerScreen } from "../camera/markerScreen";
+import { sceneClock } from "../sceneClock";
 import { useAppState } from "@/state/AppStateContext";
 import { facingNow } from "@/state/facingChannel";
 
@@ -165,7 +163,7 @@ function outwardExtent(box: THREE.Box3, centre: THREE.Vector3, normal: THREE.Vec
   return farthest;
 }
 
-export default function AreaMarkers() {
+export default function SectionMarkers() {
   const { activeSection, setActiveSection } = useAppState();
   const [hovered, setHovered] = useState<string | null>(null);
   useCursor(hovered !== null);

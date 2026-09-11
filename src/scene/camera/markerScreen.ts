@@ -41,7 +41,7 @@ export type MarkerScreenPoint = {
 /**
  * Whether a projected marker is somewhere the trail can usefully point at.
  *
- * Pulled out of `AreaMarkers`' frame loop and given a name so it can be
+ * Pulled out of `SectionMarkers`' frame loop and given a name so it can be
  * tested, because **this is a rule that fails silently**: when it says no, the
  * trail simply hides, which looks exactly like a scene that has no trail. It
  * spent a release answering no on every frame of the default view — the

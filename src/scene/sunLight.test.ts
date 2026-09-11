@@ -11,8 +11,8 @@ import {
   sunPosition,
 } from "./sunLight";
 import { SMOOTH_PLANET_RADIUS } from "./planet/sections";
-import { CAMERA_FOV, ORBIT_RADIUS } from "./worldLayout";
-import { angleBetween, normalize, type Direction } from "./planet/planetLayout";
+import { CAMERA_FOV, ORBIT_RADIUS } from "./camera/cameraLayout";
+import { angleBetween, normalize, type Direction } from "./planet/geometry";
 
 describe("the shadow frustum", () => {
   it("holds the whole scene at the distance the sun is kept at", () => {

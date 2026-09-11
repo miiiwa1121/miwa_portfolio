@@ -7,7 +7,7 @@ import {
   sectionObstacles,
   type Obstacle,
 } from "./city";
-import { angleBetween, fibonacciSphere } from "./planetLayout";
+import { angleBetween, fibonacciSphere } from "./geometry";
 import { PLANET_SECTION_KEYS } from "./sections";
 
 const length = (v: readonly [number, number, number]) => Math.hypot(v[0], v[1], v[2]);

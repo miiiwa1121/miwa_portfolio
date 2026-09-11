@@ -3,7 +3,7 @@ import {
   fibonacciSphere,
   offsetDirection,
   type Direction,
-} from "./planetLayout";
+} from "./geometry";
 import { hashRange } from "../voxel/rng";
 import { PLANET_SECTION_KEYS, SMOOTH_PLANET_RADIUS, sectionDirection } from "./sections";
 

@@ -3,7 +3,7 @@
  * on it.
  *
  * Deliberately free of three.js and R3F imports, for the same reason
- * `worldLayout.ts` is: this is plain arithmetic over unit vectors, and keeping
+ * `cameraLayout.ts` is: this is plain arithmetic over unit vectors, and keeping
  * it that way means it can be tested without a renderer. In particular
  * `tangentBasis` returns three plain number triples rather than a
  * `THREE.Quaternion` — the caller feeds them to `Matrix4.makeBasis`, and the
@@ -25,7 +25,7 @@ const DEG = Math.PI / 180;
  * Unit direction for a latitude/longitude, in degrees.
  *
  * +Y is the pole, and longitude follows `atan2(x, z)` — the same convention
- * `azimuthToXZ` in worldLayout.ts inverts, and therefore the same one
+ * `azimuthToXZ` in cameraLayout.ts inverts, and therefore the same one
  * CameraControls' `azimuthAngle` uses. That is not a detail: it means **a
  * section's longitude is exactly the orbit azimuth that puts it in front of the
  * camera**, so the existing `sectionAzimuth` / `facingSection` reasoning

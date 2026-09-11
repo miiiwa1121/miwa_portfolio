@@ -1,6 +1,6 @@
 "use client";
 
-import Section from "./Section";
+import DetailSection from "./DetailSection";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/state/LanguageContext";
 import {
@@ -135,7 +135,7 @@ export default function Skills() {
   const isJa = language === "ja";
 
   return (
-    <Section id="skills" title="Skills">
+    <DetailSection id="skills" title="Skills">
       <div className="space-y-12">
         {CATEGORIES.map((cat, catIdx) => (
           <div key={cat.id} className="space-y-4">
@@ -180,6 +180,6 @@ export default function Skills() {
           </div>
         ))}
       </div>
-    </Section>
+    </DetailSection>
   );
 }

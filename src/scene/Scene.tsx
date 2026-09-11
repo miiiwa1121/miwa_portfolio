@@ -4,7 +4,7 @@ import { useRef, useEffect } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls, Stars } from "@react-three/drei";
 import * as THREE from "three";
-import Diorama from "./Diorama";
+import PlanetScene from "./objects/PlanetScene";
 import {
   frameDistance,
   focalOffsetX,
@@ -37,26 +37,27 @@ import {
   ABOUT_CARD_SHARE,
   type Pose,
   type OrbitZoom,
-} from "./worldLayout";
+} from "./camera/cameraLayout";
 import { PLANET_TOUR, sectionU, facingSectionOnPlanet } from "./planet/tour";
 import { PLANET_SECTION_KEYS, sectionDirection } from "./planet/sections";
-import { type Direction } from "./planet/planetLayout";
-import { advanceFlight, beginFlight, type Flight } from "./cameraFlight";
+import { type Direction } from "./planet/geometry";
+import { advanceFlight, beginFlight, type Flight } from "./camera/cameraFlight";
 import { sceneClock } from "./sceneClock";
 import { aboutReturn } from "@/hub/about/aboutScroll";
-import { useAppState, type SectionType } from "@/state/AppStateContext";
+import { useAppState } from "@/state/AppStateContext";
 import { publishFacing } from "@/state/facingChannel";
-import Sun from "./Sun";
+import type { SectionType } from "@/types";
+import Sun from "./objects/Sun";
 
 // Rotation sensitivity (kept gentle).
 const DRAG_SENSITIVITY = 0.002; // radians per px of pointer drag, both axes
 const WHEEL_SENSITIVITY = 0.0004; // radians (of great-circle arc) per unit of wheel deltaY
-// AUTO_ORBIT_SPEED — the idle drift's own pace — now lives in worldLayout.ts,
+// AUTO_ORBIT_SPEED — the idle drift's own pace — now lives in cameraLayout.ts,
 // next to the ORBIT_RETURN_SPEED derived from it.
 
 // How far apart two fingers must move, in px, before a pinch is read as a
 // deliberate request to switch the free orbit's altitude — not a continuous
-// dial, a single discrete step per gesture (see worldLayout.ts's `OrbitZoom`).
+// dial, a single discrete step per gesture (see cameraLayout.ts's `OrbitZoom`).
 // Crossed once per two-finger gesture; the fingers have to lift and come back
 // down for a second switch, rather than firing repeatedly on a long pinch.
 const PINCH_THRESHOLD_PX = 60;
@@ -126,7 +127,7 @@ function pointerDistance(a: { x: number; y: number }, b: { x: number; y: number 
  * A second finger switches the gesture entirely: rather than a single-pointer
  * drag, the two points' separation is watched for a pinch past
  * `PINCH_THRESHOLD_PX`, which asks `onPinchZoom` for the free orbit's other
- * altitude (see worldLayout.ts's `OrbitZoom`) — a discrete step, not a
+ * altitude (see cameraLayout.ts's `OrbitZoom`) — a discrete step, not a
  * continuous dial, fired once per two-finger gesture.
  *
  * `returningRef` is the one piece of state a gesture leaves behind it: letting
@@ -1089,7 +1090,7 @@ export default function Scene({
       <Sun draggingRef={sunDraggingRef} />
       <directionalLight position={[-20, 16, -18]} intensity={0.6} color="#dff0ff" />
 
-      <Diorama />
+      <PlanetScene />
 
       <CameraController sunDraggingRef={sunDraggingRef} />
       <ScenePause />

@@ -1,6 +1,7 @@
 import type { SectionType } from "@/types";
-import { PLANET_SECTION_KEYS, sectionPosition } from "./planet/sections";
-import { tangentBasis, type Direction } from "./planet/planetLayout";
+import { PLANET_SECTION_KEYS, sectionPosition } from "../planet/sections";
+import { tangentBasis, type Direction } from "../planet/geometry";
+import { MARKER_GLYPH_FILL } from "../markerBolt";
 
 /**
  * Where the world sits and where the camera looks from.
@@ -8,7 +9,7 @@ import { tangentBasis, type Direction } from "./planet/planetLayout";
  * Deliberately free of three.js and R3F imports: the building positions and
  * the camera framings derived from them are plain arithmetic, and keeping
  * them here means they can be reasoned about (and tested) without spinning up
- * a renderer. Diorama places the buildings from this; Scene aims the camera
+ * a renderer. PlanetScene places the buildings from this; Scene aims the camera
  * with it — previously the two held separate copies that a comment asked you
  * to keep in sync by hand.
  *
@@ -381,7 +382,7 @@ export function focalOffsetY(distance: number, fovDegrees: number, share: number
  * measured down from `+Y`, azimuth as `atan2(x, z)`.
  *
  * `target` is a parameter, not always the origin, for the same reason
- * `surfacePoint` in planetLayout.ts takes a centre: a second planet is
+ * `surfacePoint` in geometry.ts takes a centre: a second planet is
  * plausible later, and every orbit in the scene would have to be found and
  * rewritten to add it if this baked the origin in now.
  */
@@ -643,36 +644,6 @@ export function wrapAngle(angle: number): number {
  * framing can only ever be defined in one place.
  */
 export type Pose = [number, number, number, number, number, number];
-
-/** Gap between the top of a building and the dot floating over it. */
-export const MARKER_CLEARANCE = 1.1;
-
-/**
- * How much of a marker sprite's quad the drawn glyph covers, measured from its
- * centre as a fraction of the quad's full height.
- *
- * The glyph is a lightning bolt (`markerBolt.ts`) and reaches this far straight
- * up and down; across, it is only about half as wide. The trail stops a fixed
- * clearance from *this* edge, so the number has to be the one the texture is
- * painted with rather than a second guess at it — hence both the painter and
- * the sizing maths below reading it from here.
- */
-export const MARKER_GLYPH_FILL = 0.34;
-
-/** The glyph's outline, in the same units. It straddles the shape's edge. */
-export const MARKER_GLYPH_RIM = 0.05;
-
-/**
- * How far the bolt's glow spills past the solid glyph, in the same units.
- *
- * Not part of the edge the trail measures from: the glow is soft light, and
- * stopping the ink a clearance out from *it* would leave a gap half again as
- * wide as the one that was tuned. It exists here so the blur radius and the
- * quad's own limit are decided in one place — 0.5 is the quad's edge, where
- * clamped sampling would cut the glow off square, so the fill leaves 0.04 to
- * spare.
- */
-export const MARKER_GLOW_FILL = 0.46;
 
 /**
  * How many CSS pixels one world unit spans, `viewDepth` in front of the camera.

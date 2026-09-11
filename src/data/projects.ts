@@ -1,4 +1,4 @@
-import type { ProjectSource } from "./project";
+import type { ProjectSource } from "./projectModel";
 
 /**
  * The project catalogue, in display order.

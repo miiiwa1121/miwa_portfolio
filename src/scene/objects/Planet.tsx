@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
-import { planetRelief, RELIEF_AMPLITUDE, SEA_LEVEL } from "./planet/shell";
-import { SMOOTH_PLANET_RADIUS } from "./planet/sections";
-import { PALETTE } from "./voxel/palette";
+import { planetRelief, RELIEF_AMPLITUDE, SEA_LEVEL } from "../planet/shell";
+import { SMOOTH_PLANET_RADIUS } from "../planet/sections";
+import { PALETTE } from "../voxel/palette";
 
 /**
  * The world's ground: currently a plain smooth sphere, not the voxel shell

@@ -1,5 +1,5 @@
 import { hashRange } from "../voxel/rng";
-import { fibonacciSphere, normalize, offsetDirection, tangentBasis, type Direction } from "./planetLayout";
+import { fibonacciSphere, normalize, offsetDirection, tangentBasis, type Direction } from "./geometry";
 import { FILLER_CITY, sectionObstacles, tooClose, type Obstacle } from "./city";
 import { planetRelief, RELIEF_AMPLITUDE } from "./shell";
 import { SMOOTH_PLANET_RADIUS } from "./sections";

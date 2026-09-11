@@ -3,11 +3,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, ReactNode } from "react";
 import { hashForSection, sectionFromHash } from "./sectionUrl";
 import type { SectionType } from "@/types";
-import type { OrbitZoom } from "@/scene/worldLayout";
-
-export type { OrbitZoom };
-
-export type { SectionType };
+import type { OrbitZoom } from "@/scene/camera/cameraLayout";
 
 interface AppStateContextType {
   /** Which building the camera is focused on (null = home diorama view). */

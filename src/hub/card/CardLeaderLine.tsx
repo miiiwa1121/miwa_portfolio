@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { MARKER_TRAIL_GLOW, MARKER_TRAIL_INK, markerClearance } from "@/scene/markerBolt";
-import { onMarkerScreen, type MarkerScreenPoint } from "@/scene/markerScreen";
+import { onMarkerScreen, type MarkerScreenPoint } from "@/scene/camera/markerScreen";
 import { useFacing } from "@/state/facingChannel";
 import { lightningPath } from "./lightningPath";
 
@@ -73,7 +73,7 @@ const MIN_TRAIL = 48;
  * card *stack*, which is a fixed box in a centred flex row.
  *
  * It does move for a moment when the card changes — each area's copy is a
- * different height and the stack is vertically centred, and `AreaCard`'s
+ * different height and the stack is vertically centred, and `SectionCard`'s
  * entrance spring takes a few hundred milliseconds to place the new one — and
  * when the window is resized. Both restart this window, which is comfortably
  * longer than that spring settles in (its slow pole is a ~64ms time constant).
@@ -133,7 +133,7 @@ export default function CardLeaderLine({ anchorRef, hidden }: Props) {
        * The dot on the card is the trail's near end, so it goes with the
        * trail — a lone dot in the corner of a card with nothing leaving it
        * reads as a stray mark, which is the same reason it is dropped
-       * outright once an area is focused (`AreaCard`).
+       * outright once an area is focused (`SectionCard`).
        *
        * It matters more than it used to. The trail is only drawn while the
        * facing area's marker is actually on screen, and at the "near" orbit's

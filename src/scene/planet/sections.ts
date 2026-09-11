@@ -1,12 +1,12 @@
 import type { SectionType } from "@/types";
-import { latLonToDirection, surfacePoint, tangentBasis, type Direction, type Point3 } from "./planetLayout";
+import { latLonToDirection, surfacePoint, tangentBasis, type Direction, type Point3 } from "./geometry";
 import { PLANET_RADIUS } from "./shell";
 
 /**
  * Where each section's building stands on the planet, and which way it faces.
  *
  * The flat world put these in world coordinates (`BUILDING_POSITIONS` in
- * worldLayout.ts). On a sphere the world position is derived — direction times
+ * cameraLayout.ts). On a sphere the world position is derived — direction times
  * the planet's radius — so what is actually authored is a latitude and a
  * longitude. Keeping them in degrees is deliberate: these are numbers a person
  * tunes while looking at screenshots, and radians are not.
@@ -118,6 +118,6 @@ export function sectionBasis(section: NonNullable<SectionType>) {
  *
  * Not a visiting order — that is the tour's business, and it is decided by
  * distance rather than by declaration (see `tour.ts`). Kept in step with
- * `SECTIONS` in worldLayout.ts by being derived from the same shape.
+ * `SECTIONS` in cameraLayout.ts by being derived from the same shape.
  */
 export const PLANET_SECTION_KEYS = Object.keys(PLANET_SECTIONS) as NonNullable<SectionType>[];

@@ -7,7 +7,6 @@ import {
   BUILDING_POSITIONS,
   CARD_SHARE,
   FRAME_MARGIN,
-  MARKER_GLYPH_FILL,
   NEAR_ORBIT_RADIUS,
   NEAR_VERTICAL_SHARE,
   ORBIT_CARD_SHARE,
@@ -38,9 +37,10 @@ import {
   sectionUp,
   wrapAngle,
   type Pose,
-} from "./worldLayout";
-import { PLANET_SECTION_KEYS, sectionPosition } from "./planet/sections";
-import { angleBetween, dot, normalize, tangentBasis, type Direction } from "./planet/planetLayout";
+} from "./cameraLayout";
+import { PLANET_SECTION_KEYS, sectionPosition } from "../planet/sections";
+import { angleBetween, dot, normalize, tangentBasis, type Direction } from "../planet/geometry";
+import { MARKER_GLYPH_FILL } from "../markerBolt";
 import type { SectionType } from "@/types";
 
 describe("azimuthToXZ", () => {
@@ -274,7 +274,7 @@ describe("NEAR_ORBIT_RADIUS", () => {
   // looser inequality would still pass at, say, 99, which would be a
   // barely-noticeable step in from the far orbit rather than the framing
   // walked in against reference/image7.png.
-  it("is 50 — walked in against reference/image7.png, see worldLayout.ts's own comment", () => {
+  it("is 50 — walked in against reference/image7.png, see cameraLayout.ts's own comment", () => {
     expect(NEAR_ORBIT_RADIUS).toBe(50);
   });
 
@@ -360,7 +360,7 @@ describe("orbitAnglesOf", () => {
 
   // acos is only defined on [-1, 1], so y/radius is clamped before it reaches
   // one — a defensive guard against exactly the NaN this session's mutation
-  // testing has caught elsewhere (planetLayout.ts's own angleBetween has the
+  // testing has caught elsewhere (geometry.ts's own angleBetween has the
   // same clamp, for the same reason). Not exercised here: two million random
   // (x, y, z) with y within 2e-7 of radius, searching for Math.hypot rounding
   // y/hypot(x,y,z) above 1, found none — Math.hypot is accurate enough that
@@ -408,7 +408,7 @@ describe("orbitArcBetween", () => {
 
   it("agrees with the angle between the two directions those angles name", () => {
     // An oracle that shares no arithmetic with the closed form: build both
-    // points through orbitPose and measure them the way planetLayout does.
+    // points through orbitPose and measure them the way geometry does.
     const pairs: [{ azimuth: number; polar: number }, { azimuth: number; polar: number }][] = [
       [{ azimuth: 0, polar: 1 }, { azimuth: 0.4, polar: 1.3 }],
       [{ azimuth: -2.9, polar: 0.5 }, { azimuth: 2.9, polar: 2.1 }], // either side of ±π

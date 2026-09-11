@@ -12,7 +12,7 @@ import {
   planetVoxels,
 } from "./shell";
 import { PALETTE } from "../voxel/palette";
-import { fibonacciSphere, latLonToDirection, type Direction } from "./planetLayout";
+import { fibonacciSphere, latLonToDirection, type Direction } from "./geometry";
 
 const crust = planetVoxels();
 const radiusOf = (v: { x: number; y: number; z: number }) => Math.hypot(v.x, v.y, v.z);

@@ -43,12 +43,12 @@
 
 - **土台はボクセルではなく通常の `SphereGeometry`＋テクスチャ**、半径 `SMOOTH_PLANET_RADIUS`（`scene/planet/sections.ts`）。地形の起伏を再現するボクセル球殻（`scene/planet/shell.ts` の `planetVoxels()`）自体は無傷のまま残っており、テストも通るが、今は使われていない——`Planet.tsx` を差し替えれば戻せる。
 - **テクスチャの色は `planetRelief(dir)`（方向ベクトルの成分だけの関数）から焼く。** 緯度経度で書くと±180°の子午線に崖が、極に風車模様が出る（あらゆる経度が1点で出会うのに、ノイズが同じ点について別々の高さを返すため）。方向ベクトルの関数にすれば、どちらの継ぎ目も原理的に発生しない。バンド分けは水（`SEA_LEVEL`未満）・砂（起伏0.25未満）・草（それ以上）の3色。**UV↔方向の変換は three.js の `SphereGeometry` 自身の頂点生成式をそのまま複製している**（自前の `latLonToDirection` 規約と揃えるのではなく）——メッシュ側の式とだけ一致していれば噛み合う。
-- **建物は自分の立つ点の法線を「自分の上」として立つ。** `tangentBasis(normal, yaw)`（`scene/planet/planetLayout.ts`）が、その点の法線を `up`、地表沿いに北を向く方向を `forward` として、右手系の3軸を返す。`Diorama.tsx` がこれを `Matrix4.makeBasis` で `THREE.Quaternion` に変換し、各建物の `<group>` に渡す。yaw が常に0なのは、看板を建てるときに南から来るカメラ（後述 `sectionPose`）へ正面を向けるための既定値。
+- **建物は自分の立つ点の法線を「自分の上」として立つ。** `tangentBasis(normal, yaw)`（`scene/planet/geometry.ts`）が、その点の法線を `up`、地表沿いに北を向く方向を `forward` として、右手系の3軸を返す。`Diorama.tsx` がこれを `Matrix4.makeBasis` で `THREE.Quaternion` に変換し、各建物の `<group>` に渡す。yaw が常に0なのは、看板を建てるときに南から来るカメラ（後述 `sectionPose`）へ正面を向けるための既定値。
 - **雑居ビル**（`scene/planet/city.ts` の `generateFillerCity`、render層は `FillerCity.tsx`）: 名前を持たない小さな建物をクラスタ状に散布し、5つのランドマークだけでは出ない「都市に覆われている」印象を作る。参考画像の被覆率（74%）は voxel 数の要求量（1,000棟規模、10万〜16万voxel）がヘッドレスの描画コストと見合わず、290棟・約12,000voxel・被覆率25.4%に落ち着けている（実機で確認が取れれば `FILLER_CITY` のパラメータだけ上げ直せる）。
 
 ### ツアー経路とカメラモデル
 
-カメラは惑星の中心を常に見ながら一定の高度を回る**衛星**。座標計算は `scene/worldLayout.ts`（カメラ姿勢）と `scene/planet/`（球面の幾何・経路・配置）に純粋関数として切り出され、three.js を介さずテストされている。
+カメラは惑星の中心を常に見ながら一定の高度を回る**衛星**。座標計算は `scene/camera/cameraLayout.ts`（カメラ姿勢）と `scene/planet/`（球面の幾何・経路・配置）に純粋関数として切り出され、three.js を介さずテストされている。
 
 - **ツアー経路**（`scene/planet/tour.ts` の `PLANET_TOUR`）は5つの建物を通る球面上の閉曲線。スクロール／ホイールはこの曲線上の位置 `u ∈ [0,1)` を進める。**緯度経度の空間で補間し、方向ベクトルを slerp/スプラインして正規化してはいけない。** 後者は区間ごとに大円をたどることになり、大円は両端より極側へ膨らむ（南緯40度・経度差144°で29.8°の膨らみを実測——最初の実装はこれで緯度-71°まで潜った）。緯度経度で補間すれば残るのはスプライン自身の1.2°だけ。巡回順は**経度順**（最短巡回路ではない）——最短だと経度が逆走しうるため、「一周＝一回転」が壊れる。
 - **`viewRef`（`azimuthRef`/`polarRef`）と `tourRef`（`tourURef`）は別のもの。** 前者はカメラが今いる向きの真実、後者はツアー曲線上のどこにいるかの真実。`CameraControls.azimuthAngle` の読み戻しはしない（毎フレーム `orbitPose(...)` を自分で組んで `setLookAt(..., false)` へ渡す）。ドラッグは `viewRef` に直接加算し、同時に `tourURef` を「今の向きに最も近いツアー上の点」へ継続的に再投影する（`PLANET_TOUR.nearestU()`）——次のスクロールが引き戻しではなく続きになる。無操作が続くとツアーの自動前進が再開し、`viewRef` はそれへ向けて詰められる。**「放置したら戻る」は独立した機能ではなく**、アイドル前進とドリフト復帰が同じ1つの機構。
@@ -63,17 +63,17 @@
 - **極のクランプは自前で持つ。** `setLookAt` は毎フレーム `_spherical` を位置から組み直すだけで、`minPolarAngle`/`maxPolarAngle` を見ない（`rotateTo` と `_normalizeRotations` だけがそこを見る）。`camera-controls` 側は `[0, π]` に開けて争わせず、`ORBIT_MIN_POLAR`/`ORBIT_MAX_POLAR`（`0.15`/`π−0.15`）を毎フレーム自分でクランプする。
 - **カードを避ける横寄せは `focalOffsetX()` に一本化されている。** 自由回転・セクション・About のすべてが同じ関数を通る——「セクションへ寄るときは焦点オフセットを明示的に0に戻す」のような二本立ての規則は要らない。
 - **飛行は自前の時計とイージングで回す。** 毎フレーム `glidePose(from, to, easeInOutCubic(t))` を組んで `setLookAt(..., false)` に渡す。`setLookAt(..., true)` の `smoothTime` ダンピングは出だしが最速で、詳細ページのシートが退く短い間に飛行がほぼ終わってしまう。`lerp()` も使わない（±πをまたぐと長い方へ回る、`wrapAngle()` を通す）。**飛行の初回フレームには `delta` を加算しない**——`delta` は前フレームからの経過で、飛行はフレームの**間**に始まる。`frameloop="demand"` の裏では毎秒1フレームなので、加算すると1フレームで飛行が終わる。
-- **飛行そのものは `scene/cameraFlight.ts` が持つ純粋モジュール。** レコード（`Flight`）と1フレームぶんの前進（`advanceFlight`）が three.js の外にあるので、`MAX_FLIGHT_STEP` の効き方も着地の引き継ぎもレンダラ無しでテストできる。
+- **飛行そのものは `scene/camera/cameraFlight.ts` が持つ純粋モジュール。** レコード（`Flight`）と1フレームぶんの前進（`advanceFlight`）が three.js の外にあるので、`MAX_FLIGHT_STEP` の効き方も着地の引き継ぎもレンダラ無しでテストできる。
 - **自由回転へ降りる飛行は、着地時に自由回転の状態を引き継がせる**（`Flight.land` → `FlightFrame.landed`）。**`azimuthRef`/`polarRef` はカメラの transform とは別の真実で、飛行はどちらも触らない**——だから飛行が終わった瞬間に4本（`azimuthRef`/`polarRef`/両ターゲット）へ着地角度を書かないと、次のアイドルフレームが**飛行前の角度から** damp を再開する。60fps では1フレームで `1 - exp(-λ/60) = 8%` しか進まないので、**旅の92%が1ティックで巻き戻り**、そこから0.6秒かけて飛び直すことになる。実測でセクション→ホームが最大36°、ロゴ→ホームが最大180°。セクション／About への飛行は `land: null`——前者はカメラを停めるだけ、後者は自分のフレームループで毎フレーム角度を書くため。
 - **カメラの行き先を決める effect は `Scene.tsx` に1つだけ**、経路は7つ（セクションへ寄る／Aboutへ寄る／リセットでツアー先頭へ／Aboutを読み切った＝何も飛ばさず着地先へ合わせる／セクションを離れてツアー再開／**自由回転のズーム段階が変わった**／初回マウント）。ここを分散させない。
   - **セクションへ寄る分岐だけは、建物がまだシーンに無いことがある。** `#products` への直リンクは section を立てるのが1フレーム後（`applyUrl`）で、R3F は Canvas の子を `await` の向こうでコミットする。`focusSection()` は見つからなければ `false` を返し、フレームループが次のフレームで再試行する（`pendingFocusRef`）——黙って諦めると、セクションが選ばれているのにカメラは自由回転に停まったまま、という無言の失敗になる。
-- **自由回転には2つの固定高度がある**（`worldLayout.ts` の `OrbitZoom` = `"near"` | `"far"`）。`"near"`（`NEAR_ORBIT_RADIUS`、50）が新しいデフォルトで、参考写真（`reference/image7.png`——実写ではなく、円1個だけを重ねて配置とサイズだけを示したモックアップ）に画角を合わせた中間距離。`"far"`（`ORBIT_RADIUS`、100）はピンチで開く／ズームコントロールの「俯瞰」段を選んだときだけ入る一時的な状態——3段階の距離感が求められた回で、それぞれ「今の中間視点」「新しい参考写真」「建物ズームの参考写真」に合わせて一段ずつ寄せ直され、`ORBIT_RADIUS` はそのとき単に「以前の `NEAR_ORBIT_RADIUS` の値」に付け替えられた（旧140.32の式は退役）。`NEAR_ORBIT_RADIUS` 自体もその後 `reference/image5.png` を根拠に70へ決めたが、実写は配置の読み取りに向かず狙いより遠い値になっていたため、モックアップの `image7.png` を根拠に50へ再調整した。AppStateContext の `orbitZoom` が真実で、`orbitRadiusForZoom(orbitZoom)` がどちらの半径かを解決する——`Scene.tsx` 側で `ORBIT_RADIUS` を直接書いていた箇所（`flyToOrbit`・アイドル描画テール・リサイズ effect・About の帰りのブレンド先）は全部これ経由になっている。
+- **自由回転には2つの固定高度がある**（`camera/cameraLayout.ts` の `OrbitZoom` = `"near"` | `"far"`）。`"near"`（`NEAR_ORBIT_RADIUS`、50）が新しいデフォルトで、参考写真（`reference/image7.png`——実写ではなく、円1個だけを重ねて配置とサイズだけを示したモックアップ）に画角を合わせた中間距離。`"far"`（`ORBIT_RADIUS`、100）はピンチで開く／ズームコントロールの「俯瞰」段を選んだときだけ入る一時的な状態——3段階の距離感が求められた回で、それぞれ「今の中間視点」「新しい参考写真」「建物ズームの参考写真」に合わせて一段ずつ寄せ直され、`ORBIT_RADIUS` はそのとき単に「以前の `NEAR_ORBIT_RADIUS` の値」に付け替えられた（旧140.32の式は退役）。`NEAR_ORBIT_RADIUS` 自体もその後 `reference/image5.png` を根拠に70へ決めたが、実写は配置の読み取りに向かず狙いより遠い値になっていたため、モックアップの `image7.png` を根拠に50へ再調整した。AppStateContext の `orbitZoom` が真実で、`orbitRadiusForZoom(orbitZoom)` がどちらの半径かを解決する——`Scene.tsx` 側で `ORBIT_RADIUS` を直接書いていた箇所（`flyToOrbit`・アイドル描画テール・リサイズ effect・About の帰りのブレンド先）は全部これ経由になっている。
   - **切り替えの入力は2つ**: 2本指ピンチ（`useViewInput` が `pointerId` ごとにポインタを追跡し、2点になった時点で単指ドラッグを打ち切ってピンチ判定に切り替える。つまむ/開くが `PINCH_THRESHOLD_PX` を超えた瞬間に1回だけ発火し、指を離すまで再発火しない——連続ズームではなく離散的な1段階の切り替え）と、ヘッダーのズームコントロール（`hub/ZoomControl.tsx`、一時停止ボタンの隣。**ボタン1個を押すたびに 俯瞰→標準→正面の建物→俯瞰… と巡回する**。ホバーで開くピッカーにしなかったのは、ホバーを要求する操作にはタッチの等価物が無いため。「正面の建物」段は `facing` へ `setActiveSection`）。
     - **ピンチがロジックとして正しくても、ブラウザ側に先取りされると届かない。** `pointermove` を受け取る前提として、キャンバスの祖先（`Hub.tsx` の固定div）に `touch-action: none`（Tailwind の `touch-none`）が要る——無いと2本指ジェスチャーはページのネイティブなピンチズームとして横取りされる。合わせて `app/layout.tsx` の `viewport` export（`maximumScale: 1`, `userScalable: false`）でページ全体の拡縮そのものを止めておく。どちらか一方だけでは不十分。
   - **戻りは常に `"near"`。** HOME/ロゴ（`goHome`）・セクションを閉じる（`closePage`）・セクションを開く（`openPage`、About の帰りのブレンド先を入場時点から合わせておくため）・URL 同期（`applyUrl`、`openPage`/`closePage` を経由せず直接 setter を呼ぶので個別に必要）のすべてが `setOrbitZoom("near")` を呼ぶ。`"far"` はズームコントロールで明示的に選んだときだけ入り、うっかり据え置かれることがない。
   - **`"near"` だけ、惑星を画面の右下寄りに構図する**（`NEAR_VERTICAL_SHARE = 0.636`、`"far"`・セクション・About は常に0）。**値は `reference/image7.png` から導いてある**——あの円1個のモックアップは中心が画面の65.5%右・**81.8%下**、半径は画面高の49%。惑星の中心は注視点そのものなので画面の `0.5 + share/2` に来る、つまり81.8%は 0.636。**以前の0.86→0.78は目測で、参考写真を0.15ぶん行き過ぎていた**（中心が89%）。サイズ（実測43%）と横位置（61%）の残差は10%以内で、どちらも同じ写真から起こした `NEAR_ORBIT_RADIUS` / `ORBIT_CARD_SHARE` の値なのでそのまま。
     - **この傾きは「カード↔マーカーの点線」と両立しない。承知のうえで構図を取っている。** 正面のエリア（`facing`）は円盤の中心ではなく5つのアンカーのうち最も近い1つで、ツアーの進行につれて円盤全体を動き回る。円盤を画面下へ押すと**カードが説明しているエリアごと画面の下へ出る**。一周20サンプル×3ビューポートの実測で、share 0.78 は 16/20 が画面外（最大648px下）、全サンプルが収まる上限は **0.04**＝実質ゼロ。しかも傾きは被写体を `share·radius·H/(2·depth)` px 下げるだけなので、距離を変えても逃げられない（両立させるには半径185＝About と同じ豆粒まで引く必要がある）。**互いにチューニングできる関係ではない。**
-    - **このトレードオフは `worldLayout.test.ts` にピン留めしてある**（`it("is knowingly past the point where the facing marker stays in frame")`）。うっかり「直され」ないよう、緑になったら仕様変更だと分かる形にしてある。
+    - **このトレードオフは `cameraLayout.test.ts` にピン留めしてある**（`it("is knowingly past the point where the facing marker stays in frame")`）。うっかり「直され」ないよう、緑になったら仕様変更だと分かる形にしてある。
     - 点線が出ない区間では**カードのアンカーの点も一緒に消す**（`CardLeaderLine` が線と同じ購読で opacity を操作する）。線の無い点は迷子のシミに見えるため。
     - `aimOffsetY`/`focalOffsetY` は `aimOffset`/`focalOffsetX` の縦版で、符号の理屈も同じ（負のオフセットがカメラを自分のローカル軸に沿って動かし、見ている対象を画面の反対側へ振る）。飛行中もこの縦オフセットを補間できるよう、`glideRef`/`startGlide`/`snapFocalOffset` は X・Y を組で持つ。
 - **About はホームと同じく惑星の中心を軸に回る**（`orbitPose(aboutAzimuthRef, ABOUT_POLAR, ABOUT_ORBIT_RADIUS)`）。建物のバウンディング球を軸にしていた旧 `framePose` 方式と違い、原点まわりの周回なので、着地後にゆっくり回り続ける自動回転もただ `aboutAzimuthRef` を進めるだけで済む。
@@ -81,9 +81,9 @@
 
 ### エリアのマーカーと点線
 
-マーカーは WebGL のスプライト（深度バッファに乗るので建物に隠れる）、カードからマーカーへの点線は DOM の SVG（常に最前面の平面）。両者の受け渡しは購読チャンネル（`scene/markerScreen.ts`）経由で、React state を通さない（毎フレームの再レンダーを避けるため）。
+マーカーは WebGL のスプライト（深度バッファに乗るので建物に隠れる）、カードからマーカーへの点線は DOM の SVG（常に最前面の平面）。両者の受け渡しは購読チャンネル（`scene/camera/markerScreen.ts`）経由で、React state を通さない（毎フレームの再レンダーを避けるため）。
 
-- **マーカーは円盤ではなく水色の稲妻**（`scene/markerBolt.ts` の `BOLT_PATH`）。輪郭・到達距離・火花・色をここに集めてあり、three.js も canvas も DOM も含まない純粋モジュールなので、3つの消費側（WebGL のスプライト／SVG の点線／カード隅のドット）が同じ形と同じ色を読む。
+- **マーカーは円盤ではなく水色の稲妻**（`scene/markerBolt.ts` の `BOLT_PATH`）。輪郭・到達距離・**寸法比**（`MARKER_CLEARANCE` / `MARKER_GLYPH_FILL` / `MARKER_GLYPH_RIM` / `MARKER_GLOW_FILL`）・火花・色をここに集めてあり、three.js も canvas も DOM も含まない純粋モジュールなので、3つの消費側（WebGL のスプライト／SVG の点線／カード隅のドット）が同じ形と同じ色を読む。**カメラ側（`scene/camera/cameraLayout.ts`）に残したのは射影だけ**（`pixelsPerWorldUnit()` / `markerScaleForScreenRadius()`）——寸法比は 2026-09-11 のファイル構成レビューまでカメラ側にあり、テクスチャを描く側と点線が縁を測る側が別モジュールの数を見る形になっていた（`SectionMarkers.tsx` が同じ「マーカーの見た目」のために2つの import を持っていたのがその痕跡）。
   - **座標系は「x右・y下」で `y ∈ [-1, 1]`。** canvas 2D も画面 px も y は下向きなので、テクスチャを描く側と点線に答える側で符号を変えずに済む。**縦が ±1 に届くことがスプライトの sizing の前提**——`markerScaleForScreenRadius()` は「グリフが `halfHeight` px に届くワールド scale」を返すので、輪郭が ±1 に届いていないと全マーカーが黙って小さくなる。
   - **点線の切り詰めは `markerClearance()` を通す。`halfHeight` をそのまま引かない。** 稲妻は縦長で先端が軸から外れているため、インクの縁までの距離は方向ごとに違う（真上 0.61・真横 0.45・真下 0.60 × halfHeight）。中心からレイを飛ばして輪郭との交点を取る厳密解で、**内接楕円は先端がはみ出すので安全ですらなく**（(0.30/0.52)² + 1 = 1.33）、**凸包の支持関数は安全だが真下で1.67倍**と緩い。どちらも「隙間が方向によって呼吸する」を招く。
   - **この輪郭は中心について星形**（20000方向中19999で前方交点はちょうど1つ）。だから「どこまで届くか」に単一の答えがある。実装が max を取っているのは星形でなくなったときの保険で、いま効いている条件ではない。
@@ -91,7 +91,7 @@
   - **`MARKER_GLYPH_FILL = 0.34`（旧 `MARKER_DOT_FILL` 0.37）はグリフの実体、`MARKER_GLOW_FILL = 0.46` はグローの届く範囲で、点線はグローを数えない。** クアッドの端は 0.5 なので余白 0.04 を残してある（端まで届かせるとクランプで四角く切られる）。
   - **canvas に描くときは `lineJoin = "round"` が必須。** 既定の miter は稲妻の鋭角で `MARKER_GLYPH_FILL` の外へ棘を飛ばし、縦の到達点＝sizing の前提を壊す。円には角が無かったので存在しなかった罠。グローは `ctx.shadowBlur` で同じパスを3回 fill する（ラジアルグラデーションだと丸くない形の周りに丸い光の玉が付く）。
   - **火花（`boltFlicker()`）は正面のマーカーだけ、サイズではなく明るさに掛ける。** サイズは点線が一定距離で追いかけている数なので、そこに掛けると火花のたびに点線の先端が痙攣する。`toneMapped={false}` なので明るさ倍率は各チャンネル1で頭打ちになり、水色が一瞬白く飛ぶ。時刻は `sceneClock` 経由なので停止ボタンで止まる。
-- **点線も規則的なジグザグをやめて稲妻の折れ線になった**（`hub/lightningPath.ts`、純粋関数）。乱数は `scene/voxel/rng.ts` の `hash01()` を再利用する。
+- **点線も規則的なジグザグをやめて稲妻の折れ線になった**（`hub/card/lightningPath.ts`、純粋関数）。乱数は `scene/voxel/rng.ts` の `hash01()` を再利用する。
   - **座標系は `(along, lift)`**——線に沿った距離と、軸からの横ズレ。画面座標への変換は `CardLeaderLine` の仕事なので、形は DOM 抜きでテストでき、線の向きにも依存しない。
   - **端の連続性は包絡線（`envelope()`）が担保する。端をピン留めする特別扱いを足さない。** `lift` に `min(along - from, to - along) / RAMP` を掛けると、頂点が生まれる瞬間はちょうど `to - along = 0` なので**必ず軸上で生まれて育つ**。終点の `lift = 0` も自動的に落ちる。旧ジグザグの「余りの山が余白に応じて育つ」特殊ケースは、これに置き換わって削除済み。
   - **折れ方は左右への切り返し。「平均回帰する歩行」にしてはいけない。** 凸結合は中央へ引っ張るので、定常のばらつきが刻みに対して小さくなり**ゆるく波打つ線**になる（一度そう実装して、ヘッドレスのスクショで判明した）。`RUN_CHANCE` で時々同じ側を続けるのが鋸歯にしないための味付け。
@@ -101,14 +101,14 @@
 - **色は `markerBolt.ts` の4定数だけ**: `MARKER_IDLE_INK`（`#a6dbf7`）・`MARKER_FACING_INK`（`#7fe8ff`）・`MARKER_TRAIL_INK`（`rgba(58,160,208,0.75)`、線とカード隅のドット）・`MARKER_TRAIL_GLOW`（`rgba(126,212,245,0.3)`）。マーカーのテクスチャは白で描いて `SpriteMaterial.color` の乗算でティントするので、グローも縁取りも一緒に色が乗る。**線だけ濃いのは白いカードの上を通るから**——`#a6dbf7` は白地でほぼ消える。カード側は Tailwind の任意値クラスではなくインラインスタイルで受ける（クラス走査はリテラルしか読めない）。
 
 - **マーカーと点線は「招待状」で、フォーカスした時点で役目が終わる**: エリアにズームすると `activeSection` が立ち、**全マーカーが半径0**になり、点線とカード側のアンカードットも消える。スポットライトのドットだけ「イージングしない」特例があるが、それは**入場方向にだけ**適用する。
-- **カードは重ね（スタック）で、ホバー中のホイールでエリアを送れる**（`AreaCard.tsx` / `hub/cardWheel.ts`）。送り先はツアー順（`adjacentOnTour()`）。ホイールは React の `onWheel` ではなく素の `addEventListener` で取る（`preventDefault`/`stopPropagation` が要るため）。
+- **カードは重ね（スタック）で、ホバー中のホイールでエリアを送れる**（`card/SectionCard.tsx` / `hub/card/cardWheel.ts`）。送り先はツアー順（`adjacentOnTour()`）。ホイールは React の `onWheel` ではなく素の `addEventListener` で取る（`preventDefault`/`stopPropagation` が要るため）。
 - **カードの送りは2つのゲートで守られていて、役割が違う。片方を厚くしてもう片方を薄くする、という調整はできない。**
-  - **ジェスチャの区切り（`hub/cardWheel.ts`、純粋関数）** — 「1ジェスチャ＝1枚」。しきい値 `WHEEL_THRESHOLD = 80` を越えた瞬間にロックし、`GESTURE_GAP_MS = 220` の静止で解ける。**静止だけを解除条件にしてはいけない**——トラックパッドの慣性テールは1〜2秒 wheel を吐き続けるので、テールに重なった2回目のフリックが丸ごと飲まれる（＝スクロールが効いたり効かなかったりする、の正体）。テールは単調に減衰するという性質を使い、**山の半分を下回ってから2.5倍以上に跳ね上がった**イベントも新しいジェスチャとして扱う（`REARM_DECAY_SHARE` / `REARM_RISE`）。フリック自身の立ち上がりで誤爆しないのは、上昇中は「直前のイベント＝山」で減衰の条件が成立しないため。
-  - **到着ゲート（`AreaCard.tsx`）** — 「まだ出ていないカードの、その次」へは進めない。ステップは**変更ではなく要求**で、`section` が返ってくるのはカメラが実際に振れたあと（damp λ=5 で約0.13秒）。`pendingSince` を立て、`section` が変わったことだけを到着の合図として降ろし、さらに登場スプリングが収まる `CARD_SETTLE_MS = 160`（ζ≈1.11・遅い極の時定数64ms）を待つ。**この2つで最短約0.3秒＝毎秒3枚。** `STEP_TIMEOUT_MS = 1000` は要求が飛行などで届かなかったときにカードが永久に固まらないための保険であって、通常経路では踏まない。
+  - **ジェスチャの区切り（`hub/card/cardWheel.ts`、純粋関数）** — 「1ジェスチャ＝1枚」。しきい値 `WHEEL_THRESHOLD = 80` を越えた瞬間にロックし、`GESTURE_GAP_MS = 220` の静止で解ける。**静止だけを解除条件にしてはいけない**——トラックパッドの慣性テールは1〜2秒 wheel を吐き続けるので、テールに重なった2回目のフリックが丸ごと飲まれる（＝スクロールが効いたり効かなかったりする、の正体）。テールは単調に減衰するという性質を使い、**山の半分を下回ってから2.5倍以上に跳ね上がった**イベントも新しいジェスチャとして扱う（`REARM_DECAY_SHARE` / `REARM_RISE`）。フリック自身の立ち上がりで誤爆しないのは、上昇中は「直前のイベント＝山」で減衰の条件が成立しないため。
+  - **到着ゲート（`card/SectionCard.tsx`）** — 「まだ出ていないカードの、その次」へは進めない。ステップは**変更ではなく要求**で、`section` が返ってくるのはカメラが実際に振れたあと（damp λ=5 で約0.13秒）。`pendingSince` を立て、`section` が変わったことだけを到着の合図として降ろし、さらに登場スプリングが収まる `CARD_SETTLE_MS = 160`（ζ≈1.11・遅い極の時定数64ms）を待つ。**この2つで最短約0.3秒＝毎秒3枚。** `STEP_TIMEOUT_MS = 1000` は要求が飛行などで届かなかったときにカードが永久に固まらないための保険であって、通常経路では踏まない。
   - **ゲートに弾かれたジェスチャも `locked` のままにする。** 拒否のたびに accumulator を生かしておくと、ゲートが開いた瞬間にテールに溜まった移動量が発火して「読み手が頼んでいない1枚」になる。次の新しいジェスチャ（静止 or 再上昇）で必ず通る。
   - **`deltaY` は `deltaMode` を見て px に正規化する**（`wheelPixels()`）。Chrome はマウス1ノッチを100px、Firefox は同じ1ノッチを3行で寄越すので、正規化しないとしきい値80に対して**27ノッチ必要＝実質死んだコントロール**になる。
 - **点線の起点は、作り直される要素の中に置かない。** カードは `AnimatePresence` で切り替わりのたびに作り直されるため、アンカーの点は**カードの中ではなくスタックのコンテナ**に置く——退場側の ref コールバックが `null` で後から呼ばれて `anchorRef.current` が空になると、線が最後の位置で凍る。
-- **マーカーが建物からどれだけ離れるかは、法線方向に建物のバウンディング箱を歩いて測る**（`outwardExtent()`、`AreaMarkers.tsx`）。旧世界の `box.max.y` は「世界が常に+Y上」だから成立した近似で、球では建物ごとに法線の向きが違う。単純なバウンディング球だと、建物の台座が地中側へ深く伸びているぶん膨らみ、マーカーが屋根から離れすぎる——箱の8頂点のうち法線の外向き側だけを見ることで、埋まっている部分に惑わされない。
+- **マーカーが建物からどれだけ離れるかは、法線方向に建物のバウンディング箱を歩いて測る**（`outwardExtent()`、`SectionMarkers.tsx`）。旧世界の `box.max.y` は「世界が常に+Y上」だから成立した近似で、球では建物ごとに法線の向きが違う。単純なバウンディング球だと、建物の台座が地中側へ深く伸びているぶん膨らみ、マーカーが屋根から離れすぎる——箱の8頂点のうち法線の外向き側だけを見ることで、埋まっている部分に惑わされない。
 - **マーカーの大きさは world 単位ではなく画面 px で決める。** `markerScaleForScreenRadius()` が、そのスプライトのビュー深度から「グリフが指定した px の縦半分に届くワールド scale」を毎フレーム逆算する（逆方向は成立しない——スプライトはビュー空間で頂点をずらすビルボードなので、ワールド空間のベクトルを射影しても画面サイズにはならない）。
 - **射影の前に `camera.updateMatrixWorld()` を呼ぶ。** `camera-controls` の `update()` は毎フレーム `position`/`quaternion` だけを書き、行列を張り直すのは後段の `gl.render()`。これを挟まないと `.project()` が前フレームのカメラで射影し、動いている側だけ1フレームぶんズレる。
 
@@ -120,7 +120,7 @@
 - **木・街灯は `scatterAround()` でプラザの周りに散布**（`Decorations.tsx`）。半径内で一様乱数ではなく**半径方向に一様**に散らす（`generateFillerCity` と同じ理由——中心に近いほど密度が上がり、円盤全体に均等よりも「核のあるクラスタ」に読める）。
 - **住人・トラムの「今どちらを向いているか」は、動く経路の種類によって解き方を変えている。**
   - 住人は `offsetDirection(centre, bearing, r)` という閉じた式の上を歩くので、`bearing` に関する微分も閉じた式で書ける（`walkerFacing()`）——`r` にすら依存しない。
-  - トラムは `PLANET_TOUR.direction(u)`（弧長再パラメータ化されたスプライン）という閉じた微分を持たない経路の上を走るので、`direction(u+ε) - direction(u)` を接平面へ射影する数値的な方法をとる（`tangentOf()`、`scene/planet/planetLayout.ts`）。トラムは**ツアー経路そのものを走る**——「軌道の真下に道を通す」という狙いを、別経路を作って同期させるのではなく経路そのものを共有することで満たしている。
+  - トラムは `PLANET_TOUR.direction(u)`（弧長再パラメータ化されたスプライン）という閉じた微分を持たない経路の上を走るので、`direction(u+ε) - direction(u)` を接平面へ射影する数値的な方法をとる（`tangentOf()`、`scene/planet/geometry.ts`）。トラムは**ツアー経路そのものを走る**——「軌道の真下に道を通す」という狙いを、別経路を作って同期させるのではなく経路そのものを共有することで満たしている。
 
 ### ジオラマの時計
 
@@ -132,7 +132,7 @@
 
 ### 太陽と影
 
-太陽は読み手が掴んで動かせる（`scene/Sun.tsx`／`scene/sunLight.ts`）。既定は `[18, 34, 14]` の方向（`SUN_DIRECTION`）。高くて片側に寄っているので、ボクセルの箱に「明るい上面・中間の側面・暗い側面」の3段が出て、落ち影も見える方向に伸びる。
+太陽は読み手が掴んで動かせる（`scene/objects/Sun.tsx`／`scene/sunLight.ts`）。既定は `[18, 34, 14]` の方向（`SUN_DIRECTION`）。高くて片側に寄っているので、ボクセルの箱に「明るい上面・中間の側面・暗い側面」の3段が出て、落ち影も見える方向に伸びる。
 
 - **影の定数は光源の距離だけから導かれている。** `shadow-camera-left/right/top/bottom = ±SCENE_BOUNDING_RADIUS`（34 ＝ 惑星の半径16.8＋最も高い建物の突出12.9 に余裕）は**向きに依存しない**——正射影の影カメラの境界は、フレームに収めるものの投影サイズを縛るだけなので。`near/far` はその半径を光源の原点距離 `SUN_DISTANCE`（41）に沿ってずらしたもの。**太陽をこの球面上に置くかぎり、向きを変えても4つとも正しい。** `sunLight.test.ts` がこの内包関係を押さえている——壊れても**影が黙って描かれなくなるだけ**で、エラーは出ない。
 - **固定光では全エリアを照らせない、というのは既知の限界。** 5エリアは球面上で149.5°に散らばっており、全球総当たり（2°刻み）でも「最も暗いエリア」を0より上げられる向きは存在しない。現状 `contact` は入射角142°（＝夜側）で `skills` の7分の1の明るさ。
@@ -152,7 +152,7 @@
 
 ### canvas を透明にして、自己紹介の上に3Dオブジェクトを重ねる
 
-自己紹介の列と惑星が画面上で重なったとき、建物や惑星の方を手前に見せたい（[docs/review.md](docs/review.md) のような台帳項目ではなく、直接の要望）。**z-index では不可能**——canvas は WebGL が描いた結果を1枚の平らな板として合成するので、その中身の一部だけを DOM より手前に、一部だけを奥にということは原理的にできない。
+自己紹介の列と惑星が画面上で重なったとき、建物や惑星の方を手前に見せたい（[docs/review.md](review.md) のような台帳項目ではなく、直接の要望）。**z-index では不可能**——canvas は WebGL が描いた結果を1枚の平らな板として合成するので、その中身の一部だけを DOM より手前に、一部だけを奥にということは原理的にできない。
 
 - **`Scene.tsx` の `<Canvas>` に `<color attach="background">` を持たせず、透明のまま使う。** `@react-three/fiber` は `eventSource` を渡さない限り既定で `alpha: true` の `WebGLRenderer` を作るので、何も描いていないピクセルはそのまま透明になる（ソースの `defaultProps` で確認済み）。空の色（`#070a14`）は `Hub.tsx` 側の背景色 div 一枚に一本化した。
 - **`Hub.tsx` を3層に積む**: 背景色 div（最下層）→ 自己紹介の列（中間層）→ 透明な canvas（最上層）。canvas が不透明に描いた画素（惑星・建物・装飾・衛星）は、重なったところではすべて自動的に文字より手前に来る——per-pixel で正確で、輪郭のアンチエイリアスも正しく混ざる。マスクや円の近似ではないので、球の輪郭のずれも、建物や衛星が球面から突き出て文字にかかるケースも、追加のコードなしで正しく扱える。
@@ -197,8 +197,8 @@
 **`<Canvas>` より上のコンテキストが変わると、three.js のツリー全体が React に再調停される。** R3F 9 の `CanvasImpl` の setup effect には**依存配列が無く**、再レンダーのたびに `configure()` と `root.render(children)` が走る——惑星・5棟＋看板・`FillerCity` の290棟・装飾一式が毎回そこを通る。
 
 - **`React.memo` では止められない。** `its-fine` の `useContextBridge`（R3F がコンテキストをリコンサイラ境界の向こうへ運ぶ仕組み）は `CanvasImpl` のレンダー中に上位の全コンテキストを `use()` で購読するので、props が変わらなくても Canvas は再レンダーする。しかも memo すると今度は `CameraController` が `activeSection` の変化を受け取れなくなる——Bridge は `root.render` 経由でしか新しい値を運ばないため。**打てる手は「Canvas より上のコンテキストが変わる回数を減らす」しかない。**
-- そのため、毎フレームまたは頻繁に変わる値は**購読チャンネル**（プレーンなモジュール＋リスナーの `Set`）で運ぶ。現在3つ: `scene/markerScreen.ts`（マーカーの画面座標）、`hub/about/aboutScroll.ts` の `aboutReturn`（帰りの進捗）、`state/facingChannel.ts`（正面のエリア）。
-- **`facing` の読み手は3種類に分かれる**: `AreaCard` は `useSyncExternalStore` で購読（表示するので再レンダーが要る）、`AreaMarkers` は `useFrame` の中で `facingNow()` を読む（描くだけなので再レンダー不要）、`Hub` はハンドラが発火した時点で読む（`cardSection()`）。`AppStateContext` に置いていた頃は1ラップに5回、シーン全体の再調停を起こしていた。
+- そのため、毎フレームまたは頻繁に変わる値は**購読チャンネル**（プレーンなモジュール＋リスナーの `Set`）で運ぶ。現在3つ: `scene/camera/markerScreen.ts`（マーカーの画面座標）、`hub/about/aboutScroll.ts` の `aboutReturn`（帰りの進捗）、`state/facingChannel.ts`（正面のエリア）。
+- **`facing` の読み手は3種類に分かれる**: `SectionCard` は `useSyncExternalStore` で購読（表示するので再レンダーが要る）、`SectionMarkers` は `useFrame` の中で `facingNow()` を読む（描くだけなので再レンダー不要）、`Hub` はハンドラが発火した時点で読む（`cardSection()`）。`AppStateContext` に置いていた頃は1ラップに5回、シーン全体の再調停を起こしていた。
 - `AppStateContext` の value は `useMemo` で包んである。
 
 ### その他
@@ -209,7 +209,7 @@
 
 ## テスト
 - **Vitest**（node環境）。React も three.js も含まない純粋ロジックのみを対象にしているため、DOMもレンダラも不要で全体が1秒未満で走る（438件）。最も重いのは惑星の球殻の生成と水密性の検査。**ループの中で `expect` を数千回呼ばない** — 数万個のブロックを1個ずつ検証すると、惑星を生成するより検証の方が高くつく。集計してから1回だけ検証する。
-- 対象: カメラの姿勢計算と飛行の補間（`scene/worldLayout.ts`）、飛行そのものと着地の引き継ぎ（`scene/cameraFlight.ts`）、太陽の向き・ドラッグ・影の内包関係（`scene/sunLight.ts`）、球面の幾何・接空間の基底（`scene/planet/planetLayout.ts`）、各セクションの経緯度（`scene/planet/sections.ts`）、ツアー経路（`scene/planet/tour.ts`）、惑星の球殻と地形（`scene/planet/shell.ts`）、雑居ビルの散布（`scene/planet/city.ts`）、プラザと装飾の配置（`scene/planet/decor.ts`）、ジオラマの時計（`scene/sceneClock.ts`）、決定論的ハッシュ（`scene/voxel/rng.ts`）、制作実績のフィルタ（`detail/products/catalog.ts`）、プロジェクトデータの言語解決（`data/project.ts`）、URL の解釈（`state/sectionUrl.ts`）、詳細ページの退場方向（`detail/detailSheet.ts`）、カードのホイール送り（`hub/cardWheel.ts`）、自己紹介の読了判定とスクロール連動の帰還（`hub/about/aboutScroll.ts`）。
+- 対象: カメラの姿勢計算と飛行の補間（`scene/camera/cameraLayout.ts`）、飛行そのものと着地の引き継ぎ（`scene/camera/cameraFlight.ts`）、太陽の向き・ドラッグ・影の内包関係（`scene/sunLight.ts`）、球面の幾何・接空間の基底（`scene/planet/geometry.ts`）、各セクションの経緯度（`scene/planet/sections.ts`）、ツアー経路（`scene/planet/tour.ts`）、惑星の球殻と地形（`scene/planet/shell.ts`）、雑居ビルの散布（`scene/planet/city.ts`）、プラザと装飾の配置（`scene/planet/decor.ts`）、ジオラマの時計（`scene/sceneClock.ts`）、決定論的ハッシュ（`scene/voxel/rng.ts`）、制作実績のフィルタ（`detail/products/catalog.ts`）、プロジェクトデータの言語解決（`data/projectModel.ts`）、URL の解釈（`state/sectionUrl.ts`）、詳細ページの退場方向（`detail/detailSheet.ts`）、カードのホイール送り（`hub/card/cardWheel.ts`）、自己紹介の読了判定とスクロール連動の帰還（`hub/about/aboutScroll.ts`）。
 - 新しいテストは**変異テストで検証する運用**にしている。意図的なバグを仕込んで落ちることを確認しないと、緑であることに意味がないため。
 
 ```bash

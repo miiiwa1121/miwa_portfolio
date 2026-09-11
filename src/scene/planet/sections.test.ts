@@ -9,7 +9,7 @@ import {
   sectionPosition,
 } from "./sections";
 import { MAX_TOUR_LATITUDE } from "./tour";
-import { angleBetween, dot, normalize } from "./planetLayout";
+import { angleBetween, dot, normalize } from "./geometry";
 import { PLANET_RADIUS } from "./shell";
 
 const length = (v: readonly [number, number, number]) => Math.hypot(v[0], v[1], v[2]);
@@ -79,7 +79,7 @@ describe("sectionBasis", () => {
   // reading the field is indistinguishable from correct code through this
   // public API while that stays true — 0 read from the table and 0 hardcoded
   // produce the same output. tangentBasis's own yaw handling is exercised with
-  // non-zero angles in planetLayout.test.ts; once a section actually needs a
+  // non-zero angles in geometry.test.ts; once a section actually needs a
   // turned signboard, add a case here that would catch the wiring breaking.
   it("uses the section's own normal as up", () => {
     for (const s of PLANET_SECTION_KEYS) {

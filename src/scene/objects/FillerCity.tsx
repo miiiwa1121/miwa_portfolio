@@ -2,12 +2,12 @@
 
 import { useMemo } from "react";
 import * as THREE from "three";
-import PlacedVoxels, { type PlacedVoxel } from "./voxel/PlacedVoxels";
-import type { Voxel } from "./voxel/VoxelModel";
-import { PALETTE, pick } from "./voxel/palette";
-import { FILLER_CITY, FILLER_VOXEL_SIZE, type FillerBuilding } from "./planet/city";
-import { SMOOTH_PLANET_RADIUS } from "./planet/sections";
-import { surfacePoint, tangentBasis } from "./planet/planetLayout";
+import PlacedVoxels, { type PlacedVoxel } from "../voxel/PlacedVoxels";
+import type { Voxel } from "../voxel/VoxelModel";
+import { PALETTE, pick } from "../voxel/palette";
+import { FILLER_CITY, FILLER_VOXEL_SIZE, type FillerBuilding } from "../planet/city";
+import { SMOOTH_PLANET_RADIUS } from "../planet/sections";
+import { surfacePoint, tangentBasis } from "../planet/geometry";
 
 /**
  * The unnamed buildings that keep the planet from reading as five landmarks

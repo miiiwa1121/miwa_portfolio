@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence } from "framer-motion";
-import Section from "./Section";
+import DetailSection from "./DetailSection";
 import { useLanguage } from "@/state/LanguageContext";
 import { PROJECTS, localizeProjects, type Project } from "@/data";
 import {
@@ -55,7 +55,7 @@ export default function Products() {
   };
 
   return (
-    <Section id="products" title="Products">
+    <DetailSection id="products" title="Products">
       <ProductFilters
         category={category}
         status={status}
@@ -92,6 +92,6 @@ export default function Products() {
           </>,
           portalTarget
         )}
-    </Section>
+    </DetailSection>
   );
 }

@@ -33,7 +33,7 @@
  * inside every section.
  */
 
-import { dot, normalize, type Direction } from "./planet/planetLayout";
+import { dot, normalize, type Direction } from "./planet/geometry";
 
 /**
  * The radius of the sphere the sun is kept on.

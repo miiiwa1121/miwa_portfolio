@@ -66,18 +66,23 @@ npm run build
 
 ```
 src/
-├── app/                  # App Router のエントリポイント（layout / page / globals.css）
-├── types.ts              # 全層が読む語彙（Language / SectionType）
-├── state/                # アプリ全体の状態（AppState / Language の Context、URLハッシュ連携）
-├── scene/                # Three.js / R3F のシーン
-│   └── voxel/            # ボクセルエンジン（生成ヘルパー・パレット・立体文字）
-├── hub/                  # キャンバスの上に浮くホーム画面（カード・点線トレイル・Footer）
-│   └── about/            # 自己紹介カラム（シートを開かない唯一の例外）
+├── app/                   # App Router のエントリポイント（layout / page / globals.css / アイコン）
+├── types.ts               # 全層が読む語彙（Language / SectionType）
+├── state/                 # アプリ全体の状態（AppState / Language の Context、URLハッシュ連携）
+├── scene/                 # Three.js / R3F のシーン
+│   ├── Scene.tsx          #   キャンバスとカメラの制御（行き先を決める effect はここ1つだけ）
+│   ├── camera/            #   構図・飛行・画面への射影（cameraLayout / cameraFlight / markerScreen）
+│   ├── objects/           #   シーンに置かれるもの（惑星・建物・雑居ビル・装飾・トラム・マーカー・太陽）
+│   ├── planet/            #   球面の幾何と配置の純粋関数（geometry / sections / tour / shell / city / decor）
+│   └── voxel/             #   ボクセルエンジン（生成ヘルパー・パレット・立体文字）
+├── hub/                   # キャンバスの上に浮くホーム画面
+│   ├── card/              #   エリアカードと、マーカーへ伸びる稲妻の点線
+│   └── about/             #   自己紹介カラム（シートを開かない唯一の例外）
 ├── detail/                # HTMLで組む詳細ページの各セクション
-│   └── products/         # 制作実績セクションのUI
+│   └── products/          #   制作実績セクションのUI
 ├── terminal/              # ターミナルモード（Context + Overlay）
 ├── ui/                    # 複数箇所で使う共有UIパーツ（アイコン等）
 └── data/                  # 制作実績のデータ（日英）
 ```
 
-技術スタックの詳細は [docs/tech.md](docs/tech.md) を参照してください。
+技術スタックの詳細は [docs/tech.md](docs/tech.md)、配置と命名の規約は [docs/structure.md](docs/structure.md) を参照してください。ドキュメント全体の地図は [docs/README.md](docs/README.md) にあります。

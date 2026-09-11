@@ -1,6 +1,6 @@
 import type { Voxel } from "../voxel/VoxelModel";
 import { PALETTE, pick } from "../voxel/palette";
-import { normalize, type Direction } from "./planetLayout";
+import { normalize, type Direction } from "./geometry";
 
 /**
  * The planet's body: a hollow shell of voxels with terrain on it.

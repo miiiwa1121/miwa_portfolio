@@ -14,7 +14,7 @@
 | --- | --- |
 | **A. 致命的（6件）** | **全件対応済み（2026-08-02）**。詳細は各項目の「対応」を参照 |
 | B. 重大（9件） | 未着手 |
-| C. 中（8件） | 未着手 |
+| C. 中（8件） | C-6 のみ対応済み（2026-09-11、ファイル構成レビュー）。残り7件は未着手 |
 | D. 小（6件） | 未着手 |
 
 **Aの対応で残った判断待ちが1つある**（A-3 の構図トレードオフ）。下記 A-3 の「残る判断」を参照。
@@ -31,7 +31,7 @@
 >
 > **真因は `camera.up` が world +Y に固定されたまま、構図だけを建物のローカル座標系で組んでいたこと。** products の建物のローカル「上」は world +Z をほぼ向いており、`camera.up` が +Y のままだと原理的に画面上で横倒しになる（実測: 建物の上方向が画面垂直から84°ずれる）。experience は視線が真下から10.4°で `lookAt` が縮退し、ロールが不定 → 鏡文字。**仰角19.5°自体は image6 とほぼ一致していて正しかった。**
 >
-> `worldLayout.ts` に `sectionUp()` / `ORBIT_UP` を追加し、セクション寄りのあいだ `camera.up` をその建物自身の法線にした。飛行中は `slerpDirection` で world +Y から補間（`glideRef` に `fromUp`/`toUp` を追加）。`camera-controls` は `update()` 内で `camera.lookAt(target)` を呼ぶので、`setLookAt` の**前に** `updateCameraUp()` を呼ぶ必要がある（`_yAxisUpSpace` を張り直すのはこの関数だけ）。
+> `camera/cameraLayout.ts` に `sectionUp()` / `ORBIT_UP` を追加し、セクション寄りのあいだ `camera.up` をその建物自身の法線にした。飛行中は `slerpDirection` で world +Y から補間（`glideRef` に `fromUp`/`toUp` を追加）。`camera-controls` は `update()` 内で `camera.lookAt(target)` を呼ぶので、`setLookAt` の**前に** `updateCameraUp()` を呼ぶ必要がある（`_yAxisUpSpace` を張り直すのはこの関数だけ）。
 >
 > `sectionPose` の式も `SECTION_TILT` の値も変えていない。変えたのは `SECTION_TILT` の docstring（「法線から」→「地平線から」）で、この誤記こそが誤診を招いた。
 >
@@ -41,7 +41,7 @@
 
 建物ズーム時のスクリーンショットで **`PRODUCTS` と `GAME` の看板が左右反転して描画されている。**
 
-原因は `scene/worldLayout.ts` の `sectionPose`:
+原因は `scene/camera/cameraLayout.ts` の `sectionPose`:
 
 ```ts
 tx + forward[0] * distance * cos + up[0] * distance * sin,
@@ -79,7 +79,7 @@ tx + up[0] * distance * cos + forward[0] * distance * sin,
 >
 > **変異テスト**: cos/sin 入れ替え → 5件失敗 / `sectionUp` を `ORBIT_UP` に戻す → 4件失敗 / 法線を内向きに → 2件失敗 / カメラを看板の反対側へ → 2件失敗。すべて `cp` 退避・復元で確認。
 
-`scene/worldLayout.test.ts` の `sectionPose` の項が `angleAt(10) ≈ Math.PI / 2 - SECTION_TILT` を assert している。**これは仕様ではなく実装を写したテスト**で、コメントもわざわざ実装の式をなぞって理屈をつけている。さらに `it("looks down at the subject rather than up at it")` は、赤道上の建物で `forward` がちょうど world +Y になるため、**縮退しているからこそ通っている。**
+`scene/cameraLayout.test.ts` の `sectionPose` の項が `angleAt(10) ≈ Math.PI / 2 - SECTION_TILT` を assert している。**これは仕様ではなく実装を写したテスト**で、コメントもわざわざ実装の式をなぞって理屈をつけている。さらに `it("looks down at the subject rather than up at it")` は、赤道上の建物で `forward` がちょうど world +Y になるため、**縮退しているからこそ通っている。**
 
 CLAUDE.md の「変異テストで検証する」運用は正しいが、変異テストは*テストが実装と食い違う*ことは検出しても、*テストと実装が揃って仕様から外れている*ことは検出できない。**変異テストの盲点として記録しておく価値がある。**
 
@@ -117,7 +117,7 @@ it("never aims within 30° of camera.up, at any section", () => {
 >
 > よって `NEAR_VERTICAL_SHARE = 0.636`。縦位置は参考写真と一致、サイズ（43% vs 49%）と横位置（61% vs 65.5%）は10%以内の残差で、どちらも `NEAR_ORBIT_RADIUS` / `ORBIT_CARD_SHARE` を同じ写真から起こした値なのでそのまま。
 >
-> **代償は明示的に受け入れた**: 正面のエリアは一周のうち多くで画面下に隠れ、点線は `markerOnScreen` によって自分を隠す。`worldLayout.test.ts` にこのトレードオフを**ピン留めするテスト**を置いてある（`it("is knowingly past the point where the facing marker stays in frame")`）——うっかり「直され」ないように、緑になったら仕様変更だと分かる形。
+> **代償は明示的に受け入れた**: 正面のエリアは一周のうち多くで画面下に隠れ、点線は `markerOnScreen` によって自分を隠す。`cameraLayout.test.ts` にこのトレードオフを**ピン留めするテスト**を置いてある（`it("is knowingly past the point where the facing marker stays in frame")`）——うっかり「直され」ないように、緑になったら仕様変更だと分かる形。
 >
 > **副作用も1つ潰した**: 点線が出ない区間ではカードのアンカーの点だけが残り、コード自身が言う「線の無い点は迷子のシミに見える」状態になっていた。`CardLeaderLine` が線と同じ購読で点の opacity も操作するようにした。
 
@@ -128,7 +128,7 @@ near（デフォルト）: opacity=0 のまま、points は最初の1フレー�
 far              : opacity=1、終端が 927,450 → 714,546 と毎フレーム更新
 ```
 
-`near`（`NEAR_ORBIT_RADIUS = 50` ＋ `focalOffsetY` の下方向オフセット）では、正面セクションのマーカーの投影座標が**ビューポートの下端より外**に落ち、`AreaMarkers.tsx` の `screenY <= height` が常に false になる。結果、`hide()` が毎フレーム呼ばれる。オレンジのスポットライトドットも画面に出ない（スクリーンショットに白ドットしか写っていないのがその証拠）。
+`near`（`NEAR_ORBIT_RADIUS = 50` ＋ `focalOffsetY` の下方向オフセット）では、正面セクションのマーカーの投影座標が**ビューポートの下端より外**に落ち、`SectionMarkers.tsx` の `screenY <= height` が常に false になる。結果、`hide()` が毎フレーム呼ばれる。オレンジのスポットライトドットも画面に出ない（スクリーンショットに白ドットしか写っていないのがその証拠）。
 
 つまり **`docs/tech.md` が長々と説明している「カード↔マーカー」の導線が、全訪問者が最初に見る画面で機能していない。** しかも `hide()` は無言で失敗する設計なので、気づきようがなかった。**距離とオフセットを変えたときに、この副作用を検算する仕組みが無かったことが本当の原因。**
 
@@ -422,19 +422,6 @@ three.js だけで gzip 334KB、**初期表示に全部必要。** 4G回線で�
 1. **ローディング表示を入れる。** 現状は `#070a14` の真っ黒が数秒続き、壊れているように見える。ロゴ＋プログレスだけでも体感が大きく変わる。これが一番費用対効果が高い。
 2. `next.config.ts` に `experimental.optimizePackageImports: ["lucide-react", "react-icons"]` を足す。`react-icons/si` から30個importしているので効く。
 3. three.js のツリーシェイクは R3F 経由だと効きにくいが、`Stars`（drei）は自前実装に置き換えれば drei の依存を減らせる（`speed={0}` で使っているだけなので、`Points` 1個で済む）。
-
-### C-6. 未参照のアセット 1.5MB が配信されている
-
-```
-public/models/glb/sb01_rocket.glb           1,204,608 bytes  ← src から参照ゼロ
-public/models/bbmodels/sb01_rocket.bbmodel    383,650 bytes
-public/models/bbmodels/voxel_tree_test.bbmodel
-out/.DS_Store, out/images/.DS_Store          ← ビルドで out/ にコピーされている
-```
-
-すべて git 追跡下にあり、`out/` に入って公開される。読み込まれないので体感速度には影響しないが、**誰でも取得できる状態。** `.DS_Store` はディレクトリ構成のメタデータを漏らす。
-
-**解決策**: `public/models/` を `assets/models/`（`public` 外）へ移動して git に残す。`.DS_Store` はローカルから削除（`.gitignore` にはあるが実ファイルが残っている）。
 
 ### C-7. 詳細ページに閉じるボタンが無い
 

@@ -5,7 +5,7 @@
  * directions and right-handed bases — precisely so it can be tested without a
  * renderer. This is the one place those bases are turned into a `Quaternion`,
  * so the arithmetic stays testable and the conversion is written once instead
- * of in `Diorama`, `Decorations` and `VoxelBus` separately.
+ * of in `PlanetScene`, `Decorations` and `VoxelBus` separately.
  *
  * Two shapes, for two different callers:
  *
@@ -20,7 +20,7 @@
  */
 
 import * as THREE from "three";
-import { surfacePoint, tangentBasis, type Direction } from "./planet/planetLayout";
+import { surfacePoint, tangentBasis, type Direction } from "./planet/geometry";
 
 /** Local axes in `Matrix4.makeBasis` order, as `scene/planet/` hands them out. */
 export type Basis = { right: Direction; up: Direction; forward: Direction };

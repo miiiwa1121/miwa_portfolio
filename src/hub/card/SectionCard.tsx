@@ -21,7 +21,7 @@ import type { SectionType } from "@/types";
  * Which area it shows is not decided here. It reads `section` and asks for a
  * step; the camera turns, and the area it ends up facing comes back down as a
  * new `section`. Card and camera never write to each other — see
- * `facingSection` in worldLayout for why that direction matters.
+ * `facingSection` in cameraLayout for why that direction matters.
  */
 
 /** Contextual copy — swaps as the camera flies to each building. */
@@ -152,7 +152,7 @@ type Props = {
   onStep: (step: number) => void;
 };
 
-export default function AreaCard({
+export default function SectionCard({
   focusedSection,
   isJa,
   anchorRef,

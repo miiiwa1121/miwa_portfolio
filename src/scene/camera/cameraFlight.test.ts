@@ -8,7 +8,7 @@ import {
   orbitPose,
   orbitStepFraction,
   type OrbitAngles,
-} from "./worldLayout";
+} from "./cameraLayout";
 
 const FRAME = 1 / 60;
 

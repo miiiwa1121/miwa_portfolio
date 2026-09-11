@@ -16,7 +16,7 @@ import {
   offsetDirection,
   tangentBasis,
   type Direction,
-} from "./planetLayout";
+} from "./geometry";
 import { SMOOTH_PLANET_RADIUS } from "./sections";
 import { planetRelief, RELIEF_AMPLITUDE } from "./shell";
 

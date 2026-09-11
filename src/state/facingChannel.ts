@@ -26,8 +26,8 @@ import type { SectionType } from "@/types";
  * the canvas. Same reasoning, and the same shape, as `scene/markerScreen.ts`
  * and `hub/about/aboutScroll.ts`.
  *
- * Only `AreaCard` re-renders on a change (via `useFacing`, below): it is the
- * one thing that displays the answer. `AreaMarkers` reads `facingNow()` inside
+ * Only `SectionCard` re-renders on a change (via `useFacing`, below): it is the
+ * one thing that displays the answer. `SectionMarkers` reads `facingNow()` inside
  * its frame loop, and `Hub`'s handlers read it when they fire.
  */
 

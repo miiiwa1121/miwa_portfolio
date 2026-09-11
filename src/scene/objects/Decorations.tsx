@@ -3,14 +3,14 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import VoxelModel, { Voxel } from "./voxel/VoxelModel";
-import { fillBox, put } from "./voxel/builders";
-import { PALETTE, pick } from "./voxel/palette";
-import { sceneClock } from "./sceneClock";
-import { PARK_CENTRE, scatterAround, walkerFacing } from "./planet/decor";
-import { normalize, offsetDirection, surfacePoint, tangentBasis, type Direction } from "./planet/planetLayout";
-import { orientTo, quaternionOf, standOn } from "./planetPlacement";
-import { SMOOTH_PLANET_RADIUS } from "./planet/sections";
+import VoxelModel, { Voxel } from "../voxel/VoxelModel";
+import { fillBox, put } from "../voxel/builders";
+import { PALETTE, pick } from "../voxel/palette";
+import { sceneClock } from "../sceneClock";
+import { PARK_CENTRE, scatterAround, walkerFacing } from "../planet/decor";
+import { normalize, offsetDirection, surfacePoint, tangentBasis, type Direction } from "../planet/geometry";
+import { orientTo, quaternionOf, standOn } from "../planetPlacement";
+import { SMOOTH_PLANET_RADIUS } from "../planet/sections";
 
 const VS = 0.42;
 

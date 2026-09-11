@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { localizeProject, localizeProjects } from "./project";
+import { localizeProject, localizeProjects } from "./projectModel";
 import { PROJECTS } from "./projects";
-import type { ProjectSource } from "./project";
+import type { ProjectSource } from "./projectModel";
 
 const sample: ProjectSource = {
   slug: "demo",

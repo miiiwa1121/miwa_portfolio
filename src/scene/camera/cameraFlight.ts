@@ -15,8 +15,8 @@
  * cannot skip the flight forward (see `MAX_FLIGHT_STEP`).
  */
 
-import { easeInOutCubic, glidePose, type OrbitAngles, type Pose } from "./worldLayout";
-import { slerpDirection, type Direction } from "./planet/planetLayout";
+import { easeInOutCubic, glidePose, type OrbitAngles, type Pose } from "./cameraLayout";
+import { slerpDirection, type Direction } from "../planet/geometry";
 
 /**
  * The largest step one frame may contribute to a flight, in seconds.

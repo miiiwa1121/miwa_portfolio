@@ -3,14 +3,14 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import VoxelModel, { Voxel } from "./voxel/VoxelModel";
-import { fillBox, put } from "./voxel/builders";
-import { PALETTE } from "./voxel/palette";
-import { sceneClock } from "./sceneClock";
-import { PLANET_TOUR } from "./planet/tour";
-import { surfacePoint, tangentOf, type Direction } from "./planet/planetLayout";
-import { orientTo } from "./planetPlacement";
-import { SMOOTH_PLANET_RADIUS } from "./planet/sections";
+import VoxelModel, { Voxel } from "../voxel/VoxelModel";
+import { fillBox, put } from "../voxel/builders";
+import { PALETTE } from "../voxel/palette";
+import { sceneClock } from "../sceneClock";
+import { PLANET_TOUR } from "../planet/tour";
+import { surfacePoint, tangentOf, type Direction } from "../planet/geometry";
+import { orientTo } from "../planetPlacement";
+import { SMOOTH_PLANET_RADIUS } from "../planet/sections";
 
 const VS = 0.34;
 const GROUND_RADIUS = SMOOTH_PLANET_RADIUS;
@@ -56,7 +56,7 @@ function tramVoxels(): Voxel[] {
  * a second route to keep in sync with it by hand. Wherever `PLANET_TOUR`
  * goes, the tram already goes too.
  */
-export function VoxelBus() {
+export default function VoxelBus() {
   const groupRef = useRef<THREE.Group>(null);
   const voxels = useMemo(() => tramVoxels(), []);
   // Fraction of the whole tour covered per second. The tour's own arc length

@@ -163,7 +163,7 @@ products タワーは 24 voxel × 0.42 = **高さ 10.1 世界単位**。この�
 
 ## 生き残るもの
 
-[worldLayout.ts](../src/scene/worldLayout.ts) の中核は既に球面座標で書かれている。`glidePose()` は注視点まわりの `(radius, polar, azimuth)` を補間しており、**polar は既に補間対象**。`framePose()` の `tilt` も実質 polar。つまり「上下にも飛ぶ」は新しい概念の導入ではなく、アキュムレータを1本足す話に落ちる。
+[worldLayout.ts](../src/scene/camera/cameraLayout.ts) の中核は既に球面座標で書かれている。`glidePose()` は注視点まわりの `(radius, polar, azimuth)` を補間しており、**polar は既に補間対象**。`framePose()` の `tilt` も実質 polar。つまり「上下にも飛ぶ」は新しい概念の導入ではなく、アキュムレータを1本足す話に落ちる。
 
 CLAUDE.md の飛行まわりの不変条件（自前の時計、`easeInOutCubic`、初回フレームに `delta` を加算しない、`glidePose` を通す、`wrapAngle` で ±π をまたがない）は**全部そのまま使える**。行き先を決める effect も5経路のまま維持する。
 
@@ -203,16 +203,16 @@ CLAUDE.md の飛行まわりの不変条件（自前の時計、`easeInOutCubic`
 
 | 対象 | 内容 | 状態 |
 | --- | --- | --- |
-| [Planet.tsx](../src/scene/Planet.tsx)（新規） | ~~`planetVoxels()` を1つの `VoxelModel` に渡すだけ~~ **確定で差し替え**: ボクセルではなく通常の `SphereGeometry`＋テクスチャ。半径も `PLANET_RADIUS`（33.6）の半分 `SMOOTH_PLANET_RADIUS`（16.8）に。`planetVoxels()` 自体とそのテストは無傷のまま残しているが、使われていない。詳細は下の「惑星の土台は通常の球体、直径は元の半分」 | **済** |
-| [worldLayout.ts](../src/scene/worldLayout.ts) | `BUILDING_POSITIONS` を `sectionPosition()` から生成。`HOME_RADIUS`/`HOME_HEIGHT`/`HOME_TARGET_Y`/`ABOUT_RADIUS` を惑星の大きさに合わせて再計測 | **済**（`facingSection` → `orbitPose`/`sectionPose` の法線ベース化も**済**。手順4） |
-| [ProceduralObjects.tsx](../src/scene/ProceduralObjects.tsx) | `Anchor` に `quaternion`、各建物に `foundation()` の台座 | **済**（ヨー角は現状すべて0のまま。看板の向きを変える必要が出たら） |
-| [AreaMarkers.tsx](../src/scene/AreaMarkers.tsx) | `box.max.y + clearance` を法線方向の `outwardExtent()` へ | **済** |
+| [Planet.tsx](../src/scene/objects/Planet.tsx)（新規） | ~~`planetVoxels()` を1つの `VoxelModel` に渡すだけ~~ **確定で差し替え**: ボクセルではなく通常の `SphereGeometry`＋テクスチャ。半径も `PLANET_RADIUS`（33.6）の半分 `SMOOTH_PLANET_RADIUS`（16.8）に。`planetVoxels()` 自体とそのテストは無傷のまま残しているが、使われていない。詳細は下の「惑星の土台は通常の球体、直径は元の半分」 | **済** |
+| [worldLayout.ts](../src/scene/camera/cameraLayout.ts) | `BUILDING_POSITIONS` を `sectionPosition()` から生成。`HOME_RADIUS`/`HOME_HEIGHT`/`HOME_TARGET_Y`/`ABOUT_RADIUS` を惑星の大きさに合わせて再計測 | **済**（`facingSection` → `orbitPose`/`sectionPose` の法線ベース化も**済**。手順4） |
+| [ProceduralObjects.tsx](../src/scene/objects/ProceduralObjects.tsx) | `Anchor` に `quaternion`、各建物に `foundation()` の台座 | **済**（ヨー角は現状すべて0のまま。看板の向きを変える必要が出たら） |
+| [SectionMarkers.tsx](../src/scene/objects/SectionMarkers.tsx) | `box.max.y + clearance` を法線方向の `outwardExtent()` へ | **済** |
 | [Scene.tsx](../src/scene/Scene.tsx) | 入力3種、`viewRef` / `tourRef`、極のクランプ、`sectionPose` への切り替え | **済**（手順4） |
-| [VoxelIsland.tsx](../src/scene/VoxelIsland.tsx) → [shell.ts](../src/scene/planet/shell.ts) | 球殻へ。色だけでなく高さにもノイズを効かせて起伏と海陸を作る | **済**（手順1。手順2後、実際の土台は `Planet.tsx` の通常球体に差し替わっている） |
+| `VoxelIsland.tsx`（削除済み） → [shell.ts](../src/scene/planet/shell.ts) | 球殻へ。色だけでなく高さにもノイズを効かせて起伏と海陸を作る | **済**（手順1。手順2後、実際の土台は `Planet.tsx` の通常球体に差し替わっている） |
 | [PlacedVoxels.tsx](../src/scene/voxel/PlacedVoxels.tsx)（新規） | `VoxelModel` の姉妹コンポーネント。ボクセルが共通格子ではなく自分の位置と回転を持つ。雑居ビルを1つの `InstancedMesh` にまとめるため | **済** |
-| [FillerCity.tsx](../src/scene/FillerCity.tsx)（新規） | `city.ts` の配置を実際のボクセル建物に焼き込む render 層。壁＋屋根のみ（床なし）の安価なテンプレート | **済** |
-| [Decorations.tsx](../src/scene/Decorations.tsx) | 全部 `y = 0.2` 前提。木・街灯は散布、住人は大円歩行、雲は球面を流す。**Diorama から一時的に外した**（手順2） | **済**（手順6。詳細は下の「手順6の結果」） |
-| [VoxelBus.tsx](../src/scene/VoxelBus.tsx) | XZ 平面の円 → 大円。ツアー軌道の真下に道を通すと、軌道が地上から読める。**Diorama から一時的に外した**（手順2） | **済**（手順6。「大円」ではなく `PLANET_TOUR` 自身を走らせた） |
+| [FillerCity.tsx](../src/scene/objects/FillerCity.tsx)（新規） | `city.ts` の配置を実際のボクセル建物に焼き込む render 層。壁＋屋根のみ（床なし）の安価なテンプレート | **済** |
+| [Decorations.tsx](../src/scene/objects/Decorations.tsx) | 全部 `y = 0.2` 前提。木・街灯は散布、住人は大円歩行、雲は球面を流す。**Diorama から一時的に外した**（手順2） | **済**（手順6。詳細は下の「手順6の結果」） |
+| [VoxelBus.tsx](../src/scene/objects/VoxelBus.tsx) | XZ 平面の円 → 大円。ツアー軌道の真下に道を通すと、軌道が地上から読める。**Diorama から一時的に外した**（手順2） | **済**（手順6。「大円」ではなく `PLANET_TOUR` 自身を走らせた） |
 
 ### 既存テストへの影響
 

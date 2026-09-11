@@ -1,6 +1,6 @@
 "use client";
 
-import Section from "./Section";
+import DetailSection from "./DetailSection";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/state/LanguageContext";
 
@@ -136,7 +136,7 @@ export default function Experience() {
   const experiences = isJa ? experiencesJP : experiencesEN;
 
   return (
-    <Section id="experience" title="Experience">
+    <DetailSection id="experience" title="Experience">
       <div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-orange-500 before:via-orange-300 before:to-gray-200">
         {experiences.map((exp, index) => {
           const isLatest = index === experiences.length - 1;
@@ -184,6 +184,6 @@ export default function Experience() {
           );
         })}
       </div>
-    </Section>
+    </DetailSection>
   );
 }

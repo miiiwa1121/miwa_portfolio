@@ -5,7 +5,7 @@ import {
   normalize,
   slerpDirection,
   type Direction,
-} from "./planetLayout";
+} from "./geometry";
 import { PLANET_SECTIONS, PLANET_SECTION_KEYS, sectionDirection } from "./sections";
 
 /**

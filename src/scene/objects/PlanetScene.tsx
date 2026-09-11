@@ -9,13 +9,13 @@ import {
   ExperienceBuilding,
   ContactBillboard,
 } from "./ProceduralObjects";
-import { BUILDING_POSITIONS } from "./worldLayout";
-import { PLANET_SECTION_KEYS, sectionBasis } from "./planet/sections";
-import { quaternionOf } from "./planetPlacement";
-import AreaMarkers from "./AreaMarkers";
+import { BUILDING_POSITIONS } from "../camera/cameraLayout";
+import { PLANET_SECTION_KEYS, sectionBasis } from "../planet/sections";
+import { quaternionOf } from "../planetPlacement";
+import SectionMarkers from "./SectionMarkers";
 import FillerCity from "./FillerCity";
 import { Clouds, FerrisWheel, StreetLamps, Trees, Villagers } from "./Decorations";
-import { VoxelBus } from "./VoxelBus";
+import VoxelBus from "./VoxelBus";
 
 /**
  * Each building's rotation: turns its local +Y to stand along the planet's
@@ -26,7 +26,7 @@ import { VoxelBus } from "./VoxelBus";
  *
  * `sectionBasis` already returns the local axes in `Matrix4.makeBasis` order
  * (right, up, forward) and already proved right-handed (see
- * planetLayout.test.ts); `quaternionOf` is where three.js enters. `scene/planet/`
+ * geometry.test.ts); `quaternionOf` is where three.js enters. `scene/planet/`
  * itself stays free of it, which is what lets the basis be tested without
  * standing up a renderer.
  */
@@ -34,7 +34,7 @@ const BUILDING_QUATERNIONS = Object.fromEntries(
   PLANET_SECTION_KEYS.map((key) => [key, quaternionOf(sectionBasis(key))])
 ) as Record<NonNullable<SectionType>, [number, number, number, number]>;
 
-export default function Diorama() {
+export default function PlanetScene() {
   return (
     <group>
       {/* The world's ground: a hollow voxel sphere in space. */}
@@ -67,7 +67,7 @@ export default function Diorama() {
         sectionId="contact"
       />
 
-      <AreaMarkers />
+      <SectionMarkers />
 
       {/* The unnamed crowd of small buildings — stage 3 of docs/planet-migration.md. */}
       <FillerCity />

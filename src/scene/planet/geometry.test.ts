@@ -15,8 +15,8 @@ import {
   tangentBasis,
   tangentOf,
   type Direction,
-} from "./planetLayout";
-import { azimuthToXZ } from "../worldLayout";
+} from "./geometry";
+import { azimuthToXZ } from "../camera/cameraLayout";
 
 const length = (v: Direction) => Math.hypot(v[0], v[1], v[2]);
 
@@ -67,7 +67,7 @@ describe("latLonToDirection", () => {
   // section's longitude has to BE the orbit azimuth that brings it to the
   // front of the frame, so that facingSection keeps meaning what it means.
   // If these two ever disagree the camera turns to the wrong building.
-  it("agrees with worldLayout's azimuth convention on the equator", () => {
+  it("agrees with cameraLayout's azimuth convention on the equator", () => {
     for (const lonDeg of [0, 37, 90, 154, 210, 300]) {
       const [x, , z] = latLonToDirection(0, lonDeg);
       const [ax, az] = azimuthToXZ((lonDeg * Math.PI) / 180, 1);

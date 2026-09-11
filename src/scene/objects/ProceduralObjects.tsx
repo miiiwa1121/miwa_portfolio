@@ -2,10 +2,10 @@
 
 import { useMemo } from "react";
 import type { SectionType } from "@/types";
-import VoxelModel, { Voxel } from "./voxel/VoxelModel";
-import VoxelText from "./voxel/VoxelText";
-import { fillBox, foundation, shellBox, put } from "./voxel/builders";
-import { PALETTE } from "./voxel/palette";
+import VoxelModel, { Voxel } from "../voxel/VoxelModel";
+import VoxelText from "../voxel/VoxelText";
+import { fillBox, foundation, shellBox, put } from "../voxel/builders";
+import { PALETTE } from "../voxel/palette";
 
 // World size of one building voxel.
 const VS = 0.42;

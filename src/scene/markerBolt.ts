@@ -3,9 +3,9 @@
  * reaches in any given direction, and how it sparks.
  *
  * Pure — no three.js, no canvas, no DOM — because all three of its consumers
- * live in different worlds and none of them is testable. `AreaMarkers` paints
+ * live in different worlds and none of them is testable. `SectionMarkers` paints
  * the outline into a canvas texture and sizes it in WebGL; `CardLeaderLine`
- * (DOM/SVG) has to stop its trail short of the same ink; `AreaCard` only wants
+ * (DOM/SVG) has to stop its trail short of the same ink; `SectionCard` only wants
  * the colour. Keeping the shape here is what stops the trail's idea of the
  * marker's edge from drifting away from the marker's own.
  */
@@ -37,6 +37,35 @@ export const BOLT_PATH: readonly (readonly [number, number])[] = [
   [0.06, -0.1], // back in along the waist
 ];
 
+/** Gap between the top of a building and the dot floating over it. */
+export const MARKER_CLEARANCE = 1.1;
+
+/**
+ * How much of a marker sprite's quad the drawn glyph covers, measured from its
+ * centre as a fraction of the quad's full height.
+ *
+ * The glyph is a lightning bolt (`markerBolt.ts`) and reaches this far straight
+ * up and down; across, it is only about half as wide. The trail stops a fixed
+ * clearance from *this* edge, so the number has to be the one the texture is
+ * painted with rather than a second guess at it — hence both the painter and
+ * the sizing maths below reading it from here.
+ */
+export const MARKER_GLYPH_FILL = 0.34;
+
+/** The glyph's outline, in the same units. It straddles the shape's edge. */
+export const MARKER_GLYPH_RIM = 0.05;
+
+/**
+ * How far the bolt's glow spills past the solid glyph, in the same units.
+ *
+ * Not part of the edge the trail measures from: the glow is soft light, and
+ * stopping the ink a clearance out from *it* would leave a gap half again as
+ * wide as the one that was tuned. It exists here so the blur radius and the
+ * quad's own limit are decided in one place — 0.5 is the quad's edge, where
+ * clamped sampling would cut the glow off square, so the fill leaves 0.04 to
+ * spare.
+ */
+export const MARKER_GLOW_FILL = 0.46;
 /**
  * How far the bolt's ink reaches from its centre, in CSS pixels, along the unit
  * direction `(towardX, towardY)`.

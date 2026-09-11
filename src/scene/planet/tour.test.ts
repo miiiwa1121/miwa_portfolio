@@ -11,7 +11,7 @@ import {
   type Anchor,
 } from "./tour";
 import { PLANET_SECTIONS, PLANET_SECTION_KEYS, sectionDirection } from "./sections";
-import { angleBetween, latLonToDirection, normalize, type Direction } from "./planetLayout";
+import { angleBetween, latLonToDirection, normalize, type Direction } from "./geometry";
 
 const latitudeOf = (dir: Direction) => (Math.asin(Math.max(-1, Math.min(1, dir[1]))) * 180) / Math.PI;
 

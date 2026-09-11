@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Section from "./Section";
+import DetailSection from "./DetailSection";
 import { motion } from "framer-motion";
 import { MessageSquare, Copy, Check } from "lucide-react";
 import Link from "next/link";
@@ -19,7 +19,7 @@ export default function Contact() {
   };
 
   return (
-    <Section id="contact" title="Contact" className="mb-20">
+    <DetailSection id="contact" title="Contact" className="mb-20">
       <div className="max-w-3xl mx-auto text-center">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
@@ -76,6 +76,6 @@ export default function Contact() {
           </div>
         </motion.div>
       </div>
-    </Section>
+    </DetailSection>
   );
 }

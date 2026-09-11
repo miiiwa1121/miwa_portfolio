@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { useAppState, SectionType } from "@/state/AppStateContext";
+import { useAppState } from "@/state/AppStateContext";
 import { facingNow, publishFacing } from "@/state/facingChannel";
+import type { SectionType } from "@/types";
 import { useLanguage } from "@/state/LanguageContext";
 import { useTerminal } from "@/terminal/TerminalContext";
 import Scene from "@/scene/Scene";
 import TerminalOverlay from "@/terminal/TerminalOverlay";
-import CardLeaderLine from "./CardLeaderLine";
-import AreaCard from "./AreaCard";
+import CardLeaderLine from "./card/CardLeaderLine";
+import SectionCard from "./card/SectionCard";
 import HubHeader from "./HubHeader";
 import HubDock from "./HubDock";
 import SemanticSEO from "./SemanticSEO";
@@ -292,7 +293,7 @@ export default function Hub() {
             anchor — is showing) */}
         <div className="flex-1 flex items-center w-full">
           {!pageOpen && activeSection !== "about" && (
-            <AreaCard
+            <SectionCard
               focusedSection={activeSection}
               isJa={isJa}
               anchorRef={anchorDotRef}
