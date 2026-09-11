@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { ChevronRight } from "lucide-react";
 import { useCardGestures } from "./useCardGestures";
+import { useStepGate } from "./useStepGate";
 import { initialWheelState, stepForWheel, wheelPixels } from "./cardWheel";
 import { MARKER_TRAIL_INK } from "@/scene/markerBolt";
 import { useFacing } from "@/state/facingChannel";
 import type { SectionType } from "@/types";
+import { CARD_COPY } from "./cardCopy";
 
 /**
  * The contextual card over the diorama, drawn as a stack.
@@ -23,48 +25,6 @@ import type { SectionType } from "@/types";
  * new `section`. Card and camera never write to each other — see
  * `facingSection` in cameraLayout for why that direction matters.
  */
-
-/** Contextual copy — swaps as the camera flies to each building. */
-const CARD: Record<
-  NonNullable<SectionType>,
-  { jaTitle: string; enTitle: string; sub: string; ja: string; en: string }
-> = {
-  about: {
-    jaTitle: "自己紹介",
-    enTitle: "About",
-    sub: "About Me",
-    ja: "「面白いを最優先！」がモットー。新規性を重視し、まだこの世にないものを探し求めている27卒の学生エンジニアです。",
-    en: "My motto is \"Fun First!\" A Class-of-'27 student engineer who values novelty and searches for things that don't exist yet.",
-  },
-  products: {
-    jaTitle: "制作実績",
-    enTitle: "Products",
-    sub: "Works",
-    ja: "アイデアを形にしてきたプロダクトたち。ゲームからWebアプリまで、遊び心と技術を詰め込みました。",
-    en: "Products where ideas took shape — from games to web apps, packed with playfulness and craft.",
-  },
-  skills: {
-    jaTitle: "技術スタック",
-    enTitle: "Skills",
-    sub: "Tech Stack",
-    ja: "フロントエンドを中心に、UXとデザインにこだわりながら日々新しい技術へ挑戦しています。",
-    en: "Front-end focused, obsessed with UX and design, and always challenging new technology.",
-  },
-  experience: {
-    jaTitle: "経歴・活動",
-    enTitle: "Experience",
-    sub: "Journey",
-    ja: "これまでの学び・挑戦・活動の記録。学生ながら幅広くものづくりに取り組んできました。",
-    en: "A record of learning, challenges, and activity — a wide range of making, all while studying.",
-  },
-  contact: {
-    jaTitle: "お問い合わせ",
-    enTitle: "Contact",
-    sub: "Get in touch",
-    ja: "お気軽にご連絡ください！SNSやフォームからいつでもどうぞ。",
-    en: "Feel free to reach out — anytime via social links or the form.",
-  },
-};
 
 /** How far each layer behind sits below the front card, in px. */
 const PEEK_OFFSETS = [11, 21];
@@ -115,29 +75,6 @@ const CARD_VARIANTS: Variants = {
   }),
 };
 
-/**
- * How long a card that has just arrived gets before another step is taken.
- *
- * Counted from the card actually changing, not from the step that asked for
- * it: the camera has to swing far enough for another area to be in front
- * before `section` comes back down at all, which is around 0.13s at the
- * orbit's damping. This is the part after that — CARD_SPRING is a whisker
- * overdamped (ζ ≈ 1.11), its slow pole a time constant of about 64ms, so by
- * 160ms the card is nine tenths of the way onto the screen and unmistakably
- * there. Together they are what "you cannot skip a card you never saw" means
- * in wall-clock terms: about a third of a second, three cards a second.
- */
-const CARD_SETTLE_MS = 160;
-
-/**
- * How long a step is given to land before the gate opens anyway.
- *
- * Only a backstop. The camera's damping closes 99% of the gap inside a second,
- * so a `section` that has not changed by then means the request never took —
- * and a gate with no way out would leave the stack dead to every later scroll.
- */
-const STEP_TIMEOUT_MS = 1000;
-
 type Props = {
   /**
    * The area the camera has been sent to, or null in the free orbit — where the
@@ -168,38 +105,7 @@ export default function SectionCard({
   const section = focusedSection ?? facing;
   /** True once an area is focused, which retires the trail and its anchor. */
   const focused = !!focusedSection;
-  const card = CARD[section];
-
-  // Which way the last step went, so the entering card knows which side to
-  // come from. It is asked for well before it is needed: the step turns the
-  // camera, and `section` only changes once the camera has swung far enough
-  // for another area to be in front — by which time this has long settled.
-  const [lastStep, setLastStep] = useState(-1);
-
-  // Held in a ref so the wheel listener below can be bound once, for the life
-  // of the card, rather than torn down and rebuilt whenever the parent hands
-  // down a new closure. Written in an effect, never during a render.
-  const onStepRef = useRef(onStep);
-  useEffect(() => {
-    onStepRef.current = onStep;
-  }, [onStep]);
-
-  // A step is a request, not a change. It turns the camera, and the area that
-  // ends up in front comes back down as a new `section` some fraction of a
-  // second later. Two things go wrong if the next one is taken before that has
-  // happened: `onStep` is handed the card already on its way out, so it asks
-  // for the spot the reader is heading to anyway and the scroll does nothing —
-  // and when it does not do nothing, it steps past a card that never finished
-  // arriving. So the gate is arrival itself: `pendingSince` is set when a step
-  // goes out and cleared by the card actually changing.
-  const pendingSince = useRef<number | null>(null);
-  const armedAt = useRef(0);
-
-  useEffect(() => {
-    if (pendingSince.current === null) return; // the first render, not an arrival
-    pendingSince.current = null;
-    armedAt.current = performance.now() + CARD_SETTLE_MS;
-  }, [section]);
+  const card = CARD_COPY[section];
 
   // Stepping is browsing, and browsing is over once an area is focused: the
   // camera is parked on that building and the orbit is locked out, so a step
@@ -207,31 +113,8 @@ export default function SectionCard({
   // stack loses its layers in the same breath, so it stops offering.
   const browsable = !focused;
 
-  // Focusing an area throws away whatever was in flight. The card is set from
-  // the section being opened rather than from a turn, so nothing is coming to
-  // clear the gate, and leaving it shut would make the stack ignore the first
-  // scroll after the reader comes back out.
-  useEffect(() => {
-    if (browsable) return;
-    pendingSince.current = null;
-    armedAt.current = 0;
-  }, [browsable]);
-
-  const takeStep = useCallback(
-    (step: number) => {
-      if (!browsable) return;
-      const now = performance.now();
-      if (pendingSince.current !== null) {
-        if (now - pendingSince.current < STEP_TIMEOUT_MS) return;
-      } else if (now < armedAt.current) {
-        return;
-      }
-      pendingSince.current = now;
-      setLastStep(step);
-      onStepRef.current(step);
-    },
-    [browsable]
-  );
+  // The wait-for-arrival gate, shared with the handheld rail.
+  const { takeStep, lastStep } = useStepGate({ section, browsable, onStep });
 
   const gestures = useCardGestures({ onTap: onOpen, onSwipe: takeStep });
 

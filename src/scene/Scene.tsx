@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls, Stars } from "@react-three/drei";
 import * as THREE from "three";
@@ -21,7 +21,8 @@ import {
   easeInOutCubic,
   NEAR_ORBIT_RADIUS,
   CAMERA_FOV,
-  NEAR_VERTICAL_SHARE,
+  nearVerticalShare,
+  HANDHELD_VERTICAL_SHARE,
   orbitRadiusForZoom,
   ORBIT_MIN_POLAR,
   ORBIT_MAX_POLAR,
@@ -29,8 +30,8 @@ import {
   AUTO_ORBIT_SPEED,
   ORBIT_RETURN_SPEED,
   orbitStepFraction,
-  ORBIT_CARD_SHARE,
-  CARD_SHARE,
+  orbitCardShare,
+  sectionCardShare,
   SECTION_TILT,
   ABOUT_POLAR,
   ABOUT_ORBIT_RADIUS,
@@ -43,8 +44,10 @@ import { PLANET_SECTION_KEYS, sectionDirection } from "./planet/sections";
 import { type Direction } from "./planet/geometry";
 import { advanceFlight, beginFlight, type Flight } from "./camera/cameraFlight";
 import { sceneClock } from "./sceneClock";
+import { pointerClaim } from "./pointerClaim";
 import { aboutReturn } from "@/hub/about/aboutScroll";
 import { useAppState } from "@/state/AppStateContext";
+import { useHandheld } from "@/state/useHandheld";
 import { publishFacing } from "@/state/facingChannel";
 import type { SectionType } from "@/types";
 import Sun from "./objects/Sun";
@@ -245,6 +248,10 @@ function useViewInput(
     };
 
     const endDrag = (e: PointerEvent) => {
+      // Whatever this pointer was, it is over: an object that claimed it (a
+      // marker, the sun) has had its chance. Keyed by id, so a second finger
+      // lifting cannot release the first one's claim.
+      pointerClaim.release(e.pointerId);
       activePointers.delete(e.pointerId);
       if (activePointers.size < 2) {
         pinchStartDist = null;
@@ -323,6 +330,112 @@ function useViewInput(
   ]);
 }
 
+/** Stands in for an absent `onEmptyTap`; the hook is disabled in that case anyway. */
+function noop() {}
+
+/** Movement below this, in px, is a tap rather than the start of a drag. */
+const TAP_SLOP_PX = 10;
+
+/**
+ * A press held longer than this is not a tap, in ms.
+ *
+ * There has to be an upper bound as well as a movement one: a finger resting
+ * on the glass while the reader decides what to do drifts less than the slop,
+ * and lifting it half a second later should not read as having asked for
+ * anything. 350ms is the usual figure for the boundary between a tap and a
+ * press, and it is comfortably longer than the ~120ms a deliberate tap takes.
+ */
+const TAP_MAX_MS = 350;
+
+/**
+ * A tap on empty sky, which is how a phone pauses the diorama.
+ *
+ * The pause button is gone on a handheld (see `useHandheld`); this replaces
+ * it. "Empty" has three exclusions and each is a different kind of thing:
+ *
+ *  - **A real control** — the header, the card rail, the terminal. Found by
+ *    walking up the DOM from the target (`isInteractive`).
+ *  - **An object in the scene** — an area marker, the sun. Invisible to the
+ *    DOM, since every one of these lands on the same canvas, so they say so
+ *    themselves on the way down (`pointerClaim`).
+ *  - **A gesture that turned out to be something else** — a drag of the
+ *    planet, or a second finger arriving for a pinch. Both are ruled out
+ *    here rather than negotiated with `useViewInput`: this hook watches the
+ *    same events and cancels its own candidate, so the two never need to
+ *    agree about anything.
+ *
+ * Deliberately separate from `useViewInput` rather than another branch inside
+ * it. That hook is about where the camera points; this one is about a button
+ * that is not there any more, and the only thing they share is the stream of
+ * events.
+ */
+function useTapGesture(enabled: boolean, flightRef: React.RefObject<unknown>, onTap: () => void) {
+  const onTapRef = useRef(onTap);
+  useEffect(() => {
+    onTapRef.current = onTap;
+  }, [onTap]);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    let candidate: { id: number; x: number; y: number; at: number } | null = null;
+    let pointersDown = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      pointersDown += 1;
+      // A second finger means a pinch. The first finger's candidate goes with
+      // it — lifting out of a pinch is not a tap, however still the fingers
+      // were.
+      if (pointersDown > 1) {
+        candidate = null;
+        return;
+      }
+      if (isInteractive(e.target)) return;
+      if (pointerClaim.isClaimed(e.pointerId)) return;
+      // A flight owns the camera; a tap landing mid-flight is someone trying
+      // to interrupt it, and pausing the town is not what they asked for.
+      if (flightRef.current !== null) return;
+      candidate = { id: e.pointerId, x: e.clientX, y: e.clientY, at: e.timeStamp };
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!candidate || e.pointerId !== candidate.id) return;
+      if (Math.hypot(e.clientX - candidate.x, e.clientY - candidate.y) > TAP_SLOP_PX) {
+        candidate = null; // it became a drag
+      }
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      pointersDown = Math.max(0, pointersDown - 1);
+      const tap = candidate;
+      candidate = null;
+      if (!tap || e.pointerId !== tap.id) return;
+      if (e.timeStamp - tap.at > TAP_MAX_MS) return;
+      // Checked again on the way up as well as on every move: a pointer can
+      // land and lift with no `pointermove` in between and still have
+      // travelled, and a coarse pointer reports its position generously.
+      if (Math.hypot(e.clientX - tap.x, e.clientY - tap.y) > TAP_SLOP_PX) return;
+      onTapRef.current();
+    };
+
+    const onPointerCancel = () => {
+      pointersDown = Math.max(0, pointersDown - 1);
+      candidate = null;
+    };
+
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerCancel);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerCancel);
+    };
+  }, [enabled, flightRef]);
+}
+
 /**
  * While the detail page covers the canvas there is nothing to look at, so the
  * render loop is switched to on-demand and nudged about once a second instead
@@ -364,7 +477,13 @@ function ScenePause() {
   return null;
 }
 
-function CameraController({ sunDraggingRef }: { sunDraggingRef: React.RefObject<boolean> }) {
+function CameraController({
+  sunDraggingRef,
+  onEmptyTap,
+}: {
+  sunDraggingRef: React.RefObject<boolean>;
+  onEmptyTap?: () => void;
+}) {
   const controlsRef = useRef<CameraControls>(null);
   const { activeSection, pageOpen, homeNonce, turnRequest, paused, orbitZoom, setOrbitZoom } = useAppState();
   const scene = useThree((state) => state.scene);
@@ -377,11 +496,35 @@ function CameraController({ sunDraggingRef }: { sunDraggingRef: React.RefObject<
   // kept in a ref: nothing here needs its value to survive a render, only to
   // be current whenever `useFrame`'s closure (recreated every render) reads it.
   const currentOrbitRadius = orbitRadiusForZoom(orbitZoom);
+  // Whether the card is the strip along the bottom rather than the panel on
+  // the left — which is what decides both how the subject is cleared (up,
+  // not sideways) and by how much. Read here rather than passed in: it is the
+  // same question `Hub` asks to decide which card to render, and the two must
+  // never disagree about it. Changes only on a rotation, so a re-render of
+  // this component for it costs nothing per frame.
+  const handheld = useHandheld();
+  const cardShareOrbit = orbitCardShare(handheld);
+  const cardShareSection = sectionCardShare(handheld);
+  /**
+   * How far to lift a framed building so the card rail does not cover it, in
+   * world units at that building's own distance. Zero on a desktop, where the
+   * card is beside the subject rather than under it.
+   *
+   * A function of distance rather than a constant: `frameDistance` puts the
+   * camera a different distance from each building, and a share of the frame
+   * is only a number of world units once you know how far away the frame is.
+   */
+  const sectionOffsetY = useCallback(
+    (distance: number) =>
+      handheld ? focalOffsetY(distance, camera.fov, HANDHELD_VERTICAL_SHARE) : 0,
+    [handheld, camera]
+  );
   // The "near" altitude leans the planet towards the bottom-right of the
   // frame (reference/image5.png); "far" sits centred (aside from the
   // horizontal card clearance every altitude gets). Computed the same way
   // `currentOrbitRadius` is — fresh each render, for `useFrame`'s closure.
-  const currentOffsetY = orbitZoom === "near" ? focalOffsetY(currentOrbitRadius, camera.fov, NEAR_VERTICAL_SHARE) : 0;
+  const currentOffsetY =
+    orbitZoom === "near" ? focalOffsetY(currentOrbitRadius, camera.fov, nearVerticalShare(handheld)) : 0;
 
   // The free orbit's true state — see docs/planet-migration.md, "カメラの状態設計".
   // `azimuthTargetRef`/`polarTargetRef` are raw targets that jump the instant
@@ -546,8 +689,8 @@ function CameraController({ sunDraggingRef }: { sunDraggingRef: React.RefObject<
     const distance = frameDistance(sphere.radius * FRAME_MARGIN, camera.fov, camera.aspect);
     startGlide(
       sectionPose(target, distance, SECTION_TILT),
-      focalOffsetX(distance, camera.fov, camera.aspect, CARD_SHARE),
-      0,
+      focalOffsetX(distance, camera.fov, camera.aspect, cardShareSection),
+      sectionOffsetY(distance),
       duration,
 
       // The building's own normal, not the world's +Y — the whole shot is built
@@ -590,6 +733,17 @@ function CameraController({ sunDraggingRef }: { sunDraggingRef: React.RefObject<
     setOrbitZoom
   );
 
+  // The tap that replaces the pause button. Off while the detail sheet covers
+  // the canvas — every gesture there lands on the sheet, which is a plain
+  // scrolling div and so not something `isInteractive` recognises — and off
+  // during About, where the whole screen belongs to the crawl and freezing it
+  // is not what a tap beside the text is asking for.
+  useTapGesture(
+    !!onEmptyTap && !pageOpen && activeSection !== "about",
+    glideRef,
+    onEmptyTap ?? noop
+  );
+
   const snapFocalOffset = (offsetX: number, offsetY: number = 0) => {
     controlsRef.current?.setFocalOffset(offsetX, offsetY, 0, false);
   };
@@ -604,13 +758,24 @@ function CameraController({ sunDraggingRef }: { sunDraggingRef: React.RefObject<
   // ever acts on a real resize — see the note on `frameSizeChanged` itself for
   // why an identity comparison on `size` used to fire on every re-render.
   const lastSizeRef = useRef({ width: size.width, height: size.height });
+  // Going handheld is the other thing that changes what the offsets should
+  // be — it swaps the sideways clearance for an upward one — and it is not a
+  // property of the frame's dimensions, so `frameSizeChanged` cannot see it.
+  // In practice a rotation changes both at once and either test would do;
+  // tracked separately anyway so that a media query flipping on its own (a
+  // mouse plugged into a tablet) does not leave the camera aimed for the
+  // layout it is no longer showing.
+  const lastHandheldRef = useRef(handheld);
   useEffect(() => {
-    if (!frameSizeChanged(lastSizeRef.current, size)) return;
+    const resized = frameSizeChanged(lastSizeRef.current, size);
+    const clearanceChanged = lastHandheldRef.current !== handheld;
+    if (!resized && !clearanceChanged) return;
     lastSizeRef.current = { width: size.width, height: size.height };
+    lastHandheldRef.current = handheld;
     const glide = glideRef.current;
     const offsetX = activeSection
       ? glide?.toOffsetX ?? 0 // a section's own offset depends on that section's distance, not on the frame alone; leave it be outside a flight
-      : focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, ORBIT_CARD_SHARE);
+      : focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, cardShareOrbit);
     // The vertical lean doesn't depend on the frame's width the way the card
     // clearance does (see focalOffsetY's own comment), so a resize never
     // actually changes it — carried along regardless, so this never clobbers
@@ -627,12 +792,23 @@ function CameraController({ sunDraggingRef }: { sunDraggingRef: React.RefObject<
       if (framing) {
         const distance = frameDistance(framing.radius * FRAME_MARGIN, camera.fov, camera.aspect);
         glide.to = sectionPose(framing.target, distance, SECTION_TILT);
-        glide.toOffsetX = focalOffsetX(distance, camera.fov, camera.aspect, CARD_SHARE);
+        glide.toOffsetX = focalOffsetX(distance, camera.fov, camera.aspect, cardShareSection);
+        glide.toOffsetY = sectionOffsetY(distance);
       }
     } else if (!activeSection) {
       snapFocalOffset(offsetX, offsetY);
     }
-  }, [size, activeSection, camera, currentOrbitRadius, currentOffsetY]);
+  }, [
+    size,
+    activeSection,
+    camera,
+    currentOrbitRadius,
+    currentOffsetY,
+    handheld,
+    cardShareOrbit,
+    cardShareSection,
+    sectionOffsetY,
+  ]);
 
   // Pausing means "stop now", not "coast to a halt". The damp below is still
   // carrying the camera towards a target the idle drift left a fraction of a
@@ -687,7 +863,7 @@ function CameraController({ sunDraggingRef }: { sunDraggingRef: React.RefObject<
       polarTargetRef.current = polar;
       startGlide(
         orbitPose(azimuth, polar, currentOrbitRadius),
-        focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, ORBIT_CARD_SHARE),
+        focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, cardShareOrbit),
         currentOffsetY,
         duration,
         // Back onto the satellite orbit, so back to the world's own up —
@@ -798,7 +974,7 @@ function CameraController({ sunDraggingRef }: { sunDraggingRef: React.RefObject<
     polarTargetRef.current = home.polar;
     azimuthRef.current = home.azimuth;
     polarRef.current = home.polar;
-    snapFocalOffset(focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, ORBIT_CARD_SHARE), currentOffsetY);
+    snapFocalOffset(focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, cardShareOrbit), currentOffsetY);
     applyUp(controls, ORBIT_UP);
     controls.setLookAt(...orbitPose(home.azimuth, home.polar, currentOrbitRadius), false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -900,7 +1076,7 @@ function CameraController({ sunDraggingRef }: { sunDraggingRef: React.RefObject<
         controls.setLookAt(...(t > 0 ? glidePose(pose, homeward, t) : pose), false);
 
         const aboutOffsetX = focalOffsetX(ABOUT_ORBIT_RADIUS, camera.fov, camera.aspect, ABOUT_CARD_SHARE);
-        const orbitOffsetX = focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, ORBIT_CARD_SHARE);
+        const orbitOffsetX = focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, cardShareOrbit);
         controls.setFocalOffset(
           aboutOffsetX + (orbitOffsetX - aboutOffsetX) * t,
           currentOffsetY * t, // About itself has no vertical lean (0), blending towards the orbit's own
@@ -978,7 +1154,7 @@ function CameraController({ sunDraggingRef }: { sunDraggingRef: React.RefObject<
     applyUp(controls, ORBIT_UP);
     controls.setLookAt(...orbitPose(azimuthRef.current, polarRef.current, currentOrbitRadius), false);
     controls.setFocalOffset(
-      focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, ORBIT_CARD_SHARE),
+      focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, cardShareOrbit),
       currentOffsetY,
       0,
       false
@@ -1016,8 +1192,19 @@ function CameraController({ sunDraggingRef }: { sunDraggingRef: React.RefObject<
 export default function Scene({
   obscured = false,
   interactive = true,
+  onEmptyTap,
 }: {
   obscured?: boolean;
+  /**
+   * Called when a handheld reader taps empty sky — the gesture that replaces
+   * the pause button there (see `useTapGesture`). Absent on a desktop, which
+   * still has the button, and absence is what switches the gesture off.
+   *
+   * **Must be stable.** It is handed across the `<Canvas>` boundary, and a new
+   * identity every render would rebind the listeners — see `facingChannel`
+   * for why anything crossing that boundary is treated carefully.
+   */
+  onEmptyTap?: () => void;
   /**
    * Whether the canvas should accept pointer events right now. `<Canvas>`'s
    * own outermost div sets an inline `pointerEvents` style unconditionally
@@ -1092,7 +1279,7 @@ export default function Scene({
 
       <PlanetScene />
 
-      <CameraController sunDraggingRef={sunDraggingRef} />
+      <CameraController sunDraggingRef={sunDraggingRef} onEmptyTap={onEmptyTap} />
       <ScenePause />
       <IdleHeartbeat obscured={obscured} />
     </Canvas>

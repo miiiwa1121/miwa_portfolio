@@ -60,11 +60,17 @@ export const metadata: Metadata = {
 // reaching Scene.tsx's own pinch handler, which drives the free orbit's
 // near/far altitude instead. See Hub.tsx's touch-none on the canvas div for
 // the other half of the same fix.
+//
+// viewportFit: "cover" — the page is drawn behind the notch and the home
+// indicator, which is what makes `env(safe-area-inset-*)` report anything
+// but 0 on iOS. The `.safe-inset` wrapper in globals.css is the other half:
+// covering without insetting the chrome would put the header under the notch.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

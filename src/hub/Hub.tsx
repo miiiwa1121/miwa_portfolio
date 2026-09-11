@@ -7,12 +7,16 @@ import { facingNow, publishFacing } from "@/state/facingChannel";
 import type { SectionType } from "@/types";
 import { useLanguage } from "@/state/LanguageContext";
 import { useTerminal } from "@/terminal/TerminalContext";
+import { useHandheld } from "@/state/useHandheld";
 import Scene from "@/scene/Scene";
 import TerminalOverlay from "@/terminal/TerminalOverlay";
 import CardLeaderLine from "./card/CardLeaderLine";
 import SectionCard from "./card/SectionCard";
+import CardRail from "./card/CardRail";
 import HubHeader from "./HubHeader";
 import HubDock from "./HubDock";
+import MobileMenu from "./MobileMenu";
+import PauseFlash from "./PauseFlash";
 import SemanticSEO from "./SemanticSEO";
 import About from "./about/About";
 import type { ZoomStage } from "./ZoomControl";
@@ -59,6 +63,49 @@ export default function Hub() {
   const { language, toggleLanguage } = useLanguage();
   const { openTerminal } = useTerminal();
   const isJa = language === "ja";
+
+  // The one place the question "is this a phone" is asked for the overlay.
+  // The scene asks it separately (see `CameraController`) rather than being
+  // told, so that neither can be rendered against an answer the other did
+  // not get — they read the same media query.
+  const handheld = useHandheld();
+
+  /** The full-screen navigation panel. Rendered here so it covers the header. */
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // `paused` as a ref, so the tap handler below can read the current value
+  // without listing it as a dependency — see `handleEmptyTap` for why that
+  // callback has to keep the same identity for the life of the page.
+  const pausedRef = useRef(paused);
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+
+  /**
+   * The play/pause badge a tap leaves behind, and its state at that moment.
+   *
+   * Keyed by a nonce rather than by `paused` alone: tapping twice in quick
+   * succession comes back to the state it started in, and a key that did not
+   * change would leave the first badge's exit animation running instead of
+   * restarting it.
+   */
+  const [pauseFlash, setPauseFlash] = useState<{ nonce: number; paused: boolean } | null>(null);
+
+  /**
+   * A tap on empty sky freezes or resumes the town.
+   *
+   * Stable across renders: it crosses the `<Canvas>` boundary, where a new
+   * identity every render would rebind the scene's pointer listeners. Reads
+   * the next paused state from the updater rather than from `paused` in
+   * scope, which is what keeps the dependency list empty.
+   */
+  const handleEmptyTap = useCallback(() => {
+    togglePaused();
+    setPauseFlash((current) => ({
+      nonce: (current?.nonce ?? 0) + 1,
+      paused: !pausedRef.current,
+    }));
+  }, [togglePaused]);
 
   /**
    * Which area the card is about. With no section explicitly focused it is
@@ -209,6 +256,11 @@ export default function Hub() {
   // disagree about which one is meant to catch a gesture.
   const aboutShowing = !pageOpen && activeSection === "about";
 
+  // Whether there is a card to show at all. Not while the detail sheet is up
+  // (the page says what the card would have), and not during About, which is
+  // frameless — it has no card and no leader line to anchor one to.
+  const cardShowing = !pageOpen && activeSection !== "about";
+
   return (
     <main className="w-full h-screen overflow-hidden relative font-sans">
       {/* Accessibility & Crawler semantic HTML for SEO and AdSense crawler review */}
@@ -266,60 +318,126 @@ export default function Hub() {
       <div
         className={`fixed inset-0 w-full h-full z-10 touch-none ${aboutShowing ? "pointer-events-none" : ""}`}
       >
-        <Scene obscured={sceneObscured} interactive={!aboutShowing} />
+        <Scene
+          obscured={sceneObscured}
+          interactive={!aboutShowing}
+          // Only a phone gets the tap: a desktop still has a pause button, and
+          // handing the gesture over as well would mean a stray click on the
+          // starfield froze the town with nothing to say why.
+          onEmptyTap={handheld ? handleEmptyTap : undefined}
+        />
       </div>
 
       {/* --- PERSISTENT CHROME (always visible in both modes) --- */}
-      <div className="fixed inset-0 pointer-events-none z-40 flex flex-col justify-between p-7 sm:p-9">
-        <HubHeader
-          activeSection={activeSection}
-          isJa={isJa}
-          toggleLanguage={toggleLanguage}
-          paused={paused}
-          togglePaused={togglePaused}
-          onLogoClick={() => closeToHome("down", true)}
-          onNavClick={handleNav}
-          zoomStage={zoomStage}
-          onZoomSelect={handleZoomSelect}
-          // The sheet is the only white surface that ever gets under the
-          // header. About is deliberately not one: it has no sheet, its text
-          // sits straight on the starfield, and the logo stays white there.
-          onLightBackground={pageOpen}
-          onClose={() => closeToHome("down", false)}
-        />
+      {/* `safe-inset` on the outside and the usual padding on the inside:
+          padding cannot be written twice on one element, and a phone's notch
+          and home indicator have to be cleared *in addition to* the design's
+          own margin, not instead of it. */}
+      <div className="fixed inset-0 pointer-events-none z-40 safe-inset">
+        <div className="w-full h-full flex flex-col justify-between p-7 sm:p-9">
+          <HubHeader
+            activeSection={activeSection}
+            isJa={isJa}
+            toggleLanguage={toggleLanguage}
+            paused={paused}
+            togglePaused={togglePaused}
+            onLogoClick={() => closeToHome("down", true)}
+            onNavClick={handleNav}
+            zoomStage={zoomStage}
+            onZoomSelect={handleZoomSelect}
+            // The sheet is the only white surface that ever gets under the
+            // header. About is deliberately not one: it has no sheet, its text
+            // sits straight on the starfield, and the logo stays white there.
+            onLightBackground={pageOpen}
+            onClose={() => closeToHome("down", false)}
+            handheld={handheld}
+            onMenuOpen={() => setMenuOpen(true)}
+          />
 
-        {/* Middle: contextual card (orbit mode only, and not while the
-            frameless About panel — which has no card or leader line to
-            anchor — is showing) */}
-        <div className="flex-1 flex items-center w-full">
-          {!pageOpen && activeSection !== "about" && (
-            <SectionCard
-              focusedSection={activeSection}
-              isJa={isJa}
-              anchorRef={anchorDotRef}
-              // Both read the area in front when they fire rather than closing
-              // over it, so this component never has to re-render for it — see
-              // `facingChannel` for why that matters here specifically.
-              onOpen={() => openPage(cardSection())}
-              onStep={(step) => turnTo(adjacentOnTour(cardSection(), step))}
-            />
-          )}
+          {/* The card. Same two jobs either way — say what is in front, and
+              step to the next area — in the two shapes the screen allows: a
+              stack in the middle of a desktop frame, a strip across the
+              bottom of a phone's. Both read `facing` themselves and both send
+              a step back as a request; see `CardRail` for why the phone's is
+              not a scroll container. */}
+          {cardShowing &&
+            (handheld ? (
+              <CardRail
+                focusedSection={activeSection}
+                isJa={isJa}
+                anchorRef={anchorDotRef}
+                onOpen={() => openPage(cardSection())}
+                onStep={(step) => turnTo(adjacentOnTour(cardSection(), step))}
+              />
+            ) : (
+              <div className="flex-1 flex items-center w-full">
+                <SectionCard
+                  focusedSection={activeSection}
+                  isJa={isJa}
+                  anchorRef={anchorDotRef}
+                  // Both read the area in front when they fire rather than
+                  // closing over it, so this component never has to re-render
+                  // for it — see `facingChannel` for why that matters here.
+                  onOpen={() => openPage(cardSection())}
+                  onStep={(step) => turnTo(adjacentOnTour(cardSection(), step))}
+                />
+              </div>
+            ))}
+
+          {/* The links-and-copyright dock. A phone has neither: the links
+              moved into the full-screen menu, and the bottom-right corner the
+              copyright sat in is the card rail's now — at 390px the privacy
+              link ran off the frame there anyway, measured. */}
+          {!handheld && <HubDock isJa={isJa} openTerminal={openTerminal} pageOpen={pageOpen} />}
         </div>
-
-        <HubDock isJa={isJa} openTerminal={openTerminal} pageOpen={pageOpen} />
       </div>
 
       {/* HOME button — zoomed into a building, page not yet open.
           About is the exception: its column is read to the end to leave it, so
           a button offering the same thing would be a second, competing way out
-          of the one area that already has a natural one. */}
-      {activeSection && activeSection !== "about" && !pageOpen && (
+          of the one area that already has a natural one.
+
+          Not on a phone, where it landed on top of the card rail, the links
+          button and the copyright all at once (measured at 390x844). Backing
+          out there is a pinch, and the logo is still the full reset. */}
+      {!handheld && activeSection && activeSection !== "about" && !pageOpen && (
         <button
           onClick={() => closeToHome("down", true)}
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2 bg-white text-gray-800 font-bold py-3 px-7 rounded-full border border-black/5 hover:scale-105 transition-transform"
         >
           <X size={18} /> HOME
         </button>
+      )}
+
+      {/* The full-screen navigation. Above the header (z-50), so its own close
+          button can land on the hamburger's footprint. */}
+      <AnimatePresence>
+        {menuOpen && (
+          <MobileMenu
+            isJa={isJa}
+            activeSection={activeSection}
+            onNavClick={handleNav}
+            onClose={() => setMenuOpen(false)}
+            openTerminal={openTerminal}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* The badge a tap on empty sky leaves behind. Keyed by the nonce so a
+          second tap restarts the animation rather than leaving the first
+          one's where it finished, and unmounted when it is done — it is a
+          full-screen fixed layer, and one left behind at `opacity: 0` sits
+          in every later hit-test for nothing. */}
+      {pauseFlash && (
+        <PauseFlash
+          key={pauseFlash.nonce}
+          paused={pauseFlash.paused}
+          onDone={() => setPauseFlash((current) =>
+            // Only clear the badge that just finished: a tap during the fade
+            // has already replaced it, and that one has its own life left.
+            current && current.nonce === pauseFlash.nonce ? null : current
+          )}
+        />
       )}
 
       {/* --- PAGE CONTENT (detail reading) --- */}

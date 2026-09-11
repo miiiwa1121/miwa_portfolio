@@ -280,6 +280,10 @@ export default function TerminalOverlay() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
+          // Marks the whole overlay as a real control, so the scene's own
+          // gestures (orbiting, and the handheld tap that pauses the town)
+          // leave it alone — see `isInteractive` in Scene.tsx.
+          data-ui
           className="fixed inset-0 z-50 bg-[#050505] text-green-500 font-mono p-4 sm:p-8 flex flex-col overflow-y-auto"
           onClick={() => phase === "terminal" && inputRef.current?.focus()}
         >

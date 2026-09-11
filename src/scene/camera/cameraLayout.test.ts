@@ -9,6 +9,10 @@ import {
   FRAME_MARGIN,
   NEAR_ORBIT_RADIUS,
   NEAR_VERTICAL_SHARE,
+  HANDHELD_VERTICAL_SHARE,
+  nearVerticalShare,
+  orbitCardShare,
+  sectionCardShare,
   ORBIT_CARD_SHARE,
   ORBIT_DAMP_LAMBDA,
   ORBIT_MAX_POLAR,
@@ -318,6 +322,76 @@ describe("NEAR_VERTICAL_SHARE", () => {
       (NEAR_VERTICAL_SHARE * NEAR_ORBIT_RADIUS * MEASURED.frameHeight) /
       (2 * MEASURED.closestDepth);
     expect(MEASURED.lowestY + push).toBeGreaterThan(MEASURED.frameHeight);
+  });
+});
+
+describe("the handheld framing", () => {
+  /**
+   * One lap of the tour, sampled in a real browser at 390x844 with the card
+   * rail in place — the facing marker's screen y at four candidate leans,
+   * and how many of the 20 samples the rail covered. Fixtures for the same
+   * reason `NEAR_VERTICAL_SHARE`'s are: `facing` wanders, and no closed form
+   * here predicts where.
+   *
+   * Sampled from the tour's own u = 0 each time (the logo's reset), so the
+   * four runs are the same lap rather than four different arcs — an earlier
+   * set taken from wherever the idle drift happened to be reported 0.20 as
+   * both better and worse than 0.15 depending on the run.
+   */
+  const LAP_AT_390x844 = [
+    { share: 0.15, hidden: 2, worstY: 695 },
+    { share: 0.2, hidden: 8, worstY: 704 },
+    { share: 0.25, hidden: 14, worstY: 796 },
+    { share: 0.3, hidden: 19, worstY: 820 },
+  ];
+
+  it("still leans the planet down, so a phone sees a horizon and not just ground", () => {
+    // The first version of this constant was *negative* — derived from
+    // "centre the planet's disc in the band the chrome leaves", which is a
+    // description of the "far" altitude, not this one. At "near" the planet
+    // fills the frame, and lifting it put the horizon off the top: measured
+    // 94% of the frame covered in ground, with 25px of sky at a share of 0.
+    expect(nearVerticalShare(true)).toBeGreaterThan(0);
+  });
+
+  it("leans less than a desktop, which is what keeps the trail alive", () => {
+    expect(nearVerticalShare(true)).toBeLessThan(NEAR_VERTICAL_SHARE);
+  });
+
+  it("keeps the facing marker clear of the card rail for most of a lap", () => {
+    // The measured knee. Written against the fixture rather than against the
+    // constant so that raising the lean fails here instead of silently
+    // hiding the trail — the failure mode `markerOnScreen` is famous for,
+    // since a hidden trail looks exactly like a site that never had one.
+    const chosen = LAP_AT_390x844.find((row) => row.share === HANDHELD_VERTICAL_SHARE);
+    expect(chosen).toBeDefined();
+    expect(chosen!.hidden).toBeLessThanOrEqual(2);
+  });
+
+  it("is the largest lean that does so — the next step up hides it four times as often", () => {
+    const steeper = LAP_AT_390x844.filter((row) => row.share > HANDHELD_VERTICAL_SHARE);
+    expect(steeper.length).toBeGreaterThan(0);
+    for (const row of steeper) expect(row.hidden).toBeGreaterThan(4);
+  });
+
+  it("leaves the desktop composition exactly as it was", () => {
+    // reference/image7.png is a desktop mockup and the phone is a different
+    // frame; none of the above is allowed to leak back across.
+    expect(nearVerticalShare(false)).toBe(NEAR_VERTICAL_SHARE);
+    expect(orbitCardShare(false)).toBe(ORBIT_CARD_SHARE);
+    expect(sectionCardShare(false)).toBe(CARD_SHARE);
+  });
+
+  it("gives up the sideways card clearance on a phone", () => {
+    // Measured: the card was 334px of a 390px frame, 86%. Aiming 22% or 30%
+    // of the width to one side moved the subject from behind one part of it
+    // to behind another, so the clearance a phone needs is the vertical one
+    // above and this is zero rather than a smaller share.
+    expect(orbitCardShare(true)).toBe(0);
+    expect(sectionCardShare(true)).toBe(0);
+    // toBeCloseTo, not toBe: `focalOffsetX` negates its input, and negating
+    // zero gives -0, which Object.is separates from 0.
+    expect(focalOffsetX(NEAR_ORBIT_RADIUS, 45, 0.46, orbitCardShare(true))).toBeCloseTo(0);
   });
 });
 
