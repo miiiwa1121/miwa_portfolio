@@ -140,10 +140,13 @@ export const NEAR_VERTICAL_SHARE = 0.636;
  * Where the card rail's top edge sits on a phone, in px from the top of a
  * 390x844 frame — the size this layout was designed and measured against.
  *
- * Measured from the laid-out DOM rather than added up from the pieces: 648,
- * which is the top of the arrow button hanging off the card's corner.
+ * Measured from the laid-out DOM rather than added up from the pieces: 671,
+ * the top of the card itself. Not the exit arrow above it — that only exists
+ * while a section is focused, which is exactly when the trail is hidden
+ * anyway (`CardLeaderLine`'s own `hidden` prop), so it never covers a marker
+ * the trail is pointing at.
  */
-export const HANDHELD_RAIL_TOP_PX = 648;
+export const HANDHELD_RAIL_TOP_PX = 671;
 
 /**
  * `NEAR_VERTICAL_SHARE`'s replacement on a phone — the same downward lean,
@@ -169,16 +172,23 @@ export const HANDHELD_RAIL_TOP_PX = 648;
  * tour, 20 samples, starting from the tour's own u = 0 (the logo's reset), at
  * 390x844 against a rail top of `HANDHELD_RAIL_TOP_PX`:
  *
- * | share | samples hidden behind the rail | worst marker y |
- * | ----- | ------------------------------ | -------------- |
- * | 0.15  | 2 / 20                         | 695            |
- * | 0.20  | 8 / 20                         | 704            |
- * | 0.25  | 14 / 20                        | 796            |
- * | 0.30  | 19 / 20                        | 820            |
+ * | share | samples hidden behind the rail | worst marker y | sky   |
+ * | ----- | ------------------------------ | -------------- | ----- |
+ * | 0.15  | 1 / 20                         | 710            | 95px  |
+ * | 0.20  | 2 / 20                         | 744            | 119px |
+ * | 0.25  | 11 / 20                        | 793            | 142px |
+ * | 0.30  | 19 / 20                        | 817            | 166px |
  *
- * 0.15 is the knee: two samples hidden, both by under 50px, for 95px of sky.
- * Everything past it buys a thicker sky by hiding the trail for most of the
- * lap. This is the same trade `NEAR_VERTICAL_SHARE` documents and resolves
+ * 0.20 is the knee: one extra hidden sample over 0.15 buys 24px more sky,
+ * and the step after it costs nine. Everything past that buys a thicker sky
+ * by hiding the trail for most of the lap.
+ *
+ * (An earlier version of this table was measured against 648 rather than
+ * 671 — the exit arrow's footprint rather than the card's own top edge — and
+ * put the knee at 0.15. The arrow is not an obstruction for this purpose,
+ * per `HANDHELD_RAIL_TOP_PX`.)
+ *
+ * This is the same trade `NEAR_VERTICAL_SHARE` documents and resolves
  * the other way — the desktop chose the composition and gave up the trail
  * (16 of 20 off-frame at 0.636) — and it is resolved differently here only
  * because a phone's frame is a different shape with a different obstruction
@@ -190,7 +200,7 @@ export const HANDHELD_RAIL_TOP_PX = 648;
  * with no rail along the bottom. It says nothing about a 0.46-aspect frame
  * that has one. See docs/scene-invariants.md.
  */
-export const HANDHELD_VERTICAL_SHARE = 0.15;
+export const HANDHELD_VERTICAL_SHARE = 0.2;
 
 /** The downward lean for the "near" altitude — gentler on a phone. */
 export function nearVerticalShare(handheld: boolean): number {

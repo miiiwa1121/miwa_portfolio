@@ -368,6 +368,10 @@ export default function Hub() {
                 anchorRef={anchorDotRef}
                 onOpen={() => openPage(cardSection())}
                 onStep={(step) => turnTo(adjacentOnTour(cardSection(), step))}
+                // The HOME button, moved onto the rail's own corner — the
+                // desktop keeps it at the bottom of the frame, where on a
+                // phone it landed on top of the rail itself.
+                onHome={() => closeToHome("down", true)}
               />
             ) : (
               <div className="flex-1 flex items-center w-full">

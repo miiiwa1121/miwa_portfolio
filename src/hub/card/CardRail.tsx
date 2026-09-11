@@ -2,7 +2,6 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowUpLeft } from "lucide-react";
 import { CARD_COPY } from "./cardCopy";
 import {
   isRailTap,
@@ -62,6 +61,8 @@ type Props = {
   anchorRef: React.RefObject<HTMLSpanElement | null>;
   onOpen: () => void;
   onStep: (step: number) => void;
+  /** Full reset — what the desktop HOME button does. */
+  onHome: () => void;
 };
 
 export default function CardRail({
@@ -70,6 +71,7 @@ export default function CardRail({
   anchorRef,
   onOpen,
   onStep,
+  onHome,
 }: Props) {
   // Subscribed here, not handed down: `Hub` sits above the `<Canvas>`, and
   // re-rendering it re-renders the whole three.js tree (see `facingChannel`).
@@ -165,27 +167,42 @@ export default function CardRail({
           ))}
         </AnimatePresence>
 
-        {/* The way in. The card itself carries no button any more — at this
-            size a full-width "More" bar was most of the card — so the action
-            moves outside its top-right corner, where it points back up at the
-            planet the card is describing and doubles as the leader line's
-            near end. */}
-        <button
-          onClick={onOpen}
-          aria-label={isJa ? "詳しく見る" : "Open"}
-          className="absolute -top-4 -right-3 z-20 w-11 h-11 rounded-full bg-[#ea580c] text-white flex items-center justify-center shadow-lg shadow-black/30 border border-white/15 active:scale-95 transition-transform"
-        >
-          <ArrowUpLeft size={20} strokeWidth={2.6} />
-          {/* The trail's own end point, inside the button so it tracks it
-              exactly. Invisible: the trail is the visible part, and the
-              button is already a mark in the same spot. */}
-          <span
-            ref={anchorRef}
-            aria-hidden="true"
-            style={{ backgroundColor: MARKER_TRAIL_INK, opacity: 0 }}
-            className="absolute inset-0 m-auto w-[9px] h-[9px] rounded-full"
-          />
-        </button>
+        {/* Where the trail leaves the rail. An element of its own rather
+            than a corner of the card: the card is rebuilt by AnimatePresence
+            on every step, and a ref living inside one comes back null from
+            the exiting copy and freezes the trail mid-draw (see
+            docs/scene-invariants.md, "マーカー・点線・カード"). */}
+        <span
+          ref={anchorRef}
+          aria-hidden="true"
+          style={{ backgroundColor: MARKER_TRAIL_INK, opacity: 0 }}
+          className="absolute -top-1 right-3 w-[9px] h-[9px] rounded-full"
+        />
+
+        {/* The way out, over the card's top-left corner.
+            
+            This is the HOME button the desktop keeps at the bottom of the
+            frame — a full reset, not a way into the detail page (the card
+            itself is what opens that). It only appears once there is
+            somewhere to come back from, the same condition the desktop
+            button has always had: offering "go home" while already home is a
+            control that does nothing.
+
+            No disc behind it. At this corner the background is the diorama,
+            which runs from near-black sky to bright green ground, so the
+            legibility a filled button would have given comes from a drop
+            shadow on the stroke instead — which keeps the arrow reading as a
+            mark on the world rather than a third chip stacked over it. */}
+        {focused && (
+          <button
+            onClick={onHome}
+            aria-label={isJa ? "ホームへ戻る" : "Back to home"}
+            className="absolute -top-12 -left-1 z-20 w-11 h-11 flex items-center justify-center text-white active:scale-90 transition-transform"
+            style={{ filter: "drop-shadow(0 1px 4px rgba(0,0,0,0.75))" }}
+          >
+            <ExitArrow />
+          </button>
+        )}
       </div>
 
       {/* How many there are and where you are among them. The peeking
@@ -201,6 +218,43 @@ export default function CardRail({
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * A curved arrow sweeping up and to the left — "the way out of here".
+ *
+ * Hand-drawn rather than taken from lucide, which has the two neighbouring
+ * shapes and not this one: `ArrowUpLeft` is a straight diagonal (a direction,
+ * not a departure) and `CornerUpLeft` turns a right angle (a step back in a
+ * list). The curve is what makes it read as leaving rather than pointing.
+ *
+ * The sweep starts at the bottom right, bows out to the right, and arrives
+ * at the head travelling exactly up-left: the last control point sits on the
+ * down-right diagonal through the end point, which is what fixes that
+ * tangent at 45° rather than leaving it to whatever the curve happens to do.
+ *
+ * Picked from five candidates rendered side by side at 110px. A gentler bow
+ * reads as a plain diagonal once it is 30px on a phone — the curve has to be
+ * deep enough to survive the size — and a flatter, more horizontal tail
+ * reads as "undo" rather than "leave".
+ */
+function ExitArrow() {
+  return (
+    <svg
+      width="30"
+      height="30"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M20 21C22 11 13 14 5 6" />
+      <path d="M5 11.5V6h5.5" />
+    </svg>
   );
 }
 

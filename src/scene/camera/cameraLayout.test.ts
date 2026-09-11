@@ -337,12 +337,17 @@ describe("the handheld framing", () => {
    * four runs are the same lap rather than four different arcs — an earlier
    * set taken from wherever the idle drift happened to be reported 0.20 as
    * both better and worse than 0.15 depending on the run.
+   *
+   * `hidden` is counted against `HANDHELD_RAIL_TOP_PX`, the card's own top
+   * edge. Measuring against the exit arrow above it instead put the knee a
+   * step lower; the arrow is not an obstruction here, since it only exists
+   * while a section is focused and the trail is hidden then anyway.
    */
   const LAP_AT_390x844 = [
-    { share: 0.15, hidden: 2, worstY: 695 },
-    { share: 0.2, hidden: 8, worstY: 704 },
-    { share: 0.25, hidden: 14, worstY: 796 },
-    { share: 0.3, hidden: 19, worstY: 820 },
+    { share: 0.15, hidden: 1, worstY: 710 },
+    { share: 0.2, hidden: 2, worstY: 744 },
+    { share: 0.25, hidden: 11, worstY: 793 },
+    { share: 0.3, hidden: 19, worstY: 817 },
   ];
 
   it("still leans the planet down, so a phone sees a horizon and not just ground", () => {
@@ -368,10 +373,10 @@ describe("the handheld framing", () => {
     expect(chosen!.hidden).toBeLessThanOrEqual(2);
   });
 
-  it("is the largest lean that does so — the next step up hides it four times as often", () => {
+  it("is the largest lean that does so — the next step up hides it five times as often", () => {
     const steeper = LAP_AT_390x844.filter((row) => row.share > HANDHELD_VERTICAL_SHARE);
     expect(steeper.length).toBeGreaterThan(0);
-    for (const row of steeper) expect(row.hidden).toBeGreaterThan(4);
+    for (const row of steeper) expect(row.hidden).toBeGreaterThan(10);
   });
 
   it("leaves the desktop composition exactly as it was", () => {
