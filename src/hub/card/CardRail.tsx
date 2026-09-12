@@ -104,6 +104,21 @@ export default function CardRail({
   const dragStart = useRef<{ x: number; y: number } | null>(null);
 
   const onPointerDown = (event: React.PointerEvent) => {
+    // A press that landed on a control inside the strip belongs to that
+    // control, not to the strip.
+    //
+    // These handlers sit on the rail's root and so see everything inside it
+    // by bubbling — including the HOME button above the card. Without this,
+    // pressing HOME travelled less than the tap slop, read as "tapped the
+    // card", and opened the detail page on the way out of the area the
+    // button was asking to leave.
+    //
+    // Asked of the DOM rather than tracked per-control, so anything added to
+    // the strip later is exempt without having to remember this. The scene's
+    // own `isInteractive` does the same walk for the same reason; it cannot
+    // be reused here because it also matches `[data-ui]`, which is the rail
+    // itself.
+    if ((event.target as HTMLElement | null)?.closest?.("button, a")) return;
     dragStart.current = { x: event.clientX, y: event.clientY };
   };
 
