@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CARD_COPY } from "./cardCopy";
+import HomeButton from "../HomeButton";
 import {
   isRailTap,
   RAIL_ORDER,
@@ -179,29 +180,25 @@ export default function CardRail({
           className="absolute -top-1 right-3 w-[9px] h-[9px] rounded-full"
         />
 
-        {/* The way out, over the card's top-left corner.
-            
-            This is the HOME button the desktop keeps at the bottom of the
-            frame — a full reset, not a way into the detail page (the card
-            itself is what opens that). It only appears once there is
-            somewhere to come back from, the same condition the desktop
-            button has always had: offering "go home" while already home is a
-            control that does nothing.
-
-            No disc behind it. At this corner the background is the diorama,
-            which runs from near-black sky to bright green ground, so the
-            legibility a filled button would have given comes from a drop
-            shadow on the stroke instead — which keeps the arrow reading as a
-            mark on the world rather than a third chip stacked over it. */}
+        {/* The way out.
+         *
+         * The desktop keeps this at the bottom of the frame; on a phone the
+         * bottom of the frame is the rail, so it sits just above the card
+         * instead — centred on the screen, which is also where a thumb
+         * already is.
+         *
+         * Absolutely positioned, deliberately: in the flow it would push the
+         * card down every time an area was focused and pull it back up on
+         * the way out, so the rail would jump by the button's own height on
+         * a transition that is otherwise a slide.
+         *
+         * Not an obstruction for the camera's sake, despite sitting over the
+         * diorama: it only exists while an area is focused, and the dotted
+         * trail hides itself then anyway (`CardLeaderLine`'s `hidden`). See
+         * `HANDHELD_RAIL_TOP_PX`.
+         */}
         {focused && (
-          <button
-            onClick={onHome}
-            aria-label={isJa ? "ホームへ戻る" : "Back to home"}
-            className="absolute -top-12 -left-1 z-20 w-11 h-11 flex items-center justify-center text-white active:scale-90 transition-transform"
-            style={{ filter: "drop-shadow(0 1px 4px rgba(0,0,0,0.75))" }}
-          >
-            <ExitArrow />
-          </button>
+          <HomeButton onClick={onHome} className="absolute -top-16 left-1/2 -translate-x-1/2" />
         )}
       </div>
 
@@ -218,43 +215,6 @@ export default function CardRail({
         ))}
       </div>
     </div>
-  );
-}
-
-/**
- * A curved arrow sweeping up and to the left — "the way out of here".
- *
- * Hand-drawn rather than taken from lucide, which has the two neighbouring
- * shapes and not this one: `ArrowUpLeft` is a straight diagonal (a direction,
- * not a departure) and `CornerUpLeft` turns a right angle (a step back in a
- * list). The curve is what makes it read as leaving rather than pointing.
- *
- * The sweep starts at the bottom right, bows out to the right, and arrives
- * at the head travelling exactly up-left: the last control point sits on the
- * down-right diagonal through the end point, which is what fixes that
- * tangent at 45° rather than leaving it to whatever the curve happens to do.
- *
- * Picked from five candidates rendered side by side at 110px. A gentler bow
- * reads as a plain diagonal once it is 30px on a phone — the curve has to be
- * deep enough to survive the size — and a flatter, more horizontal tail
- * reads as "undo" rather than "leave".
- */
-function ExitArrow() {
-  return (
-    <svg
-      width="30"
-      height="30"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M20 21C22 11 13 14 5 6" />
-      <path d="M5 11.5V6h5.5" />
-    </svg>
   );
 }
 

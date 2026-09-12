@@ -140,13 +140,17 @@ export const NEAR_VERTICAL_SHARE = 0.636;
  * Where the card rail's top edge sits on a phone, in px from the top of a
  * 390x844 frame — the size this layout was designed and measured against.
  *
- * Measured from the laid-out DOM rather than added up from the pieces: 671,
- * the top of the card itself. Not the exit arrow above it — that only exists
- * while a section is focused, which is exactly when the trail is hidden
- * anyway (`CardLeaderLine`'s own `hidden` prop), so it never covers a marker
- * the trail is pointing at.
+ * Measured from the laid-out DOM rather than added up from the pieces: 664,
+ * the top of the card in the middle. **Not the two beside it**, which report
+ * 671 — they are scaled to 0.9 and so sit 7px lower than the box they are
+ * laid out in, and `querySelector` returns one of them first.
+ *
+ * Not the HOME button above them either. That only exists while a section is
+ * focused, which is exactly when the trail is hidden anyway
+ * (`CardLeaderLine`'s own `hidden` prop), so it never covers a marker the
+ * trail is pointing at.
  */
-export const HANDHELD_RAIL_TOP_PX = 671;
+export const HANDHELD_RAIL_TOP_PX = 664;
 
 /**
  * `NEAR_VERTICAL_SHARE`'s replacement on a phone — the same downward lean,
@@ -175,18 +179,19 @@ export const HANDHELD_RAIL_TOP_PX = 671;
  * | share | samples hidden behind the rail | worst marker y | sky   |
  * | ----- | ------------------------------ | -------------- | ----- |
  * | 0.15  | 1 / 20                         | 710            | 95px  |
- * | 0.20  | 2 / 20                         | 744            | 119px |
+ * | 0.20  | 3 / 20                         | 744            | 119px |
  * | 0.25  | 11 / 20                        | 793            | 142px |
  * | 0.30  | 19 / 20                        | 817            | 166px |
  *
- * 0.20 is the knee: one extra hidden sample over 0.15 buys 24px more sky,
- * and the step after it costs nine. Everything past that buys a thicker sky
- * by hiding the trail for most of the lap.
+ * 0.20 is the knee: two extra hidden samples over 0.15 buys 24px more sky,
+ * and the step after it costs eight more. Everything past that buys a
+ * thicker sky by hiding the trail for most of the lap.
  *
- * (An earlier version of this table was measured against 648 rather than
- * 671 — the exit arrow's footprint rather than the card's own top edge — and
- * put the knee at 0.15. The arrow is not an obstruction for this purpose,
- * per `HANDHELD_RAIL_TOP_PX`.)
+ * (Two earlier versions of this table charged the wrong edge — 648, the
+ * footprint of a control that only exists when the trail is already hidden,
+ * and then 671, a neighbouring card's scaled box. Both are the same mistake:
+ * measuring against something other than where the middle card's own top
+ * edge is. See `HANDHELD_RAIL_TOP_PX`.)
  *
  * This is the same trade `NEAR_VERTICAL_SHARE` documents and resolves
  * the other way — the desktop chose the composition and gave up the trail

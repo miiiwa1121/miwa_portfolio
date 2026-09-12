@@ -17,13 +17,13 @@ import HubHeader from "./HubHeader";
 import HubDock from "./HubDock";
 import MobileMenu from "./MobileMenu";
 import PauseFlash from "./PauseFlash";
+import HomeButton from "./HomeButton";
 import SemanticSEO from "./SemanticSEO";
 import About from "./about/About";
 import type { ZoomStage } from "./ZoomControl";
 import { adjacentOnTour, TOUR_ORDER } from "@/scene/planet/tour";
 import Sheet from "@/detail/Sheet";
 import { exitDirectionFor, type ExitDirection } from "@/detail/detailSheet";
-import { X } from "lucide-react";
 
 // Each transparent spacer bracketing the detail page is exactly one viewport
 // tall, which is what makes "the panel has left the screen" and "progress has
@@ -401,16 +401,15 @@ export default function Hub() {
           a button offering the same thing would be a second, competing way out
           of the one area that already has a natural one.
 
-          Not on a phone, where it landed on top of the card rail, the links
-          button and the copyright all at once (measured at 390x844). Backing
-          out there is a pinch, and the logo is still the full reset. */}
+          Not here on a phone, where the bottom of the frame is the card
+          rail — it landed on top of the rail, the links button and the
+          copyright all at once (measured at 390x844). The rail carries its
+          own copy, just above the card; see `CardRail`. */}
       {!handheld && activeSection && activeSection !== "about" && !pageOpen && (
-        <button
+        <HomeButton
           onClick={() => closeToHome("down", true)}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2 bg-white text-gray-800 font-bold py-3 px-7 rounded-full border border-black/5 hover:scale-105 transition-transform"
-        >
-          <X size={18} /> HOME
-        </button>
+          className="fixed bottom-6 left-1/2 -translate-x-1/2"
+        />
       )}
 
       {/* The full-screen navigation. Above the header (z-50), so its own close
