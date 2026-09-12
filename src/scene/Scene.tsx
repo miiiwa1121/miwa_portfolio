@@ -36,6 +36,8 @@ import {
   ABOUT_POLAR,
   ABOUT_ORBIT_RADIUS,
   ABOUT_CARD_SHARE,
+  aboutCardShare,
+  aboutOffsetY,
   type Pose,
   type OrbitZoom,
 } from "./camera/cameraLayout";
@@ -616,6 +618,8 @@ function CameraController({
   const currentOrbitRadius = orbitRadiusForZoom(orbitZoom, handheld);
   const cardShareOrbit = orbitCardShare(handheld);
   const cardShareSection = sectionCardShare(handheld);
+  const cardShareAbout = aboutCardShare(handheld);
+  const currentAboutOffsetY = aboutOffsetY(handheld);
   /**
    * How far to lift a framed building so the card rail does not cover it, in
    * world units at that building's own distance. Zero on a desktop, where the
@@ -1008,8 +1012,8 @@ function CameraController({
       aboutAzimuthRef.current = azimuthRef.current + wrapAngle(azimuth - azimuthRef.current);
       startGlide(
         orbitPose(aboutAzimuthRef.current, ABOUT_POLAR, ABOUT_ORBIT_RADIUS),
-        focalOffsetX(ABOUT_ORBIT_RADIUS, camera.fov, camera.aspect, ABOUT_CARD_SHARE),
-        0,
+        focalOffsetX(ABOUT_ORBIT_RADIUS, camera.fov, camera.aspect, cardShareAbout),
+        currentAboutOffsetY,
         duration,
         // About pivots on the planet's centre like the free orbit does, so it
         // keeps the world's up rather than any one building's.
@@ -1186,11 +1190,11 @@ function CameraController({
         applyUp(controls, ORBIT_UP);
         controls.setLookAt(...(t > 0 ? glidePose(pose, homeward, t) : pose), false);
 
-        const aboutOffsetX = focalOffsetX(ABOUT_ORBIT_RADIUS, camera.fov, camera.aspect, ABOUT_CARD_SHARE);
+        const aboutOffsetX = focalOffsetX(ABOUT_ORBIT_RADIUS, camera.fov, camera.aspect, cardShareAbout);
         const orbitOffsetX = focalOffsetX(currentOrbitRadius, camera.fov, camera.aspect, cardShareOrbit);
         controls.setFocalOffset(
           aboutOffsetX + (orbitOffsetX - aboutOffsetX) * t,
-          currentOffsetY * t, // About itself has no vertical lean (0), blending towards the orbit's own
+          currentAboutOffsetY + (currentOffsetY - currentAboutOffsetY) * t, // Blending towards the orbit's own
           0,
           false
         );

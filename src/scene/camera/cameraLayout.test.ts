@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   ABOUT_CARD_SHARE,
+  aboutCardShare,
+  aboutOffsetY,
+  HANDHELD_ABOUT_OFFSET_Y,
   ABOUT_ORBIT_RADIUS,
   ABOUT_POLAR,
   AUTO_ORBIT_SPEED,
@@ -931,6 +934,14 @@ describe("About's orbit", () => {
   it("stays inside the safe polar band", () => {
     expect(ABOUT_POLAR).toBeGreaterThan(ORBIT_MIN_POLAR);
     expect(ABOUT_POLAR).toBeLessThan(ORBIT_MAX_POLAR);
+  });
+
+  it("adjusts horizontal and vertical offsets for handheld mode", () => {
+    expect(aboutCardShare(true)).toBe(0);
+    expect(aboutCardShare(false)).toBe(ABOUT_CARD_SHARE);
+    expect(aboutOffsetY(true)).toBe(HANDHELD_ABOUT_OFFSET_Y);
+    expect(aboutOffsetY(false)).toBe(0);
+    expect(HANDHELD_ABOUT_OFFSET_Y).toBeGreaterThan(0);
   });
 });
 

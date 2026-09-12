@@ -420,7 +420,7 @@ export default function About({ onFinish }: Props) {
       // not. Cropped screenshots taken after centring but *before* the
       // perspective was eased still showed the same skew; what actually fixed
       // it was `perspective` going 160px → 420px (see the scroller below).
-      className="relative pointer-events-none w-[75%] -ml-[2%] h-full [perspective:460px] [perspective-origin:50%_15%]"
+      className="relative pointer-events-none w-[155%] -ml-[27.5%] md:w-[75%] md:-ml-[2%] h-full [perspective:460px] [perspective-origin:50%_15%]"
     >
       <div
         ref={columnRef}
@@ -551,7 +551,7 @@ export default function About({ onFinish }: Props) {
             the block, so each line's middle lands on that same axis. What
             the warning rules out is a line whose *middle* is off-axis, and
             neither centering nor justification produces one. */}
-        <h2 className="pt-28 text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight mb-10 text-center">
+        <h2 className="pt-24 sm:pt-28 text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight mb-8 sm:mb-10 text-center">
           {isJa ? "自己紹介" : "About Me"}
         </h2>
         {/*
@@ -610,7 +610,7 @@ export default function About({ onFinish }: Props) {
          */}
         <div
           ref={proseRef}
-          className="space-y-10 w-[15em] mx-auto text-[min(4.8vw,4.5rem)] text-[#FFE81F] leading-snug text-justify indent-[1em] [line-break:anywhere] [text-spacing-trim:space-all] [text-autospace:no-autospace]"
+          className="space-y-8 sm:space-y-10 w-[15em] mx-auto text-[min(9.8vw,4.5rem)] md:text-[min(4.8vw,4.5rem)] text-[#FFE81F] leading-snug text-justify indent-[1em] [line-break:anywhere] [text-spacing-trim:space-all] [text-autospace:no-autospace]"
         >
           {paragraphs.map((paragraph, i) => (
             <p key={i}>{paragraph}</p>

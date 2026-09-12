@@ -469,6 +469,22 @@ export function sectionCardShare(handheld: boolean): number {
   return handheld ? 0 : CARD_SHARE;
 }
 
+/** The same, for the About column: zero on a phone where the crawl is centered across the whole bottom width. */
+export function aboutCardShare(handheld: boolean): number {
+  return handheld ? 0 : ABOUT_CARD_SHARE;
+}
+
+/**
+ * Vertical offset for the About framing on a phone — raises the planet by
+ * half a hemisphere (one planet radius, SMOOTH_PLANET_RADIUS) so it sits
+ * higher on screen behind the crawl rather than low at the center line.
+ */
+export const HANDHELD_ABOUT_OFFSET_Y = SMOOTH_PLANET_RADIUS;
+
+export function aboutOffsetY(handheld: boolean): number {
+  return handheld ? HANDHELD_ABOUT_OFFSET_Y : 0;
+}
+
 /**
  * How steeply About looks down — measured the same way `SECTION_TILT` is, but
  * About has no single building to crop in on (its column has no card to
