@@ -85,7 +85,7 @@ export default function MobileMenu({
           <button
             onClick={onClose}
             aria-label={isJa ? "メニューを閉じる" : "Close menu"}
-            className="w-11 h-11 rounded-full flex items-center justify-center bg-white text-gray-900 border border-black/5 shadow-sm active:scale-95 transition-transform"
+            className="w-11 h-11 rounded-full flex items-center justify-center bg-[#ea580c] text-white shadow-md active:scale-95 transition-transform"
           >
             <X size={20} />
           </button>
