@@ -11,7 +11,7 @@
 | `scene/objects/` | シーンに置かれる R3F コンポーネント。`PlanetScene.tsx` がその根 |
 | `scene/planet/` | 球面の幾何と配置の純粋関数（`geometry` / `sections` / `tour` / `shell` / `city` / `decor`） |
 | `scene/voxel/` | ボクセルエンジン |
-| `scene/` 直下のその他 | 層をまたぐもの（`sceneClock` / `markerBolt` / `sunLight` / `planetPlacement`）だけ。**迷ったらここではない** |
+| `scene/` 直下のその他 | 層をまたぐもの（`sceneClock` / `markerBolt` / `sunLight` / `planetPlacement`）と、入力の交通整理（`pointerClaim` / `viewGesture`）だけ。**迷ったらここではない** |
 
 - **`camera/cameraLayout.ts` はカメラの構図、`planet/geometry.ts` は球面の幾何。** 旧称は `worldLayout.ts` / `planetLayout.ts` で、どちらも「Layout」だったせいで役割が名前から引けなかった（devlog 202607〜202608 の記述はこの旧称のまま）
 - **同じ5エリアを指す語は `section` に統一してある。** `SectionCard`（旧 `AreaCard`）・`SectionMarkers`（旧 `AreaMarkers`）も含めて、コード内で `Area` は使わない（画面に出る日本語が「エリア」なのは別の話）。詳細ページの見出しコンテナは `detail/DetailSection.tsx` で、`SectionType` とは無関係

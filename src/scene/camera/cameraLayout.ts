@@ -1,5 +1,5 @@
 import type { SectionType } from "@/types";
-import { PLANET_SECTION_KEYS, sectionPosition } from "../planet/sections";
+import { PLANET_SECTION_KEYS, SMOOTH_PLANET_RADIUS, sectionPosition } from "../planet/sections";
 import { tangentBasis, type Direction } from "../planet/geometry";
 import { MARKER_GLYPH_FILL } from "../markerBolt";
 
@@ -212,8 +212,100 @@ export function nearVerticalShare(handheld: boolean): number {
   return handheld ? HANDHELD_VERTICAL_SHARE : NEAR_VERTICAL_SHARE;
 }
 
-/** `ORBIT_RADIUS` or `NEAR_ORBIT_RADIUS`, whichever `zoom` names. */
-export function orbitRadiusForZoom(zoom: OrbitZoom): number {
+/**
+ * How far from the planet's centre the satellite has to sit for the planet's
+ * disc to stand `share` of the frame's height tall.
+ *
+ * A sphere of radius `R` seen from `D` has an angular radius of `asin(R/D)`,
+ * and something `θ` off the view axis lands `tan(θ)/tan(fov/2)` of a
+ * half-frame from the middle — so the disc's *diameter*, as a share of the
+ * whole frame height, is `tan(asin(R/D))/tan(fov/2)`. This is that, inverted:
+ * a composition is stated as the share, and the camera needs the distance.
+ *
+ * **Only the handheld altitudes are solved with it.** The desktop's two are
+ * distances walked in by eye against reference photos and they stay that way
+ * (`ORBIT_RADIUS`, `NEAR_ORBIT_RADIUS`) — a photo pins a distance directly,
+ * and re-deriving them would move a composition nobody asked to move. A phone
+ * has no such photo: what it has is a stated rule (below), and a rule is
+ * exactly what this turns into a distance.
+ *
+ * Two things this `share` is not. It is of the **whole frame height**, unlike
+ * the `share` that `aimOffset`/`aimOffsetY` take (theirs is of a half-frame).
+ * And it measures the **smooth sphere**, not the city standing on it —
+ * buildings at the limb reach past the disc.
+ */
+export function orbitRadiusForDiscHeight(share: number): number {
+  const halfVertical = (CAMERA_FOV * Math.PI) / 360;
+  return SMOOTH_PLANET_RADIUS / Math.sin(Math.atan(share * Math.tan(halfVertical)));
+}
+
+/**
+ * Where the planet's own edge sits on a phone, measured down from the top of
+ * the frame — a third of the way, at **both** handheld altitudes.
+ *
+ * Asked for as "もう少し俯瞰＋画面の３分の１は背景が見えるように（惑星の位置を
+ * 下に下げたい）". On a phone that is a statement about one line: the sky/ground
+ * boundary, which is where this puts it. The desktop was left alone — the
+ * request was about the phone, and the frames are different shapes with
+ * different obstructions in them (see `HANDHELD_VERTICAL_SHARE` for the same
+ * split applied to the lean).
+ *
+ * **One rule, two altitudes, because the lean is what separates them.** The
+ * planet's centre is the camera's look-at target, so it sits `0.5 + lean/2`
+ * down the frame and its top edge `disc/2` above that. Setting that edge at
+ * `1/3` gives `disc = 1/3 + lean` — which is `1/3` at the overview (no lean
+ * there) and `1/3 + HANDHELD_VERTICAL_SHARE` at the default view. The two
+ * altitudes then differ only because the near one leans, which is the honest
+ * description of what the two stages are.
+ *
+ * At 390x844 (the frame this layout is designed against), before → after.
+ * The first column is this rule's own line, the sphere's edge; the second is
+ * the horizon as `docs/verification.md` measures it — the first row of pixels
+ * more than half covered — which is what a reader actually sees as the
+ * sky/ground boundary, and reads a little off the edge in either direction
+ * depending on what is standing on the limb:
+ *
+ * | stage | planet's edge | horizon, measured |
+ * | ----- | ------------- | ----------------- |
+ * | 標準  | 143 → 281px   | 125 → **267px**   |
+ * | 俯瞰  | 248 → 281px   | 250 → **279px**   |
+ *
+ * 14.8% → 31.6% of the frame at the default view: the third of sky that was
+ * asked for. The overview moved much less because it was already close.
+ */
+export const HANDHELD_PLANET_TOP = 1 / 3;
+
+/** The disc's height on a phone at the default view, leaned; and at the overview, not. */
+export const HANDHELD_NEAR_DISC_HEIGHT = HANDHELD_PLANET_TOP + HANDHELD_VERTICAL_SHARE;
+export const HANDHELD_FAR_DISC_HEIGHT = HANDHELD_PLANET_TOP;
+
+/**
+ * The free orbit's two altitudes on a phone: 77.9 and 122.8, against the
+ * desktop's 50 and 100.
+ *
+ * Both are further out than the desktop's, and that is the whole change — the
+ * lean (`HANDHELD_VERTICAL_SHARE`) is untouched. Leaning further would have
+ * opened the same band of sky, but on a phone the lean is capped by the card
+ * rail rather than by taste: past 0.20 the facing area spends most of a lap
+ * behind the rail and the trail hides itself. Pulling back opens the sky
+ * *and* shortens the push the lean applies (`lean·radius·H/(2·depth)`): the
+ * radius grows 56% here but the depth grows 142% (19.6 → 47.5 at the closest
+ * point of a lap), so the push falls from 215px to 138px of an 844px frame
+ * and the trail comes out ahead rather than behind.
+ */
+export const HANDHELD_NEAR_ORBIT_RADIUS = orbitRadiusForDiscHeight(HANDHELD_NEAR_DISC_HEIGHT);
+export const HANDHELD_ORBIT_RADIUS = orbitRadiusForDiscHeight(HANDHELD_FAR_DISC_HEIGHT);
+
+/**
+ * Which altitude `zoom` names, on the frame `handheld` names.
+ *
+ * `handheld` is required rather than defaulted for the same reason
+ * `nearVerticalShare`'s is: a call site that forgets it would silently frame
+ * a phone like a desktop, which is precisely the bug this pair of altitudes
+ * exists to fix.
+ */
+export function orbitRadiusForZoom(zoom: OrbitZoom, handheld: boolean): number {
+  if (handheld) return zoom === "far" ? HANDHELD_ORBIT_RADIUS : HANDHELD_NEAR_ORBIT_RADIUS;
   return zoom === "far" ? ORBIT_RADIUS : NEAR_ORBIT_RADIUS;
 }
 

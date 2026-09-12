@@ -51,6 +51,7 @@ import { useHandheld } from "@/state/useHandheld";
 import { publishFacing } from "@/state/facingChannel";
 import type { SectionType } from "@/types";
 import Sun from "./objects/Sun";
+import { twoFingerGesture } from "./viewGesture";
 
 // Rotation sensitivity (kept gentle).
 const DRAG_SENSITIVITY = 0.002; // radians per px of pointer drag, both axes
@@ -64,6 +65,28 @@ const WHEEL_SENSITIVITY = 0.0004; // radians (of great-circle arc) per unit of w
 // Crossed once per two-finger gesture; the fingers have to lift and come back
 // down for a second switch, rather than firing repeatedly on a long pinch.
 const PINCH_THRESHOLD_PX = 60;
+
+// How far two fingers must travel *together*, in px, before the gesture is
+// read as a scroll along the tour rather than a zoom.
+//
+// **The two are told apart by which moved more, not by which threshold was
+// crossed first.** A pinch with one finger anchored moves the midpoint by half
+// of whatever the separation changes by, so a plain "first past the post" race
+// hands every such pinch to the scroll: 24px of travel arrives while the
+// separation has only opened 48 of its 60. Comparing the two distances
+// directly is what keeps an anchored pinch a pinch (48 > 24, so nothing
+// latches yet) while still catching a two-finger swipe, where the separation
+// barely changes at all.
+const TWO_FINGER_SCROLL_THRESHOLD_PX = 24;
+
+// A trackpad pinch is not a pointer gesture. Every browser reports it as a
+// wheel event with `ctrlKey` set — the same convention it uses for
+// zoom-the-page — so on a desktop the two-finger zoom arrives through
+// `onWheel` instead of through the pointer handlers, in a stream of small
+// deltas rather than as one distance. This is how much of that stream adds up
+// to one altitude switch. Smaller than it looks: a deliberate trackpad pinch
+// emits deltas of a few units each, tens of times a second.
+const PINCH_WHEEL_THRESHOLD = 24;
 
 // How long the wheel must be quiet before a stream that began while the orbit
 // was locked is trusted again. Longer than the gaps within a momentum tail,
@@ -127,11 +150,24 @@ function pointerDistance(a: { x: number; y: number }, b: { x: number; y: number 
  * to wherever the tour was left. The wheel instead advances `tourURef`
  * directly; it has no reason to leave the path at all.
  *
- * A second finger switches the gesture entirely: rather than a single-pointer
- * drag, the two points' separation is watched for a pinch past
- * `PINCH_THRESHOLD_PX`, which asks `onPinchZoom` for the free orbit's other
- * altitude (see cameraLayout.ts's `OrbitZoom`) — a discrete step, not a
- * continuous dial, fired once per two-finger gesture.
+ * A second finger switches the gesture entirely, and what it switches to is
+ * one of two things that never overlap:
+ *
+ * - **the separation changing** is a zoom, asking `onPinchZoom` for the free
+ *   orbit's other altitude (see cameraLayout.ts's `OrbitZoom`) — a discrete
+ *   step, not a continuous dial, fired once per two-finger gesture. It never
+ *   reaches a building: `sectionPose` is a marker's destination, not an
+ *   altitude, and while one is focused this whole hook is locked out anyway
+ * - **the pair travelling together** is a scroll along the tour path, the
+ *   touch half of what the wheel does below
+ *
+ * The second one exists because a phone has no wheel. Everything here that
+ * travels along the path was reachable on a trackpad and by nothing at all on
+ * glass, which is exactly as far as the reader could get: the diorama turned
+ * under a finger but would not fly. It moves the world at `DRAG_SENSITIVITY`,
+ * the same rate one finger turns it at — the same fingers moving the same
+ * distance should move the world by the same amount, whichever path they move
+ * it along.
  *
  * `returningRef` is the one piece of state a gesture leaves behind it: letting
  * go of a drag hands the camera back to the tour path, and it is only *that*
@@ -157,14 +193,26 @@ function useViewInput(
     let lastY = 0;
 
     // Pointers currently on the glass, keyed by pointerId — what turns a
-    // second finger landing mid-drag into a pinch instead of both fingers'
-    // moves being read as one confused single-pointer drag.
+    // second finger landing mid-drag into a two-finger gesture instead of both
+    // fingers' moves being read as one confused single-pointer drag.
     const activePointers = new Map<number, { x: number; y: number }>();
-    let pinchStartDist: number | null = null;
-    // True once this two-finger gesture has already fired a zoom switch —
-    // the fingers have to lift and come back down for another one, rather
-    // than a long pinch repeatedly re-crossing the threshold.
-    let pinchConsumed = false;
+
+    /**
+     * The two-finger gesture in progress, if any.
+     *
+     * `mode` latches: the first of the two thresholds to be crossed owns the
+     * gesture until the fingers lift, so a scroll cannot turn into a zoom
+     * halfway through a swipe, and a zoom fires exactly once (what the old
+     * `pinchConsumed` flag did on its own).
+     */
+    let twoFinger: {
+      startDist: number;
+      startMidY: number;
+      lastMidY: number;
+      mode: "undecided" | "zoom" | "scroll";
+    } | null = null;
+
+    const midpointY = (a: { y: number }, b: { y: number }) => (a.y + b.y) / 2;
 
     // A camera flight owns the camera outright; gestures during one would be
     // fighting it, and would land as a jump the moment it finished. A hand on
@@ -178,6 +226,20 @@ function useViewInput(
       tourURef.current = PLANET_TOUR.nearestU(directionAt(azimuthTargetRef.current, polarTargetRef.current));
     };
 
+    /**
+     * Travel `arc` radians along the tour path — the one place the wheel and
+     * the two-finger swipe meet, so the two cannot drift apart in sign or in
+     * what they clear on the way.
+     *
+     * Travel the reader just asked for is not a return to the path: the same
+     * 0.4 rad that should take six seconds to drift back would read as a dead
+     * scroll wheel if it took six seconds to answer a flick.
+     */
+    const advanceTour = (arc: number) => {
+      returningRef.current = false;
+      tourURef.current = wrap01(tourURef.current + arc / PLANET_TOUR.length);
+    };
+
     const onPointerDown = (e: PointerEvent) => {
       if (locked() || isInteractive(e.target)) return;
       // A hand back on the planet ends any drift back towards the path — the
@@ -189,13 +251,19 @@ function useViewInput(
 
       if (activePointers.size === 2) {
         // A second finger arrived mid-drag: hand the gesture over to the
-        // pinch entirely rather than letting the single-pointer drag below
-        // keep reading whichever finger's events happen to interleave.
+        // two-finger reading entirely rather than letting the single-pointer
+        // drag below keep reading whichever finger's events happen to
+        // interleave.
         down = false;
         draggingRef.current = false;
         const [a, b] = [...activePointers.values()];
-        pinchStartDist = pointerDistance(a, b);
-        pinchConsumed = false;
+        const midY = midpointY(a, b);
+        twoFinger = {
+          startDist: pointerDistance(a, b),
+          startMidY: midY,
+          lastMidY: midY,
+          mode: "undecided",
+        };
       } else if (activePointers.size === 1) {
         down = true;
         lastX = e.clientX;
@@ -211,19 +279,39 @@ function useViewInput(
       }
 
       if (activePointers.size >= 2) {
-        const [a, b] = [...activePointers.values()];
-        const dist = pointerDistance(a, b);
-        if (pinchStartDist !== null && !pinchConsumed) {
-          const spread = dist - pinchStartDist;
-          if (spread > PINCH_THRESHOLD_PX) {
-            onPinchZoom("near"); // fingers spreading apart — zoom in, closer
-            pinchConsumed = true;
-          } else if (spread < -PINCH_THRESHOLD_PX) {
-            onPinchZoom("far"); // fingers pinching together — zoom out, further
-            pinchConsumed = true;
+        if (twoFinger) {
+          const [a, b] = [...activePointers.values()];
+          const midY = midpointY(a, b);
+          const spread = pointerDistance(a, b) - twoFinger.startDist;
+          const travel = midY - twoFinger.startMidY;
+
+          if (twoFinger.mode === "undecided") {
+            const asked = twoFingerGesture(spread, travel, PINCH_THRESHOLD_PX, TWO_FINGER_SCROLL_THRESHOLD_PX);
+            if (asked === "zoom") {
+              twoFinger.mode = "zoom";
+              // Spreading apart asks for the closer altitude; closing asks for
+              // the further one. Fired here and never again this gesture —
+              // the fingers have to lift and come back down for a second
+              // switch, rather than a long pinch re-crossing the threshold.
+              onPinchZoom(spread > 0 ? "near" : "far");
+            } else if (asked === "scroll") {
+              twoFinger.mode = "scroll";
+              // The travel spent deciding is not also scrolled: the world
+              // under the fingers should start moving from where they are
+              // now, not jump by the 24px it took to prove intent.
+              twoFinger.lastMidY = midY;
+            }
+          }
+
+          if (twoFinger.mode === "scroll") {
+            // Same sign as the wheel below: fingers moving up the screen is
+            // what a trackpad calls a positive `deltaY`, and both send the
+            // tour the same way.
+            advanceTour((midY - twoFinger.lastMidY) * DRAG_SENSITIVITY);
+            twoFinger.lastMidY = midY;
           }
         }
-        return; // a pinch in progress never also reads as a single-pointer drag
+        return; // a two-finger gesture never also reads as a single-pointer drag
       }
 
       if (!down) return;
@@ -253,10 +341,7 @@ function useViewInput(
       // lifting cannot release the first one's claim.
       pointerClaim.release(e.pointerId);
       activePointers.delete(e.pointerId);
-      if (activePointers.size < 2) {
-        pinchStartDist = null;
-        pinchConsumed = false;
-      }
+      if (activePointers.size < 2) twoFinger = null;
       if (activePointers.size === 0) {
         // Letting go is what starts the trip home, and the only thing that
         // does: from here until the camera is back on the path (or another
@@ -282,10 +367,39 @@ function useViewInput(
     // genuinely new gesture always starts after a pause.
     let lastWheelAt = 0;
     let wheelArmed = true;
+    // A trackpad pinch arrives as a stream of small ctrl+wheel deltas rather
+    // than as one distance, so it is added up until it amounts to a switch and
+    // then latched, exactly as `PINCH_THRESHOLD_PX` latches the touch version.
+    let pinchWheel = 0;
+    let pinchWheelConsumed = false;
 
     const onWheel = (e: WheelEvent) => {
       const sinceLast = e.timeStamp - lastWheelAt;
       lastWheelAt = e.timeStamp;
+
+      // **A pinch on a trackpad is a ctrl+wheel, not a pointer gesture.** This
+      // is the desktop's only way to reach the zoom a phone reaches with two
+      // fingers, and without the branch it was worse than missing: the pinch
+      // fell through to the travel below and scrolled the tour instead. The
+      // `preventDefault` is what stops the browser zooming the whole page —
+      // `userScalable: false` in layout.tsx does not cover this gesture.
+      if (e.ctrlKey) {
+        e.preventDefault();
+        if (locked()) return;
+        if (sinceLast >= WHEEL_REARM_MS) {
+          pinchWheel = 0; // a new gesture, not the tail of the last one
+          pinchWheelConsumed = false;
+        }
+        if (pinchWheelConsumed) return;
+        pinchWheel += e.deltaY;
+        if (Math.abs(pinchWheel) >= PINCH_WHEEL_THRESHOLD) {
+          // Spreading apart reports negative deltas (the same sign the browser
+          // would zoom *in* on), which is the closer altitude.
+          onPinchZoom(pinchWheel < 0 ? "near" : "far");
+          pinchWheelConsumed = true;
+        }
+        return;
+      }
 
       if (locked()) {
         wheelArmed = false;
@@ -297,12 +411,7 @@ function useViewInput(
       }
 
       e.preventDefault(); // stop any rubber-band scroll; there's no page yet
-      // Travel along the path the reader just asked for, not a return to it:
-      // the same 0.4 rad that should take six seconds to drift back would read
-      // as a dead scroll wheel if it took six seconds to answer a flick.
-      returningRef.current = false;
-      const deltaU = (-e.deltaY * WHEEL_SENSITIVITY) / PLANET_TOUR.length;
-      tourURef.current = wrap01(tourURef.current + deltaU);
+      advanceTour(-e.deltaY * WHEEL_SENSITIVITY);
     };
 
     window.addEventListener("pointerdown", onPointerDown);
@@ -491,18 +600,20 @@ function CameraController({
   const size = useThree((state) => state.size);
 
   const home = orbitAnglesOf(PLANET_TOUR.direction(0));
+  // Whether the card is the strip along the bottom rather than the panel on
+  // the left — which is what decides how the subject is cleared (up, not
+  // sideways), by how much, and, since the two frames are different shapes,
+  // from how far away. Read here rather than passed in: it is the same
+  // question `Hub` asks to decide which card to render, and the two must
+  // never disagree about it. Changes only on a rotation, so a re-render of
+  // this component for it costs nothing per frame.
+  const handheld = useHandheld();
   // Which of the free orbit's two altitudes is currently in effect — read
   // fresh each render, same as `camera`/`activeSection` below, rather than
   // kept in a ref: nothing here needs its value to survive a render, only to
   // be current whenever `useFrame`'s closure (recreated every render) reads it.
-  const currentOrbitRadius = orbitRadiusForZoom(orbitZoom);
-  // Whether the card is the strip along the bottom rather than the panel on
-  // the left — which is what decides both how the subject is cleared (up,
-  // not sideways) and by how much. Read here rather than passed in: it is the
-  // same question `Hub` asks to decide which card to render, and the two must
-  // never disagree about it. Changes only on a rotation, so a re-render of
-  // this component for it costs nothing per frame.
-  const handheld = useHandheld();
+  // A phone sits further out at both stages (see HANDHELD_NEAR_ORBIT_RADIUS).
+  const currentOrbitRadius = orbitRadiusForZoom(orbitZoom, handheld);
   const cardShareOrbit = orbitCardShare(handheld);
   const cardShareSection = sectionCardShare(handheld);
   /**
@@ -1234,6 +1345,13 @@ export default function Scene({
       // (NEAR_ORBIT_RADIUS — CameraController's own mount effect has no
       // AppStateContext to consult yet either, so "near" is the one this
       // very first paint can assume rather than read).
+      //
+      // The desktop's altitude even on a phone, deliberately: `useHandheld`
+      // answers false through the prerender and the hydration pass that
+      // matches it (see its own note), so asking here would get the same
+      // answer a frame earlier and cost a re-render of the Canvas to correct.
+      // CameraController's mount effect is the first moment the real answer
+      // exists, and it places the camera with it.
       camera={{
         position: orbitPose(home.azimuth, home.polar, NEAR_ORBIT_RADIUS).slice(0, 3) as [number, number, number],
         fov: CAMERA_FOV,

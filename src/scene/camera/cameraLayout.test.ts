@@ -10,6 +10,10 @@ import {
   NEAR_ORBIT_RADIUS,
   NEAR_VERTICAL_SHARE,
   HANDHELD_VERTICAL_SHARE,
+  HANDHELD_NEAR_ORBIT_RADIUS,
+  HANDHELD_ORBIT_RADIUS,
+  HANDHELD_PLANET_TOP,
+  CAMERA_FOV,
   nearVerticalShare,
   orbitCardShare,
   sectionCardShare,
@@ -34,6 +38,7 @@ import {
   orbitAnglesOf,
   orbitArcBetween,
   orbitPose,
+  orbitRadiusForDiscHeight,
   orbitRadiusForZoom,
   orbitStepFraction,
   pixelsPerWorldUnit,
@@ -42,7 +47,7 @@ import {
   wrapAngle,
   type Pose,
 } from "./cameraLayout";
-import { PLANET_SECTION_KEYS, sectionPosition } from "../planet/sections";
+import { PLANET_SECTION_KEYS, SMOOTH_PLANET_RADIUS, sectionPosition } from "../planet/sections";
 import { angleBetween, dot, normalize, tangentBasis, type Direction } from "../planet/geometry";
 import { MARKER_GLYPH_FILL } from "../markerBolt";
 import type { SectionType } from "@/types";
@@ -402,8 +407,83 @@ describe("the handheld framing", () => {
 
 describe("orbitRadiusForZoom", () => {
   it("maps far to ORBIT_RADIUS and near to NEAR_ORBIT_RADIUS", () => {
-    expect(orbitRadiusForZoom("far")).toBe(ORBIT_RADIUS);
-    expect(orbitRadiusForZoom("near")).toBe(NEAR_ORBIT_RADIUS);
+    expect(orbitRadiusForZoom("far", false)).toBe(ORBIT_RADIUS);
+    expect(orbitRadiusForZoom("near", false)).toBe(NEAR_ORBIT_RADIUS);
+  });
+
+  it("answers a phone with the handheld pair instead", () => {
+    expect(orbitRadiusForZoom("far", true)).toBe(HANDHELD_ORBIT_RADIUS);
+    expect(orbitRadiusForZoom("near", true)).toBe(HANDHELD_NEAR_ORBIT_RADIUS);
+  });
+});
+
+/** The planet's disc, as a share of the frame's height, seen from `radius`. */
+const discHeight = (radius: number) =>
+  Math.tan(Math.asin(SMOOTH_PLANET_RADIUS / radius)) / Math.tan((CAMERA_FOV * Math.PI) / 360);
+
+describe("orbitRadiusForDiscHeight", () => {
+  // The solver and the projection it inverts, checked against each other —
+  // the one thing a sign slip or a stray factor of two here would not show up
+  // as anything but "the framing moved a bit".
+  it("answers the distance that draws exactly the share it was asked for", () => {
+    for (const share of [0.2, 1 / 3, 0.5, 3 / 4, 1]) {
+      expect(discHeight(orbitRadiusForDiscHeight(share))).toBeCloseTo(share, 10);
+    }
+  });
+
+  it("puts the camera further out for a smaller disc", () => {
+    expect(orbitRadiusForDiscHeight(1 / 3)).toBeGreaterThan(orbitRadiusForDiscHeight(3 / 4));
+  });
+
+  it("never puts it inside the planet", () => {
+    for (const share of [0.2, 1 / 3, 3 / 4, 1]) {
+      expect(orbitRadiusForDiscHeight(share)).toBeGreaterThan(SMOOTH_PLANET_RADIUS);
+    }
+  });
+});
+
+describe("the handheld altitudes", () => {
+  /**
+   * The planet's centre is the camera's look-at target, so it lands
+   * `0.5 + lean/2` down the frame and its top edge `disc/2` above that.
+   * `lean` is the handheld lean at the near altitude and zero at the far one,
+   * which is the whole reason one rule gives two different distances.
+   */
+  const planetTop = (radius: number, lean: number) => 0.5 + lean / 2 - discHeight(radius) / 2;
+
+  it("puts the planet's edge a third of the way down the frame at both stages", () => {
+    expect(planetTop(HANDHELD_NEAR_ORBIT_RADIUS, HANDHELD_VERTICAL_SHARE)).toBeCloseTo(HANDHELD_PLANET_TOP, 10);
+    expect(planetTop(HANDHELD_ORBIT_RADIUS, 0)).toBeCloseTo(HANDHELD_PLANET_TOP, 10);
+  });
+
+  it("leaves the desktop's own altitudes exactly where the reference photos put them", () => {
+    // The request that produced the handheld pair was about a phone. This is
+    // the same fence `nearVerticalShare(false)` stands behind: nothing
+    // measured on a 0.46-aspect frame with a card rail along the bottom is
+    // allowed to leak back onto a 16:9 one without it.
+    expect(ORBIT_RADIUS).toBe(100);
+    expect(NEAR_ORBIT_RADIUS).toBe(50);
+    expect(HANDHELD_NEAR_ORBIT_RADIUS).toBeGreaterThan(NEAR_ORBIT_RADIUS);
+    expect(HANDHELD_ORBIT_RADIUS).toBeGreaterThan(ORBIT_RADIUS);
+  });
+
+  it("keeps the overview further out than the default view", () => {
+    expect(HANDHELD_ORBIT_RADIUS).toBeGreaterThan(HANDHELD_NEAR_ORBIT_RADIUS);
+  });
+
+  it("opens the sky by pulling back rather than by leaning further", () => {
+    // Both would move the planet's edge down the frame; only one of them
+    // takes the card's dotted trail with it. The lean pushes the facing area
+    // down by `lean·radius·H/(2·depth)` px — pulling back grows the radius
+    // but grows the depth faster, so the push shrinks. Charged at the closest
+    // depth measured over a lap at 390x844 (the marker came within 19.6 of
+    // the camera at radius 50, i.e. it sits 30.4 out from the planet's
+    // centre).
+    const markerRadius = 50 - 19.6;
+    const push = (radius: number) =>
+      (HANDHELD_VERTICAL_SHARE * radius * 844) / (2 * (radius - markerRadius));
+    expect(push(HANDHELD_NEAR_ORBIT_RADIUS)).toBeLessThan(push(NEAR_ORBIT_RADIUS));
+    expect(nearVerticalShare(true)).toBe(HANDHELD_VERTICAL_SHARE);
   });
 });
 

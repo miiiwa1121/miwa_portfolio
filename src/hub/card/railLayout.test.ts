@@ -117,16 +117,18 @@ describe("railOffsetPx", () => {
     expect(railOffsetPx(-1, 300)).toBe(-railOffsetPx(1, 300));
   });
 
-  // Under one card's width, so the neighbours overlap the middle card rather
-  // than needing three cards' worth of screen to sit clear of it.
-  it("overlaps the neighbours onto the middle card", () => {
-    expect(Math.abs(railOffsetPx(1, 300))).toBeLessThan(300);
-    expect(RAIL_NEIGHBOUR_SHARE).toBeLessThan(1);
+  // Over one card's width, so a neighbour clears the middle card's edge
+  // instead of covering it — the gap is what makes them read as separate
+  // cards rather than one stack.
+  it("leaves a gap between a neighbour and the middle card", () => {
+    expect(Math.abs(railOffsetPx(1, 300))).toBeGreaterThan(300);
+    expect(RAIL_NEIGHBOUR_SHARE).toBeGreaterThan(1);
   });
 
-  // Half a card is the point at which a neighbour's own middle reaches the
-  // middle card's edge; any closer and the peek covers more than it shows.
-  it("still leaves the middle card the larger share", () => {
-    expect(Math.abs(railOffsetPx(1, 300))).toBeGreaterThan(150);
+  // The gap is a seam, not a second column: past a fifth of a card the
+  // neighbour has left the screen entirely at 390px and stops saying there
+  // is one either way.
+  it("keeps the gap narrow enough for the neighbour to stay on screen", () => {
+    expect(Math.abs(railOffsetPx(1, 300))).toBeLessThan(360);
   });
 });

@@ -1,11 +1,12 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, animate, useMotionValue } from "framer-motion";
 import { CARD_COPY } from "./cardCopy";
 import HomeButton from "../HomeButton";
 import {
   isRailTap,
+  RAIL_NEIGHBOUR_SHARE,
   RAIL_ORDER,
   railOffsetPx,
   railWindow,
@@ -53,6 +54,13 @@ import type { SectionType } from "@/types";
  * title, and two lines of description clamped.
  */
 const CARD_HEIGHT = 132;
+
+/**
+ * The spring the rail settles with — both a card sliding into its resting
+ * slot and a drag easing back to 0 use this same one, so a release never
+ * hands off from one feel to a different one mid-motion.
+ */
+const RAIL_SPRING = { type: "spring", stiffness: 340, damping: 30, mass: 0.8 } as const;
 
 type Props = {
   /** The area the camera has been sent to, or null in the free orbit. */
@@ -103,6 +111,13 @@ export default function CardRail({
   // setState per pointermove would re-render the strip sixty times a drag.
   const dragStart = useRef<{ x: number; y: number } | null>(null);
 
+  // How far the strip has been dragged from its resting slots, live. A motion
+  // value rather than state for the same reason `dragStart` is a ref — it is
+  // written on every pointermove — but unlike a ref it can be handed straight
+  // to a `motion.div`'s `style`, which repaints it without going through React
+  // at all.
+  const dragX = useMotionValue(0);
+
   const onPointerDown = (event: React.PointerEvent) => {
     // A press that landed on a control inside the strip belongs to that
     // control, not to the strip.
@@ -120,12 +135,33 @@ export default function CardRail({
     // itself.
     if ((event.target as HTMLElement | null)?.closest?.("button, a")) return;
     dragStart.current = { x: event.clientX, y: event.clientY };
+    dragX.set(0);
+  };
+
+  // Moves the strip with the finger while a drag is in flight. Mirrors
+  // `stepForRailDrag`'s own read of the gesture — vertical dominance gets
+  // nothing, not just no step, or a swipe meant for the diorama would drag
+  // the rail sideways on its way there. Clamped to one neighbour's offset:
+  // past that there is no fourth card to reveal, only the edge of the loaded
+  // window, so further travel would show empty space rather than more strip.
+  const onPointerMove = (event: React.PointerEvent) => {
+    const from = dragStart.current;
+    if (!from) return;
+    const dx = event.clientX - from.x;
+    const dy = event.clientY - from.y;
+    if (Math.abs(dx) <= Math.abs(dy)) {
+      dragX.set(0);
+      return;
+    }
+    const maxDrag = cardWidth * RAIL_NEIGHBOUR_SHARE;
+    dragX.set(Math.max(-maxDrag, Math.min(maxDrag, dx)));
   };
 
   const onPointerUp = (event: React.PointerEvent) => {
     const from = dragStart.current;
     dragStart.current = null;
     if (!from) return;
+    animate(dragX, 0, RAIL_SPRING);
 
     const dx = event.clientX - from.x;
     const dy = event.clientY - from.y;
@@ -139,9 +175,12 @@ export default function CardRail({
   };
 
   // A pointer leaving the element mid-drag ends the gesture rather than
-  // leaving `dragStart` armed for a later, unrelated pointerup.
+  // leaving `dragStart` armed for a later, unrelated pointerup — and eases
+  // the strip back the same way a released drag does, so an interrupted
+  // gesture doesn't leave the card stranded off its resting slot.
   const onPointerCancel = () => {
     dragStart.current = null;
+    animate(dragX, 0, RAIL_SPRING);
   };
 
   const cards = railWindow(section);
@@ -154,6 +193,7 @@ export default function CardRail({
       // claiming the horizontal drag as a scroll before these handlers see it.
       data-ui
       onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       className="pointer-events-auto select-none touch-none w-full"
@@ -170,18 +210,26 @@ export default function CardRail({
         className="relative mx-auto w-[min(78vw,20rem)]"
         style={{ height: CARD_HEIGHT }}
       >
-        <AnimatePresence initial={false} custom={lastStep}>
-          {cards.map(({ section: key, slot }) => (
-            <RailCardFace
-              key={key}
-              section={key}
-              slot={slot}
-              isJa={isJa}
-              cardWidth={cardWidth}
-              lastStep={lastStep}
-            />
-          ))}
-        </AnimatePresence>
+        {/* A pure transform layer: it carries the live drag offset, on top of
+            which each card's own slot animation still runs. Sized exactly to
+            the frame — `inset-0` on a `motion.div` with a bound `x` is a
+            containing block for its own absolutely-positioned children, so
+            without an explicit box here the cards inside would size against
+            this layer instead of the frame and collapse to nothing. */}
+        <motion.div style={{ x: dragX }} className="absolute inset-0">
+          <AnimatePresence initial={false} custom={lastStep}>
+            {cards.map(({ section: key, slot }) => (
+              <RailCardFace
+                key={key}
+                section={key}
+                slot={slot}
+                isJa={isJa}
+                cardWidth={cardWidth}
+                lastStep={lastStep}
+              />
+            ))}
+          </AnimatePresence>
+        </motion.div>
 
         {/* Where the trail leaves the rail. An element of its own rather
             than a corner of the card: the card is rebuilt by AnimatePresence
@@ -268,19 +316,24 @@ function RailCardFace({
         scale: 0.88,
         opacity: 0,
       }}
+      // Same size and same white as the middle one. They used to be shrunk
+      // and faded to mark which card was being described, which the gap and
+      // the dots now both say — and a scaled neighbour also sits 7px lower
+      // than the frame, which is the sort of thing the rail's top edge gets
+      // measured against by mistake.
       animate={{
         x: railOffsetPx(slot, cardWidth),
-        scale: middle ? 1 : 0.9,
-        opacity: middle ? 1 : 0.45,
+        scale: 1,
+        opacity: 1,
       }}
       exit={{
         x: railOffsetPx(lastStep > 0 ? -1 : 1, cardWidth) * 2,
         scale: 0.88,
         opacity: 0,
       }}
-      transition={{ type: "spring", stiffness: 340, damping: 30, mass: 0.8 }}
+      transition={RAIL_SPRING}
       style={{ zIndex: middle ? 10 : 0 }}
-      className="absolute inset-0 rounded-3xl bg-white border border-black/10 shadow-xl shadow-black/20 p-4 flex flex-col"
+      className="absolute inset-0 rounded-xl bg-white border border-black/10 shadow-md shadow-black/10 p-4 flex flex-col"
       // Only the middle card is being described; the two beside it are a
       // preview, and a screen reader announcing all three would say the
       // camera is facing three places at once.

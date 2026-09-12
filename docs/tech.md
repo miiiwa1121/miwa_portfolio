@@ -68,6 +68,7 @@
 - **カメラの行き先を決める effect は `Scene.tsx` に1つだけ**、経路は7つ（セクションへ寄る／Aboutへ寄る／リセットでツアー先頭へ／Aboutを読み切った＝何も飛ばさず着地先へ合わせる／セクションを離れてツアー再開／**自由回転のズーム段階が変わった**／初回マウント）。ここを分散させない。
   - **セクションへ寄る分岐だけは、建物がまだシーンに無いことがある。** `#products` への直リンクは section を立てるのが1フレーム後（`applyUrl`）で、R3F は Canvas の子を `await` の向こうでコミットする。`focusSection()` は見つからなければ `false` を返し、フレームループが次のフレームで再試行する（`pendingFocusRef`）——黙って諦めると、セクションが選ばれているのにカメラは自由回転に停まったまま、という無言の失敗になる。
 - **自由回転には2つの固定高度がある**（`camera/cameraLayout.ts` の `OrbitZoom` = `"near"` | `"far"`）。`"near"`（`NEAR_ORBIT_RADIUS`、50）が新しいデフォルトで、参考写真（`reference/image7.png`——実写ではなく、円1個だけを重ねて配置とサイズだけを示したモックアップ）に画角を合わせた中間距離。`"far"`（`ORBIT_RADIUS`、100）はピンチで開く／ズームコントロールの「俯瞰」段を選んだときだけ入る一時的な状態——3段階の距離感が求められた回で、それぞれ「今の中間視点」「新しい参考写真」「建物ズームの参考写真」に合わせて一段ずつ寄せ直され、`ORBIT_RADIUS` はそのとき単に「以前の `NEAR_ORBIT_RADIUS` の値」に付け替えられた（旧140.32の式は退役）。`NEAR_ORBIT_RADIUS` 自体もその後 `reference/image5.png` を根拠に70へ決めたが、実写は配置の読み取りに向かず狙いより遠い値になっていたため、モックアップの `image7.png` を根拠に50へ再調整した。AppStateContext の `orbitZoom` が真実で、`orbitRadiusForZoom(orbitZoom)` がどちらの半径かを解決する——`Scene.tsx` 側で `ORBIT_RADIUS` を直接書いていた箇所（`flyToOrbit`・アイドル描画テール・リサイズ effect・About の帰りのブレンド先）は全部これ経由になっている。
+  - **スマホは2段とも PC より遠い。** `orbitRadiusForZoom(zoom, handheld)` が `HANDHELD_NEAR_ORBIT_RADIUS`（77.9）/ `HANDHELD_ORBIT_RADIUS`（122.8）を返す。値そのものは `HANDHELD_PLANET_TOP = 1/3`（**惑星の縁が画面の3分の1の位置に来る**）という1つの規則を `orbitRadiusForDiscHeight()` で距離に直したもので、必要な円盤の高さは `1/3 + lean`——俯瞰はリーンが無いので 1/3、標準は `1/3 + HANDHELD_VERTICAL_SHARE`。390×844 の実測で水平線は 125px → 267px（画面の14.8% → 31.6%）、俯瞰は 250px → 279px。**PC 側の 50 / 100 は参考写真由来なので触っていない**（[devlog 2026-09-12](devlog/202609.md#2026-09-12)）
   - **切り替えの入力は2つ**: 2本指ピンチ（`useViewInput` が `pointerId` ごとにポインタを追跡し、2点になった時点で単指ドラッグを打ち切ってピンチ判定に切り替える。つまむ/開くが `PINCH_THRESHOLD_PX` を超えた瞬間に1回だけ発火し、指を離すまで再発火しない——連続ズームではなく離散的な1段階の切り替え）と、ヘッダーのズームコントロール（`hub/ZoomControl.tsx`、一時停止ボタンの隣。**ボタン1個を押すたびに 俯瞰→標準→正面の建物→俯瞰… と巡回する**。ホバーで開くピッカーにしなかったのは、ホバーを要求する操作にはタッチの等価物が無いため。「正面の建物」段は `facing` へ `setActiveSection`）。
     - **ピンチがロジックとして正しくても、ブラウザ側に先取りされると届かない。** `pointermove` を受け取る前提として、キャンバスの祖先（`Hub.tsx` の固定div）に `touch-action: none`（Tailwind の `touch-none`）が要る——無いと2本指ジェスチャーはページのネイティブなピンチズームとして横取りされる。合わせて `app/layout.tsx` の `viewport` export（`maximumScale: 1`, `userScalable: false`）でページ全体の拡縮そのものを止めておく。どちらか一方だけでは不十分。
   - **戻りは常に `"near"`。** HOME/ロゴ（`goHome`）・セクションを閉じる（`closePage`）・セクションを開く（`openPage`、About の帰りのブレンド先を入場時点から合わせておくため）・URL 同期（`applyUrl`、`openPage`/`closePage` を経由せず直接 setter を呼ぶので個別に必要）のすべてが `setOrbitZoom("near")` を呼ぶ。`"far"` はズームコントロールで明示的に選んだときだけ入り、うっかり据え置かれることがない。
@@ -201,11 +202,13 @@
 | セクション一覧 | ヘッダーのナビ | 全画面パネル（`hub/MobileMenu.tsx`） |
 | ヘッダー右 | 言語 / 停止 / ズーム（シート表示中は閉じる） | 言語 / メニュー（シート表示中は閉じるに入れ替わる） |
 | 停止 | ボタン | **何もないところをタップ**＋0.6秒のバッジ（`hub/PauseFlash.tsx`） |
-| ズーム | 3段のボタン | 2本指ピンチ（`near`/`far`）。最接近はマーカーのタップ |
+| ズーム | 3段のボタン＋**トラックパッドのピンチ**（`ctrlKey` 付き `wheel`） | 2本指ピンチ（`near`/`far`）。最接近はマーカーのタップ |
+| ツアーの飛行・縦スクロール | ホイール／トラックパッドの2本指スクロール | **2本指スクロール**（`twoFingerGesture()` が間隔の変化と区別する） |
 | カード | 画面中央左のスタック、縦スワイプ／ホイールで送る | 画面下のレール、横スワイプで送る（`hub/card/CardRail.tsx`） |
 | 外部リンク・著作権 | 左下のドック・右下のフッター | 全画面パネルの中 |
 | HOME ボタン | 画面下中央 | カードのすぐ上・画面中央（`hub/HomeButton.tsx` を両方が使う） |
 | カメラの縦オフセット | `NEAR_VERTICAL_SHARE` = 0.636 | `HANDHELD_VERTICAL_SHARE` = 0.20 |
+| 自由回転の高度 | `NEAR_ORBIT_RADIUS` = 50 / `ORBIT_RADIUS` = 100（参考写真から目測） | `HANDHELD_NEAR_ORBIT_RADIUS` = 77.9 / `HANDHELD_ORBIT_RADIUS` = 122.8（「惑星の縁が画面の3分の1」から逆算） |
 | カメラの横寄せ | `CARD_SHARE` / `ORBIT_CARD_SHARE` | 0（カードが幅の86%を占めるので意味がない） |
 
 **指の取り合いは3つの仕組みで解いている。** 本物のコントロールは DOM を遡る `isInteractive`、シーン内のオブジェクト（マーカー・太陽）は自分で名乗る `scene/pointerClaim.ts`、ドラッグ／ピンチとの取り違えは `useTapGesture` が自分の候補を捨てる。3つ目だけ `useViewInput` と同じイベント列を見ているが、互いに相談はしない。

@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import DetailSection from "./DetailSection";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/state/LanguageContext";
+import { useHandheld } from "@/state/useHandheld";
 import {
   SiHtml5, SiCss, SiJavascript, SiTypescript,
   SiReact, SiNextdotjs, SiTailwindcss,
@@ -134,6 +136,14 @@ export default function Skills() {
   const { language } = useLanguage();
   const isJa = language === "ja";
 
+  // A tile's own colour is otherwise only ever reachable by hovering it, which
+  // a phone cannot do — the whole grid stays grey there. A tap lights one
+  // instead, and lights only one: hover shows a single tile at a time because
+  // a pointer is in a single place, and keeping that true is what stops the
+  // grid from turning into a scratch card as you read down it.
+  const handheld = useHandheld();
+  const [litSkill, setLitSkill] = useState<string | null>(null);
+
   return (
     <DetailSection id="skills" title="Skills">
       <div className="space-y-12">
@@ -156,6 +166,7 @@ export default function Skills() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
               {cat.skills.map((skill, skillIdx) => {
                 const Icon = skill.icon;
+                const lit = handheld && litSkill === skill.name;
                 return (
                   <motion.div
                     key={skill.name}
@@ -164,13 +175,33 @@ export default function Skills() {
                     viewport={{ once: true }}
                     transition={{ delay: catIdx * 0.05 + skillIdx * 0.02, duration: 0.3 }}
                     whileHover={{ y: -3 }}
-                    className="flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl bg-white border border-black/5 hover:border-[var(--hover-color)] shadow-sm hover:shadow-md transition-all duration-200 cursor-default group"
+                    // Bound only on a phone. On a pointer screen the hover
+                    // styles below already say this, and a tap that latched a
+                    // tile lit would leave it fighting the hover it sits under.
+                    onClick={
+                      handheld
+                        ? () => setLitSkill((current) => (current === skill.name ? null : skill.name))
+                        : undefined
+                    }
+                    className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl bg-white border shadow-sm transition-all duration-200 cursor-default group ${
+                      lit
+                        ? "border-[var(--hover-color)] shadow-md"
+                        : "border-black/5 hover:border-[var(--hover-color)] hover:shadow-md"
+                    }`}
                     style={{ "--hover-color": skill.color } as React.CSSProperties}
                   >
                     <Icon
-                      className="w-8 h-8 sm:w-10 sm:h-10 mb-2.5 transition-transform duration-200 group-hover:scale-110 text-gray-400 group-hover:text-[var(--hover-color)]"
+                      className={`w-8 h-8 sm:w-10 sm:h-10 mb-2.5 transition-transform duration-200 ${
+                        lit
+                          ? "scale-110 text-[var(--hover-color)]"
+                          : "text-gray-400 group-hover:scale-110 group-hover:text-[var(--hover-color)]"
+                      }`}
                     />
-                    <span className="text-xs sm:text-sm font-bold text-gray-700 group-hover:text-gray-950 transition-colors text-center leading-tight">
+                    <span
+                      className={`text-xs sm:text-sm font-bold transition-colors text-center leading-tight ${
+                        lit ? "text-gray-950" : "text-gray-700 group-hover:text-gray-950"
+                      }`}
+                    >
                       {skill.name}
                     </span>
                   </motion.div>

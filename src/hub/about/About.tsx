@@ -81,10 +81,28 @@ export default function About({ onFinish }: Props) {
    * and the frame loop walks `scrollTop` towards it — see `scrollCatchUp` for
    * why the camera makes that indirection worth having.
    *
-   * Authoritative, not a shadow of `scrollTop`: the wheel is `preventDefault`ed
-   * and there is no other way to scroll this box, so nothing else moves it.
+   * Authoritative, but **not the only thing that can move the box**. The wheel
+   * is `preventDefault`ed, so on a desktop nothing else does — which is what
+   * this used to say outright, and it was wrong on a phone: a finger scrolls
+   * this box natively, the browser writes `scrollTop` itself, and the frame
+   * loop then walked it straight back. The column could not be scrolled on a
+   * touch screen at all, and the failure was silent in the worst way — the
+   * text simply refused to move. `handleScroll` now adopts a position this
+   * component did not write (see `writtenTopRef`), which is what lets one
+   * finger, two fingers and the browser's own momentum all drive it.
    */
   const scrollTargetRef = useRef(0);
+
+  /**
+   * The last `scrollTop` the frame loop wrote, to tell "we moved it" from
+   * "the reader moved it" when a scroll event arrives.
+   *
+   * A scroll event says nothing about who caused it, and both causes are
+   * live here every frame. Comparing against what we last wrote is the only
+   * honest test; a flag set around the write would have to survive the event
+   * arriving a frame later.
+   */
+  const writtenTopRef = useRef(0);
 
   /**
    * The column's own measurements — the three numbers every frame needs, none
@@ -210,6 +228,10 @@ export default function About({ onFinish }: Props) {
         // Sub-pixel steps are rounded away by `scrollTop` anyway; skipping them
         // keeps a settled column from writing to it sixty times a second.
         if (Math.abs(catchUp) >= 0.01) element.scrollTop += catchUp;
+        // Recorded whether or not anything was written: a frame that skipped
+        // the write still leaves the box where the last one put it, and the
+        // comparison in `handleScroll` is against that.
+        writtenTopRef.current = element.scrollTop;
       }
       lastTime = now;
       frameId = requestAnimationFrame(tick);
@@ -227,6 +249,19 @@ export default function About({ onFinish }: Props) {
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     if (finished.current) return;
     const el = event.currentTarget;
+
+    // **A finger, not the frame loop.** The browser scrolls this box itself on
+    // a touch screen — one finger, two fingers, and the momentum after either
+    // — and none of that goes through the wheel handler. Adopting the
+    // position it landed on makes the reader's drag the new target, instead of
+    // the catch-up dragging the text back next frame (which is exactly what a
+    // phone did before this: the column would not move at all). The tolerance
+    // is a pixel because `scrollTop` is fractional on a scaled display.
+    if (Math.abs(el.scrollTop - writtenTopRef.current) > 1) {
+      scrollTargetRef.current = clampScroll(el.scrollTop);
+    }
+    writtenTopRef.current = el.scrollTop;
+
     const progress = aboutScrollProgress(el.scrollTop, metricsRef.current.proseBottom);
     // Before the finish check, not after: the event that ends the column is
     // also the one that has to leave the camera home, and returning early

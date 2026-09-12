@@ -87,13 +87,25 @@ export function isRailTap(dx: number, dy: number): boolean {
 /**
  * How far a neighbour sits from the middle, as a share of one card's width.
  *
- * Under 1, so the neighbours overlap the middle card's edges rather than
- * sitting clear of them: at 390px a card is 78vw ≈ 304px, and two clear
- * neighbours would need 912px of rail. Overlapping puts a readable sliver of
- * each on screen — enough to say "there is one either way" — inside the
- * width there actually is.
+ * Over 1, so a neighbour sits *clear* of the middle card with a gap rather
+ * than overlapping its edges.
+ *
+ * Derived from the reference lineup by what it leaves *visible*, not by its
+ * gap, because the reference's card is a wider share of its screen than this
+ * one (85% against 78%) and copying the gap across would not copy the look.
+ * There, a neighbour shows 35.5 against a screen of 780 — 4.6%, so 18px at
+ * 390px — which is inside the card's own 16px padding, and that is why only
+ * blank card edge shows and never a letter. Working back: the card is 304px
+ * at 390px, so the gap is 43 − 18 = 25px, and 25/304 puts the neighbour at
+ * 1.082 of a card's width.
+ *
+ * An earlier 0.84 overlapped them on the reasoning that two clear neighbours
+ * need three cards' worth of rail and there are only 390px. True, and beside
+ * the point: the overlap was buying a *readable* sliver nobody had asked
+ * for, at the cost of the middle card's edges being under another card's
+ * text.
  */
-export const RAIL_NEIGHBOUR_SHARE = 0.84;
+export const RAIL_NEIGHBOUR_SHARE = 1.082;
 
 /** Where a card in `slot` sits, in px, given one card's width. */
 export function railOffsetPx(slot: RailSlot, cardWidth: number): number {
