@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Globe, Pause, Play, Menu, X } from "lucide-react";
 import type { SectionType } from "@/types";
 import { NAV } from "./nav";
@@ -19,6 +18,10 @@ type Props = {
   /** True while the white detail sheet covers the canvas — see the logo below. */
   onLightBackground: boolean;
   onClose?: () => void;
+  /** Phone-sized touch screen: a different set of controls entirely. */
+  handheld: boolean;
+  /** Opens the full-screen panel. Owned by `Hub`, which renders the panel. */
+  onMenuOpen: () => void;
 };
 
 export default function HubHeader({
@@ -33,9 +36,9 @@ export default function HubHeader({
   onZoomSelect,
   onLightBackground,
   onClose,
+  handheld,
+  onMenuOpen,
 }: Props) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
   return (
     <header className="flex justify-between items-center sm:items-start w-full gap-3 sm:gap-6 relative">
       {/*
@@ -98,54 +101,48 @@ export default function HubHeader({
         </span>
       </button>
 
-      {/* Nav + language + actions */}
+      {/*
+       * Right-hand controls.
+       *
+       * A phone gets two of them, in this order: language, then the menu.
+       * The pause button and the zoom control are gone there — a tap on
+       * empty sky freezes the town (`useTapGesture`) and a two-finger pinch
+       * moves between the orbit's two altitudes, so both buttons were
+       * duplicating a gesture while taking up a third of the header. The
+       * closest zoom stage, which the pinch does not reach, is what tapping
+       * an area's marker has always done.
+       */}
       <div className="flex items-center gap-2 sm:gap-3 md:gap-4 relative">
-        {/* Desktop navigation */}
-        <nav className="hidden lg:flex gap-1.5 pointer-events-auto bg-white px-2 py-2 rounded-full border border-black/5 shadow-sm">
-          {NAV.map((item) => (
+        {!handheld && (
+          <>
+            {/* Desktop navigation */}
+            <nav className="hidden lg:flex gap-1.5 pointer-events-auto bg-white px-2 py-2 rounded-full border border-black/5 shadow-sm">
+              {NAV.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => onNavClick(item.id)}
+                  className={`px-4 py-2 rounded-full text-base font-bold transition-all duration-200 ${activeSection === item.id
+                      ? "bg-orange-600 text-white shadow-sm"
+                      : "text-gray-700 hover:text-orange-600 hover:bg-orange-50/80"
+                    }`}
+                >
+                  {isJa ? item.ja : item.en}
+                </button>
+              ))}
+            </nav>
+
+            {/* Narrow window, mouse: the same panel a phone gets, since the
+                navigation above has nowhere to sit. */}
             <button
-              key={item.id}
-              onClick={() => onNavClick(item.id)}
-              className={`px-4 py-2 rounded-full text-base font-bold transition-all duration-200 ${activeSection === item.id
-                  ? "bg-orange-600 text-white shadow-sm"
-                  : "text-gray-700 hover:text-orange-600 hover:bg-orange-50/80"
-                }`}
+              onClick={onMenuOpen}
+              title={isJa ? "セクション一覧" : "Menu"}
+              aria-haspopup="dialog"
+              aria-label={isJa ? "セクション一覧" : "Menu"}
+              className="lg:hidden w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 border border-black/5 pointer-events-auto shadow-sm bg-white text-gray-800"
             >
-              {isJa ? item.ja : item.en}
+              <Menu size={18} />
             </button>
-          ))}
-        </nav>
-
-        {/* Mobile menu toggle */}
-        <button
-          onClick={() => setMobileMenuOpen((o) => !o)}
-          title={isJa ? "セクション一覧" : "Menu"}
-          aria-expanded={mobileMenuOpen}
-          aria-label={isJa ? "セクション一覧" : "Menu"}
-          className="lg:hidden w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 border border-black/5 pointer-events-auto shadow-sm bg-white text-gray-800"
-        >
-          {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
-        </button>
-
-        {/* Mobile dropdown menu */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden absolute top-full right-0 mt-3 p-2 bg-white rounded-2xl border border-black/10 shadow-xl flex flex-col gap-1 min-w-[190px] pointer-events-auto z-50 animate-[fadeIn_0.2s_ease]">
-            {NAV.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  onNavClick(item.id);
-                  setMobileMenuOpen(false);
-                }}
-                className={`px-4 py-2.5 rounded-xl text-left font-bold text-sm transition-colors ${activeSection === item.id
-                    ? "bg-orange-600 text-white shadow-sm"
-                    : "text-gray-700 hover:bg-orange-50 hover:text-orange-600"
-                  }`}
-              >
-                {isJa ? item.ja : item.en}
-              </button>
-            ))}
-          </div>
+          </>
         )}
 
         <button
@@ -158,35 +155,71 @@ export default function HubHeader({
           <span className="text-xs sm:text-sm font-black w-5 sm:w-6">{isJa ? "JP" : "EN"}</span>
         </button>
 
-        {/* Freeze the town */}
-        <button
-          onClick={togglePaused}
-          title={paused ? (isJa ? "動きを再生" : "Resume motion") : (isJa ? "動きを停止" : "Pause motion")}
-          aria-label={paused ? (isJa ? "動きを再生" : "Resume motion") : (isJa ? "動きを停止" : "Pause motion")}
-          aria-pressed={paused}
-          className={`w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 border border-black/5 shadow-sm pointer-events-auto ${paused ? "bg-orange-600 text-white" : "bg-white text-gray-800"
-            }`}
-        >
-          {paused ? (
-            <Play className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" />
-          ) : (
-            <Pause className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" />
-          )}
-        </button>
+        {!handheld && (
+          <>
+            {/* Freeze the town */}
+            <button
+              onClick={togglePaused}
+              title={paused ? (isJa ? "動きを再生" : "Resume motion") : (isJa ? "動きを停止" : "Pause motion")}
+              aria-label={paused ? (isJa ? "動きを再生" : "Resume motion") : (isJa ? "動きを停止" : "Pause motion")}
+              aria-pressed={paused}
+              className={`w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 border border-black/5 shadow-sm pointer-events-auto ${paused ? "bg-orange-600 text-white" : "bg-white text-gray-800"
+                }`}
+            >
+              {paused ? (
+                <Play className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" />
+              ) : (
+                <Pause className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" />
+              )}
+            </button>
 
-        {onLightBackground ? (
-          <button
-            onClick={onClose}
-            title={isJa ? "閉じる" : "Close"}
-            aria-label={isJa ? "閉じる" : "Close"}
-            className="h-11 px-3.5 sm:h-12 sm:px-4 md:h-14 md:px-5 rounded-full flex items-center gap-1.5 sm:gap-2 bg-[#ea580c] hover:bg-[#c2410c] text-white font-bold text-xs sm:text-sm shadow-md transition-all hover:scale-105 active:scale-95 pointer-events-auto cursor-pointer"
-          >
-            <X size={18} />
-            <span className="hidden sm:inline">{isJa ? "閉じる" : "Close"}</span>
-          </button>
-        ) : (
-          <ZoomControl isJa={isJa} stage={zoomStage} onSelect={onZoomSelect} />
+            {onLightBackground ? (
+              <button
+                onClick={onClose}
+                title={isJa ? "閉じる" : "Close"}
+                aria-label={isJa ? "閉じる" : "Close"}
+                className="h-11 px-3.5 sm:h-12 sm:px-4 md:h-14 md:px-5 rounded-full flex items-center gap-1.5 sm:gap-2 bg-[#ea580c] hover:bg-[#c2410c] text-white font-bold text-xs sm:text-sm shadow-md transition-all hover:scale-105 active:scale-95 pointer-events-auto cursor-pointer"
+              >
+                <X size={18} />
+                <span className="hidden sm:inline">{isJa ? "閉じる" : "Close"}</span>
+              </button>
+            ) : (
+              <ZoomControl isJa={isJa} stage={zoomStage} onSelect={onZoomSelect} />
+            )}
+          </>
         )}
+
+        {/*
+         * The phone's last slot, shared by two buttons that swap places.
+         *
+         * While the detail sheet is up it closes the sheet; otherwise it
+         * opens the menu. One slot rather than two because the two are never
+         * both useful: navigating somewhere else while reading means leaving
+         * what you are reading, which is what closing does first anyway —
+         * and a second round button beside this one is a third of the header
+         * spent saying so.
+         */}
+        {handheld &&
+          (onLightBackground ? (
+            <button
+              onClick={onClose}
+              title={isJa ? "閉じる" : "Close"}
+              aria-label={isJa ? "閉じる" : "Close"}
+              className="w-11 h-11 rounded-full flex items-center justify-center bg-[#ea580c] text-white shadow-md active:scale-95 transition-transform pointer-events-auto"
+            >
+              <X size={20} />
+            </button>
+          ) : (
+            <button
+              onClick={onMenuOpen}
+              title={isJa ? "セクション一覧" : "Menu"}
+              aria-haspopup="dialog"
+              aria-label={isJa ? "セクション一覧" : "Menu"}
+              className="w-11 h-11 rounded-full flex items-center justify-center bg-white text-gray-800 border border-black/5 shadow-sm active:scale-95 transition-transform pointer-events-auto"
+            >
+              <Menu size={20} />
+            </button>
+          ))}
       </div>
     </header>
   );

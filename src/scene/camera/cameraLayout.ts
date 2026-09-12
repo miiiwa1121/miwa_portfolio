@@ -136,6 +136,82 @@ export const NEAR_ORBIT_RADIUS = 50;
  */
 export const NEAR_VERTICAL_SHARE = 0.636;
 
+/**
+ * Where the card rail's top edge sits on a phone, in px from the top of a
+ * 390x844 frame — the size this layout was designed and measured against.
+ *
+ * Measured from the laid-out DOM rather than added up from the pieces: 664,
+ * the top of the card in the middle. **Not the two beside it**, which report
+ * 671 — they are scaled to 0.9 and so sit 7px lower than the box they are
+ * laid out in, and `querySelector` returns one of them first.
+ *
+ * Not the HOME button above them either. That only exists while a section is
+ * focused, which is exactly when the trail is hidden anyway
+ * (`CardLeaderLine`'s own `hidden` prop), so it never covers a marker the
+ * trail is pointing at.
+ */
+export const HANDHELD_RAIL_TOP_PX = 664;
+
+/**
+ * `NEAR_VERTICAL_SHARE`'s replacement on a phone — the same downward lean,
+ * but a much smaller one.
+ *
+ * **The lean exists to put the horizon in frame, not to place a disc.** At
+ * the "near" altitude the planet is not a circle on the screen; it fills it.
+ * Measured at 390x844, the sky/ground boundary moves linearly with the share:
+ *
+ *     horizon_y ≈ 25 + 470·share  (px from the top of the frame)
+ *
+ * so 0 leaves 25px of sky and the desktop's 0.636 leaves 324. Without some
+ * lean a phone sees nothing but ground, which is what the first attempt at
+ * this constant produced — it was derived from "centre the planet's disc in
+ * the band the chrome leaves", and at this altitude there is no disc to
+ * centre.
+ *
+ * **What caps it is the marker, not the composition.** The area the card
+ * describes is not the middle of the view: it is the nearest of five anchors,
+ * and it wanders as the tour advances. Leaning pushes it towards the bottom
+ * of the frame — where, on a phone, the card rail now is — and with it goes
+ * the dotted trail from the rail's arrow. Measured over one full lap of the
+ * tour, 20 samples, starting from the tour's own u = 0 (the logo's reset), at
+ * 390x844 against a rail top of `HANDHELD_RAIL_TOP_PX`:
+ *
+ * | share | samples hidden behind the rail | worst marker y | sky   |
+ * | ----- | ------------------------------ | -------------- | ----- |
+ * | 0.15  | 1 / 20                         | 710            | 95px  |
+ * | 0.20  | 3 / 20                         | 744            | 119px |
+ * | 0.25  | 11 / 20                        | 793            | 142px |
+ * | 0.30  | 19 / 20                        | 817            | 166px |
+ *
+ * 0.20 is the knee: two extra hidden samples over 0.15 buys 24px more sky,
+ * and the step after it costs eight more. Everything past that buys a
+ * thicker sky by hiding the trail for most of the lap.
+ *
+ * (Two earlier versions of this table charged the wrong edge — 648, the
+ * footprint of a control that only exists when the trail is already hidden,
+ * and then 671, a neighbouring card's scaled box. Both are the same mistake:
+ * measuring against something other than where the middle card's own top
+ * edge is. See `HANDHELD_RAIL_TOP_PX`.)
+ *
+ * This is the same trade `NEAR_VERTICAL_SHARE` documents and resolves
+ * the other way — the desktop chose the composition and gave up the trail
+ * (16 of 20 off-frame at 0.636) — and it is resolved differently here only
+ * because a phone's frame is a different shape with a different obstruction
+ * in it, not because the desktop's answer was wrong.
+ *
+ * **This is not a re-tuning of `NEAR_VERTICAL_SHARE` and must not become
+ * one.** That constant is derived from `reference/image7.png`, a mockup drawn
+ * over a screenshot of this site's own chrome on a desktop — a 16:9 frame
+ * with no rail along the bottom. It says nothing about a 0.46-aspect frame
+ * that has one. See docs/scene-invariants.md.
+ */
+export const HANDHELD_VERTICAL_SHARE = 0.2;
+
+/** The downward lean for the "near" altitude — gentler on a phone. */
+export function nearVerticalShare(handheld: boolean): number {
+  return handheld ? HANDHELD_VERTICAL_SHARE : NEAR_VERTICAL_SHARE;
+}
+
 /** `ORBIT_RADIUS` or `NEAR_ORBIT_RADIUS`, whichever `zoom` names. */
 export function orbitRadiusForZoom(zoom: OrbitZoom): number {
   return zoom === "far" ? ORBIT_RADIUS : NEAR_ORBIT_RADIUS;
@@ -275,6 +351,31 @@ export const CARD_SHARE = 0.3;
  * it is a whole page rather than a small card.
  */
 export const ABOUT_CARD_SHARE = 0.42;
+
+/**
+ * The share of the frame's width to give up to the card, for the free orbit
+ * and for a focused section — zero on a phone.
+ *
+ * Same single mechanism as ever (`focalOffsetX`, one rule for every regime);
+ * only the number changes. On a phone the card is a strip across the bottom
+ * rather than a panel on the left, so there is nothing beside the subject to
+ * aim past: pushing it sideways anyway would shove it towards an edge for no
+ * reason. The clearance it does need is vertical, and
+ * `HANDHELD_VERTICAL_SHARE` is where that lives.
+ *
+ * The desktop numbers assume the card takes a slice of the width. Measured at
+ * 390x844 the card was 334px of 390 — 86% — so the assumption does not
+ * survive a phone at any share; 0.3 of the width simply moved the subject
+ * from behind one part of the card to behind another.
+ */
+export function orbitCardShare(handheld: boolean): number {
+  return handheld ? 0 : ORBIT_CARD_SHARE;
+}
+
+/** The same, for a section's close-up. */
+export function sectionCardShare(handheld: boolean): number {
+  return handheld ? 0 : CARD_SHARE;
+}
 
 /**
  * How steeply About looks down — measured the same way `SECTION_TILT` is, but

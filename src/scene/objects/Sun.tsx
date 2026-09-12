@@ -17,6 +17,7 @@ import {
 import { markerScaleForScreenRadius } from "../camera/cameraLayout";
 import type { Direction } from "../planet/geometry";
 import { useAppState } from "@/state/AppStateContext";
+import { pointerClaim } from "../pointerClaim";
 
 /**
  * The sun: a light, an object in the sky, and a thing you can pick up and move.
@@ -253,6 +254,9 @@ export default function Sun({ draggingRef }: Props) {
         }}
         onPointerDown={(e) => {
           e.stopPropagation();
+          // Same reason the markers claim theirs: a press that grabs the sun
+          // is not a tap on empty sky, and must not also pause the town.
+          pointerClaim.claim(e.pointerId);
           draggingRef.current = true;
           heldRef.current = e.pointerId;
           setGrip("held");

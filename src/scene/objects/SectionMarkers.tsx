@@ -21,6 +21,7 @@ import { markerOnScreen, publishMarkerScreen } from "../camera/markerScreen";
 import { sceneClock } from "../sceneClock";
 import { useAppState } from "@/state/AppStateContext";
 import { facingNow } from "@/state/facingChannel";
+import { pointerClaim } from "../pointerClaim";
 
 /**
  * A pulsing bolt of pale blue lightning floating over each area, marking the
@@ -342,6 +343,15 @@ export default function SectionMarkers() {
             setHovered(section);
           }}
           onPointerOut={() => setHovered(null)}
+          // Claimed on the way down, not answered here: a tap on empty sky
+          // pauses the diorama, and without this a tap on a marker would both
+          // fly to the area and freeze the town on the way. `onClick` is too
+          // late to say so — it fires on the way back up, racing the window
+          // listener that is deciding what the gesture meant.
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            pointerClaim.claim(e.pointerId);
+          }}
           onClick={(e) => {
             // Same destination as clicking the building itself: the camera
             // flies in and frames the area.

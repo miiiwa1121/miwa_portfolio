@@ -49,6 +49,7 @@ npx tsc --noEmit     # 型のみ検査（テストは .tsx を1つも通らな�
 | これから触るもの | 先に読む |
 | --- | --- |
 | 3Dシーン（カメラ・惑星・マーカー・光・About のクロール） | [docs/scene-invariants.md](docs/scene-invariants.md) ← **必読**。次いで [docs/tech.md](docs/tech.md) |
+| スマホの挙動（判定・ジェスチャ・下部のカードレール） | [docs/scene-invariants.md](docs/scene-invariants.md) の「スマホ」節 ← **必読**。次いで [docs/tech.md](docs/tech.md) の「スマホは別の場面として組む」 |
 | ファイルの追加・移動・改名 | [docs/structure.md](docs/structure.md) |
 | テストの追加・変更 | [docs/testing.md](docs/testing.md) |
 | 見た目の確認・ピクセル計測 | [docs/verification.md](docs/verification.md) |
@@ -67,6 +68,7 @@ docs 全体の地図は [docs/README.md](docs/README.md)。
 - **純粋ロジックは three.js / React を介さない純関数として切り出し、テストする。** 座標計算は `scene/camera/*.ts` と `scene/planet/*.ts` へ
 - **同じ数を2箇所に持たない。** 片方だけ直る状態を作らない
 - **無言で失敗する機構を足したら、機能したことを別途テストする**
+- **スマホかどうかの判定は `src/state/useHandheld.ts` ただ1つ。** 2つ目の述語を作らない。PC 用の定数を「スマホで具合が悪い」という理由で書き換えず、スマホ用の定数を別に足す
 - **`public/` には「公開したいもの」しか置かない。** `output: 'export'` なので中身はそのまま配信される。git に残したいだけの制作物は `assets/`、試作 HTML は `docs/prototypes/` へ
 
 ## docs のルール
