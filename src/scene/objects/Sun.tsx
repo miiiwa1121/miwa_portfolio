@@ -12,12 +12,14 @@ import {
   SUN_SHADOW_NEAR,
   SUN_ORB_RADIUS,
   SUN_ORB_SCREEN_RADIUS,
+  advanceSunDirection,
   sunDirectionAlong,
 } from "../sunLight";
 import { markerScaleForScreenRadius } from "../camera/cameraLayout";
 import type { Direction } from "../planet/geometry";
 import { useAppState } from "@/state/AppStateContext";
 import { pointerClaim } from "../pointerClaim";
+import { sceneClock } from "../sceneClock";
 
 /**
  * The sun: a light, an object in the sky, and a thing you can pick up and move.
@@ -189,10 +191,20 @@ export default function Sun({ draggingRef }: Props) {
     setGrip("none");
   }, [reachable, draggingRef]);
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     const light = lightRef.current;
     const sprite = spriteRef.current;
     if (!light || !sprite) return;
+
+    // Ambient floating wander across the sphere when not held by user
+    if (heldRef.current === null) {
+      const dt = sceneClock.delta(delta);
+      if (dt > 0) {
+        const time = sceneClock.time(state.clock.elapsedTime);
+        directionRef.current = advanceSunDirection(directionRef.current, dt, time);
+      }
+    }
+
     const [x, y, z] = directionRef.current;
     light.position.set(x * SUN_DISTANCE, y * SUN_DISTANCE, z * SUN_DISTANCE);
     sprite.position.set(x * SUN_ORB_RADIUS, y * SUN_ORB_RADIUS, z * SUN_ORB_RADIUS);

@@ -655,12 +655,13 @@ export function orbitStepFraction(
   delta: number,
   maxArcPerSecond: number = Infinity
 ): number {
+  if (delta <= 0) return 0;
   const damped = 1 - Math.exp(-ORBIT_DAMP_LAMBDA * delta);
   const arc = orbitArcBetween(from, to);
   // Nowhere to go: the cap has no gap to be a fraction of, and dividing by it
   // would hand back NaN — which `setLookAt` would take without complaint and
   // paint as nothing at all.
-  if (arc <= 0) return damped;
+  if (arc <= 0 || !Number.isFinite(maxArcPerSecond)) return damped;
   return Math.min(damped, (maxArcPerSecond * delta) / arc);
 }
 

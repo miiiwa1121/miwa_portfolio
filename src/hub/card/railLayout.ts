@@ -10,8 +10,8 @@ import { adjacentOnTour, TOUR_ORDER } from "@/scene/planet/tour";
  * being a tap, and both are worth pinning down without a browser.
  */
 
-/** Where a card sits on the rail: the one being described, or either side. */
-export type RailSlot = -1 | 0 | 1;
+/** Where a card sits on the rail: the one being described, or neighbours. */
+export type RailSlot = -2 | -1 | 0 | 1 | 2;
 
 export type RailCard = { section: NonNullable<SectionType>; slot: RailSlot };
 

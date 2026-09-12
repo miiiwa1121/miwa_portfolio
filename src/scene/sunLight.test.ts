@@ -6,6 +6,7 @@ import {
   SUN_SHADOW_FAR,
   SUN_SHADOW_NEAR,
   SUN_ORB_RADIUS,
+  advanceSunDirection,
   sunDirectionAlong,
   incidence,
   sunPosition,
@@ -179,5 +180,29 @@ describe("the visible sun", () => {
   it("clears everything standing on the planet", () => {
     // Otherwise it would pass through the city rather than over it.
     expect(SUN_ORB_RADIUS).toBeGreaterThanOrEqual(SCENE_BOUNDING_RADIUS);
+  });
+});
+
+describe("sun ambient wandering (advanceSunDirection)", () => {
+  it("does not move when dt is 0 (paused)", () => {
+    const current = SUN_DIRECTION;
+    const next = advanceSunDirection(current, 0, 10);
+    expect(next).toBe(current);
+  });
+
+  it("preserves unit length on the sphere as it wanders", () => {
+    let dir = SUN_DIRECTION;
+    for (let t = 0; t < 100; t += 0.5) {
+      dir = advanceSunDirection(dir, 0.5, t);
+      expect(Math.hypot(...dir)).toBeCloseTo(1, 10);
+    }
+  });
+
+  it("smoothly moves the direction when dt > 0", () => {
+    const start = SUN_DIRECTION;
+    const next = advanceSunDirection(start, 1, 0);
+    expect(next).not.toEqual(start);
+    expect(angleBetween(start, next)).toBeGreaterThan(0);
+    expect(angleBetween(start, next)).toBeLessThan(0.1);
   });
 });

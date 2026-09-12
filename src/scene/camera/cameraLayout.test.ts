@@ -659,6 +659,14 @@ describe("orbitStepFraction — how much of the gap one frame closes", () => {
     const still = { azimuth: 0.4, polar: 1.1 };
     expect(orbitStepFraction(still, still, frame, ORBIT_RETURN_SPEED)).toBeGreaterThan(0);
   });
+
+  it("returns zero and never NaN when paused or delta is non-positive", () => {
+    const { from, to } = gapOf(1.0);
+    expect(orbitStepFraction(from, to, 0)).toBe(0);
+    expect(orbitStepFraction(from, to, 0, ORBIT_RETURN_SPEED)).toBe(0);
+    expect(orbitStepFraction(from, to, -0.01)).toBe(0);
+    expect(Number.isNaN(orbitStepFraction(from, to, 0))).toBe(false);
+  });
 });
 
 describe("drifting back onto the tour path after a drag", () => {

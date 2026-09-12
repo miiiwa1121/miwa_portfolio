@@ -1,7 +1,7 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
-import { motion, AnimatePresence, animate, useMotionValue } from "framer-motion";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { motion, animate, useMotionValue } from "framer-motion";
 import { CARD_COPY } from "./cardCopy";
 import HomeButton from "../HomeButton";
 import {
@@ -16,42 +16,16 @@ import {
 import { useStepGate } from "./useStepGate";
 import { MARKER_TRAIL_INK } from "@/scene/markerBolt";
 import { useFacing } from "@/state/facingChannel";
+import { adjacentOnTour } from "@/scene/planet/tour";
 import type { SectionType } from "@/types";
 
 /**
  * The handheld version of the contextual card: a strip along the bottom of
  * the screen that you slide sideways to fly around the planet.
- *
- * The desktop card is a stack in the middle of the frame, stepped with a
- * wheel or a vertical swipe. Neither half of that survives a phone. The stack
- * sat where the planet is, and at 390px a card is 86% of the width — measured
- * — so "the camera aims past the card" (`CARD_SHARE`) had nothing left to aim
- * into and the framed building stayed behind it. And a vertical swipe is the
- * same gesture that tips the diorama, so the card had to claim it from the
- * scene on a screen where the scene is the whole background.
- *
- * Moving it to the bottom and turning the gesture sideways settles both: the
- * top of the frame is free for the planet (see `HANDHELD_VERTICAL_SHARE` in
- * cameraLayout), and a horizontal drag is a gesture the diorama does not
- * otherwise want at the bottom edge.
- *
- * **Still one-way.** A drag asks `onStep` for a step along the tour; the
- * camera turns; the area it ends up facing comes back down through `facing`
- * and moves the strip. Nothing here writes a position the camera then reads —
- * see docs/scene-invariants.md, "カードとカメラを相互に更新しない". That is
- * also why this is a three-card window animated between discrete positions
- * rather than a native scroll container: a scroller's position *is* state,
- * and having the camera chase it would close exactly that loop.
  */
 
 /**
  * The strip's fixed height, in px — content box, before the rail's padding.
- *
- * Fixed rather than grown from the copy, because all three cards are
- * absolutely positioned (the middle one has to be able to slide out from
- * under the two beside it) and so none of them can give the strip a height.
- * 132 is what the simplified card needs at 390px: the eyebrow, one line of
- * title, and two lines of description clamped.
  */
 const CARD_HEIGHT = 132;
 
@@ -74,6 +48,30 @@ type Props = {
   onHome: () => void;
 };
 
+/** Returns the set of cards to render given the active section and swipe slide step. */
+function railCardsForStep(
+  active: NonNullable<SectionType>,
+  slideStep: number
+): { section: NonNullable<SectionType>; slot: RailSlot }[] {
+  if (slideStep > 0) {
+    return [
+      { section: adjacentOnTour(active, -1), slot: -1 },
+      { section: active, slot: 0 },
+      { section: adjacentOnTour(active, 1), slot: 1 },
+      { section: adjacentOnTour(active, 2), slot: 2 },
+    ];
+  }
+  if (slideStep < 0) {
+    return [
+      { section: adjacentOnTour(active, -2), slot: -2 },
+      { section: adjacentOnTour(active, -1), slot: -1 },
+      { section: active, slot: 0 },
+      { section: adjacentOnTour(active, 1), slot: 1 },
+    ];
+  }
+  return railWindow(active);
+}
+
 export default function CardRail({
   focusedSection,
   isJa,
@@ -82,18 +80,24 @@ export default function CardRail({
   onStep,
   onHome,
 }: Props) {
-  // Subscribed here, not handed down: `Hub` sits above the `<Canvas>`, and
-  // re-rendering it re-renders the whole three.js tree (see `facingChannel`).
   const facing = useFacing();
   const section = focusedSection ?? facing;
   const focused = !!focusedSection;
   const browsable = !focused;
 
-  const { takeStep, lastStep } = useStepGate({ section, browsable, onStep });
+  const { takeStep } = useStepGate({ section, browsable, onStep });
 
-  // One card's width in px, measured rather than restated: the card is sized
-  // in `vw` with a cap, so the only honest source for "how far along is a
-  // neighbour" is the box the browser actually laid out.
+  // The active section currently displayed in slot 0 on the rail.
+  const [activeSection, setActiveSection] = useState(section);
+  const activeSectionRef = useRef(activeSection);
+  activeSectionRef.current = activeSection;
+
+  // True while a release or external step animation is in flight.
+  const isAnimating = useRef(false);
+
+  // Direction of the active slide (+1: advancing/left, -1: back/right, 0: at rest).
+  const [slideStep, setSlideStep] = useState(0);
+
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [cardWidth, setCardWidth] = useState(0);
 
@@ -107,90 +111,116 @@ export default function CardRail({
     return () => observer.disconnect();
   }, []);
 
-  // Where the gesture began. A ref, not state: nothing renders from it, and a
-  // setState per pointermove would re-render the strip sixty times a drag.
   const dragStart = useRef<{ x: number; y: number } | null>(null);
-
-  // How far the strip has been dragged from its resting slots, live. A motion
-  // value rather than state for the same reason `dragStart` is a ref — it is
-  // written on every pointermove — but unlike a ref it can be handed straight
-  // to a `motion.div`'s `style`, which repaints it without going through React
-  // at all.
   const dragX = useMotionValue(0);
 
+  // Sync external section changes (e.g. idle planet orbit or HOME button).
+  useEffect(() => {
+    if (isAnimating.current) return;
+    if (section === activeSectionRef.current) return;
+
+    if (focused || cardWidth === 0) {
+      setActiveSection(section);
+      dragX.set(0);
+      setSlideStep(0);
+      return;
+    }
+
+    const forwardNext = adjacentOnTour(activeSectionRef.current, 1);
+    const step = forwardNext === section ? 1 : -1;
+    const targetOffset = -step * cardWidth * RAIL_NEIGHBOUR_SHARE;
+
+    isAnimating.current = true;
+    setSlideStep(step);
+
+    animate(dragX, targetOffset, {
+      ...RAIL_SPRING,
+      onComplete: () => {
+        setActiveSection(section);
+        dragX.set(0);
+        setSlideStep(0);
+        isAnimating.current = false;
+      },
+    });
+  }, [section, focused, cardWidth, dragX]);
+
   const onPointerDown = (event: React.PointerEvent) => {
-    // A press that landed on a control inside the strip belongs to that
-    // control, not to the strip.
-    //
-    // These handlers sit on the rail's root and so see everything inside it
-    // by bubbling — including the HOME button above the card. Without this,
-    // pressing HOME travelled less than the tap slop, read as "tapped the
-    // card", and opened the detail page on the way out of the area the
-    // button was asking to leave.
-    //
-    // Asked of the DOM rather than tracked per-control, so anything added to
-    // the strip later is exempt without having to remember this. The scene's
-    // own `isInteractive` does the same walk for the same reason; it cannot
-    // be reused here because it also matches `[data-ui]`, which is the rail
-    // itself.
     if ((event.target as HTMLElement | null)?.closest?.("button, a")) return;
+    if (isAnimating.current) return;
     dragStart.current = { x: event.clientX, y: event.clientY };
     dragX.set(0);
+    setSlideStep(0);
   };
 
-  // Moves the strip with the finger while a drag is in flight. Mirrors
-  // `stepForRailDrag`'s own read of the gesture — vertical dominance gets
-  // nothing, not just no step, or a swipe meant for the diorama would drag
-  // the rail sideways on its way there. Clamped to one neighbour's offset:
-  // past that there is no fourth card to reveal, only the edge of the loaded
-  // window, so further travel would show empty space rather than more strip.
   const onPointerMove = (event: React.PointerEvent) => {
     const from = dragStart.current;
-    if (!from) return;
+    if (!from || isAnimating.current) return;
     const dx = event.clientX - from.x;
     const dy = event.clientY - from.y;
     if (Math.abs(dx) <= Math.abs(dy)) {
       dragX.set(0);
+      setSlideStep(0);
       return;
     }
     const maxDrag = cardWidth * RAIL_NEIGHBOUR_SHARE;
-    dragX.set(Math.max(-maxDrag, Math.min(maxDrag, dx)));
+    const clampedDx = Math.max(-maxDrag, Math.min(maxDrag, dx));
+    dragX.set(clampedDx);
+    setSlideStep(clampedDx < 0 ? 1 : clampedDx > 0 ? -1 : 0);
   };
 
   const onPointerUp = (event: React.PointerEvent) => {
     const from = dragStart.current;
     dragStart.current = null;
-    if (!from) return;
-    animate(dragX, 0, RAIL_SPRING);
+    if (!from || isAnimating.current) return;
 
     const dx = event.clientX - from.x;
     const dy = event.clientY - from.y;
 
     if (isRailTap(dx, dy)) {
+      animate(dragX, 0, RAIL_SPRING);
+      setSlideStep(0);
       onOpen();
       return;
     }
+
     const step = stepForRailDrag(dx, dy);
-    if (step !== 0) takeStep(step);
+    if (step === 0 || !browsable || cardWidth === 0) {
+      setSlideStep(0);
+      animate(dragX, 0, RAIL_SPRING);
+      return;
+    }
+
+    const targetOffset = -step * cardWidth * RAIL_NEIGHBOUR_SHARE;
+    const nextSection = adjacentOnTour(activeSectionRef.current, step);
+
+    isAnimating.current = true;
+    setSlideStep(step);
+    takeStep(step);
+
+    animate(dragX, targetOffset, {
+      ...RAIL_SPRING,
+      onComplete: () => {
+        setActiveSection(nextSection);
+        dragX.set(0);
+        setSlideStep(0);
+        isAnimating.current = false;
+      },
+    });
   };
 
-  // A pointer leaving the element mid-drag ends the gesture rather than
-  // leaving `dragStart` armed for a later, unrelated pointerup — and eases
-  // the strip back the same way a released drag does, so an interrupted
-  // gesture doesn't leave the card stranded off its resting slot.
   const onPointerCancel = () => {
-    dragStart.current = null;
-    animate(dragX, 0, RAIL_SPRING);
+    if (dragStart.current && !isAnimating.current) {
+      dragStart.current = null;
+      animate(dragX, 0, RAIL_SPRING);
+      setSlideStep(0);
+    }
   };
 
-  const cards = railWindow(section);
-  const activeIndex = RAIL_ORDER.indexOf(section);
+  const cards = railCardsForStep(activeSection, slideStep);
+  const activeIndex = RAIL_ORDER.indexOf(activeSection);
 
   return (
     <div
-      // `data-ui` is what keeps the scene's own drag handler off this strip —
-      // see `isInteractive` in Scene.tsx. `touch-none` stops the browser
-      // claiming the horizontal drag as a scroll before these handlers see it.
       data-ui
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -198,44 +228,23 @@ export default function CardRail({
       onPointerCancel={onPointerCancel}
       className="pointer-events-auto select-none touch-none w-full"
     >
-      {/* The frame is exactly one card wide and centred; everything below is
-          positioned against it, including the arrow, which hangs off its
-          top-right corner — outside the card, in the rail's own stable
-          markup. The anchor for the leader line must not live inside a card,
-          which AnimatePresence rebuilds on every step (the exiting card's ref
-          callback fires with null afterwards and freezes the trail mid-draw).
-          See docs/scene-invariants.md, "マーカー・点線・カード". */}
       <div
         ref={frameRef}
         className="relative mx-auto w-[min(78vw,20rem)]"
         style={{ height: CARD_HEIGHT }}
       >
-        {/* A pure transform layer: it carries the live drag offset, on top of
-            which each card's own slot animation still runs. Sized exactly to
-            the frame — `inset-0` on a `motion.div` with a bound `x` is a
-            containing block for its own absolutely-positioned children, so
-            without an explicit box here the cards inside would size against
-            this layer instead of the frame and collapse to nothing. */}
         <motion.div style={{ x: dragX }} className="absolute inset-0">
-          <AnimatePresence initial={false} custom={lastStep}>
-            {cards.map(({ section: key, slot }) => (
-              <RailCardFace
-                key={key}
-                section={key}
-                slot={slot}
-                isJa={isJa}
-                cardWidth={cardWidth}
-                lastStep={lastStep}
-              />
-            ))}
-          </AnimatePresence>
+          {cards.map(({ section: key, slot }) => (
+            <RailCardFace
+              key={key}
+              section={key}
+              slot={slot}
+              isJa={isJa}
+              cardWidth={cardWidth}
+            />
+          ))}
         </motion.div>
 
-        {/* Where the trail leaves the rail. An element of its own rather
-            than a corner of the card: the card is rebuilt by AnimatePresence
-            on every step, and a ref living inside one comes back null from
-            the exiting copy and freezes the trail mid-draw (see
-            docs/scene-invariants.md, "マーカー・点線・カード"). */}
         <span
           ref={anchorRef}
           aria-hidden="true"
@@ -243,30 +252,11 @@ export default function CardRail({
           className="absolute -top-1 right-3 w-[9px] h-[9px] rounded-full"
         />
 
-        {/* The way out.
-         *
-         * The desktop keeps this at the bottom of the frame; on a phone the
-         * bottom of the frame is the rail, so it sits just above the card
-         * instead — centred on the screen, which is also where a thumb
-         * already is.
-         *
-         * Absolutely positioned, deliberately: in the flow it would push the
-         * card down every time an area was focused and pull it back up on
-         * the way out, so the rail would jump by the button's own height on
-         * a transition that is otherwise a slide.
-         *
-         * Not an obstruction for the camera's sake, despite sitting over the
-         * diorama: it only exists while an area is focused, and the dotted
-         * trail hides itself then anyway (`CardLeaderLine`'s `hidden`). See
-         * `HANDHELD_RAIL_TOP_PX`.
-         */}
         {focused && (
           <HomeButton onClick={onHome} className="absolute -top-16 left-1/2 -translate-x-1/2" />
         )}
       </div>
 
-      {/* How many there are and where you are among them. The peeking
-          neighbours say "there is one either way"; only this says "five". */}
       <div className="flex justify-center gap-1.5 pt-3.5" aria-hidden="true">
         {RAIL_ORDER.map((key, i) => (
           <span
@@ -282,61 +272,29 @@ export default function CardRail({
 }
 
 /**
- * One card on the strip.
- *
- * Split out so the slot-driven animation is stated once. The middle card and
- * the two peeking either side differ only in where they sit, how big they are
- * and how faded — a step simply changes which slot each one is in, and
- * framer-motion slides them between the two.
+ * One card on the strip, positioned at its slot offset.
  */
 function RailCardFace({
   section,
   slot,
   isJa,
   cardWidth,
-  lastStep,
 }: {
   section: NonNullable<SectionType>;
   slot: RailSlot;
   isJa: boolean;
   cardWidth: number;
-  lastStep: number;
 }) {
   const copy = CARD_COPY[section];
   const middle = slot === 0;
 
   return (
-    <motion.div
-      custom={lastStep}
-      // A card arriving comes from one slot further out than it lands, on the
-      // side the step came from — so a drag leftwards brings it in from the
-      // right, the direction the thumb was travelling.
-      initial={{
-        x: railOffsetPx(lastStep > 0 ? 1 : -1, cardWidth) * 2,
-        scale: 0.88,
-        opacity: 0,
+    <div
+      style={{
+        transform: `translateX(${railOffsetPx(slot, cardWidth)}px)`,
+        zIndex: middle ? 10 : 0,
       }}
-      // Same size and same white as the middle one. They used to be shrunk
-      // and faded to mark which card was being described, which the gap and
-      // the dots now both say — and a scaled neighbour also sits 7px lower
-      // than the frame, which is the sort of thing the rail's top edge gets
-      // measured against by mistake.
-      animate={{
-        x: railOffsetPx(slot, cardWidth),
-        scale: 1,
-        opacity: 1,
-      }}
-      exit={{
-        x: railOffsetPx(lastStep > 0 ? -1 : 1, cardWidth) * 2,
-        scale: 0.88,
-        opacity: 0,
-      }}
-      transition={RAIL_SPRING}
-      style={{ zIndex: middle ? 10 : 0 }}
-      className="absolute inset-0 rounded-xl bg-white border border-black/10 shadow-md shadow-black/10 p-4 flex flex-col"
-      // Only the middle card is being described; the two beside it are a
-      // preview, and a screen reader announcing all three would say the
-      // camera is facing three places at once.
+      className="absolute inset-0 rounded-xl bg-white border border-black/10 shadow-md shadow-black/10 p-4 flex flex-col pointer-events-none select-none"
       aria-hidden={!middle}
     >
       <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-700 shrink-0">
@@ -348,6 +306,6 @@ function RailCardFace({
       <p className="text-[13px] leading-snug text-gray-600 mt-1.5 line-clamp-2">
         {isJa ? copy.ja : copy.en}
       </p>
-    </motion.div>
+    </div>
   );
 }

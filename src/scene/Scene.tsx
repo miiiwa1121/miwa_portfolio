@@ -1249,15 +1249,16 @@ function CameraController({
     // longer decides how fast the planet is taken back off the reader.
     const from = { azimuth: current, polar: polarRef.current };
     const to = { azimuth: target, polar: polarTargetRef.current };
-    const damped = orbitStepFraction(from, to, delta);
+    const effectiveDelta = draggingRef.current ? delta : sceneClock.delta(delta);
+    const damped = orbitStepFraction(from, to, effectiveDelta);
     let fraction = damped;
     if (returningRef.current) {
-      fraction = orbitStepFraction(from, to, delta, ORBIT_RETURN_SPEED);
+      fraction = orbitStepFraction(from, to, effectiveDelta, ORBIT_RETURN_SPEED);
       // The cap ceasing to bite *is* the arrival: within about
       // ORBIT_RETURN_SPEED/ORBIT_DAMP_LAMBDA radians of the path the damp is
       // the slower of the two, and the last fraction of a degree is better
       // eased than crawled. No threshold of its own to keep in step.
-      if (fraction >= damped) returningRef.current = false;
+      if (effectiveDelta > 0 && fraction >= damped) returningRef.current = false;
     }
     azimuthRef.current = current + (target - current) * fraction;
     polarRef.current = from.polar + (to.polar - from.polar) * fraction;

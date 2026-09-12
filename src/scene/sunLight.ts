@@ -33,7 +33,51 @@
  * inside every section.
  */
 
-import { dot, normalize, type Direction } from "./planet/geometry";
+import { cross, dot, normalize, type Direction } from "./planet/geometry";
+
+/** Speed of the sun's ambient drift across the sky, in radians per second. */
+export const SUN_DRIFT_SPEED = 0.04;
+
+/**
+ * Rotates vector `v` around unit `axis` by `angle` radians (Rodrigues' rotation formula).
+ */
+export function rotateAroundAxis(v: Direction, axis: Direction, angle: number): Direction {
+  if (Math.abs(angle) < 1e-9) return v;
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const k = normalize(axis);
+  const kDotV = dot(k, v);
+  const kCrossV = cross(k, v);
+
+  return normalize([
+    v[0] * c + kCrossV[0] * s + k[0] * kDotV * (1 - c),
+    v[1] * c + kCrossV[1] * s + k[1] * kDotV * (1 - c),
+    v[2] * c + kCrossV[2] * s + k[2] * kDotV * (1 - c),
+  ]);
+}
+
+/**
+ * Advances the sun's direction across the celestial sphere by one time step `dt`.
+ * Uses a slowly wandering rotation axis so the sun traces majestic, non-repeating
+ * arcs across the entire globe over time while staying strictly on the unit sphere.
+ */
+export function advanceSunDirection(
+  current: Direction,
+  dt: number,
+  elapsed: number,
+  speed: number = SUN_DRIFT_SPEED
+): Direction {
+  if (dt <= 0) return current;
+
+  // Rotation axis wanders slowly across all three dimensions over time
+  const axis: Direction = normalize([
+    Math.sin(0.019 * elapsed) * 0.7 + Math.cos(0.007 * elapsed) * 0.3,
+    Math.cos(0.013 * elapsed + 0.5) * 0.8 + Math.sin(0.005 * elapsed) * 0.2,
+    Math.sin(0.011 * elapsed + 1.2) * 0.7 + Math.cos(0.017 * elapsed) * 0.3,
+  ]);
+
+  return rotateAroundAxis(current, axis, speed * dt);
+}
 
 /**
  * The radius of the sphere the sun is kept on.
