@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>station-draft: 衛星の構造ラフ（輪郭×継ぎ足し）</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #070a14; overflow: hidden; font-family: -apple-system, "Hiragino Kaku Gothic ProN", sans-serif; }
+  canvas { display: block; }
+  #panel {
+    position: fixed; top: 12px; left: 12px; width: 320px;
+    padding: 14px 16px; background: rgba(10, 12, 20, 0.72);
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
+    color: #e8ecf4; font-size: 12px; line-height: 1.6; backdrop-filter: blur(6px);
+  }
+  #panel h1 { font-size: 13px; margin: 0 0 8px; font-weight: 600; }
+  #panel p.note { opacity: 0.65; margin: 0 0 10px; }
+  #panel .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  #panel .row label { flex: 0 0 108px; opacity: 0.85; }
+  #panel .row input[type="range"] { flex: 1; }
+  #panel .row output { flex: 0 0 40px; text-align: right; opacity: 0.7; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <h1>station-draft — 構造の下書き</h1>
+  <p class="note">
+    docs/prototypes/ 配下、Next.js ビルド対象外。「①全体の輪郭は一つの物体として読める／
+    ②近づくと継ぎ足しのトラスと乱雑さがある」という2層構成の当たりを見るための構造ラフ。
+    表面の作り込み（看板・汚れの密度など）はここでは仮置き——ここから先はFableに委ねる想定。
+  </p>
+  <div class="row"><label>Bloom strength</label><input id="bloomStrength" type="range" min="0" max="3" step="0.05" value="0.9"><output></output></div>
+  <div class="row"><label>Ambient</label><input id="ambient" type="range" min="0" max="1" step="0.02" value="0.26"><output></output></div>
+  <div class="row"><label>自動回転</label><input id="autoRotate" type="checkbox" checked></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+// ---- voxel-lab.html と同じ、本体 src/ の軽量な複製 ----
+const VOXEL_SIZE = 1;
+const GAP = 0.04;
+const STRUCTURE_COLORS = ["#2b2e36", "#33363f", "#3a3d46", "#23262e"];
+const RUST_ACCENT = ["#4a3226", "#5a3a28"];
+const TEAL_ACCENT = ["#1f3a3a", "#254545"];
+const NEON = {
+  cyan: ["#2fe8ff", "#7bf3ff"],
+  amber: ["#ffb020", "#ffd27a"],
+};
+
+function hash(seed) {
+  const h = Math.abs(Math.sin(seed * 12.9898) * 43758.5453);
+  return h - Math.floor(h);
+}
+function pick(arr, seed) {
+  return arr[Math.floor(hash(seed) * arr.length)];
+}
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.5, 1000);
+camera.position.set(85, 48, 79);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(15, 3, -1);
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.8;
+
+const ambientLight = new THREE.AmbientLight(0x2b3654, 0.26);
+const hemiLight = new THREE.HemisphereLight(0x8fa8ff, 0x2b3654, 0.36);
+const sun = new THREE.DirectionalLight(0xfff3e0, 1.15);
+sun.position.set(40, 60, 30);
+const rim = new THREE.DirectionalLight(0x4a6cff, 0.35);
+rim.position.set(-60, -20, -50);
+scene.add(ambientLight, hemiLight, sun, rim);
+
+const boxGeom = new THREE.BoxGeometry(VOXEL_SIZE - GAP, VOXEL_SIZE - GAP, VOXEL_SIZE - GAP);
+const world = new THREE.Group();
+const neonMaterials = [];
+let seedCounter = 0;
+
+function addVoxel(x, y, z, color) {
+  const mat = new THREE.MeshLambertMaterial({ color });
+  const mesh = new THREE.Mesh(boxGeom, mat);
+  mesh.position.set(x, y, z);
+  world.add(mesh);
+  return mesh;
+}
+
+function addNeonVoxel(x, y, z, key) {
+  const [base, glow] = NEON[key];
+  const mat = new THREE.MeshLambertMaterial({ color: base, emissive: new THREE.Color(glow), emissiveIntensity: 2.4 });
+  const mesh = new THREE.Mesh(boxGeom, mat);
+  mesh.position.set(x, y, z);
+  world.add(mesh);
+  neonMaterials.push(mat);
+  return mesh;
+}
+
+/**
+ * 中空の直方体（殻だけ、内部は生成しない — VoxelModel と同じ考え方）。
+ * origin はブロックの最小コーナー。回転は呼び出し側で group にまとめて行う。
+ */
+function hollowBox(w, h, d, ox, oy, oz) {
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      for (let z = 0; z < d; z++) {
+        const isShell = x === 0 || x === w - 1 || y === 0 || y === h - 1 || z === 0 || z === d - 1;
+        if (!isShell) continue;
+        seedCounter++;
+        const roll = hash(seedCounter);
+        const color = roll < 0.1 ? pick(RUST_ACCENT, seedCounter) : roll < 0.22 ? pick(TEAL_ACCENT, seedCounter) : pick(STRUCTURE_COLORS, seedCounter);
+        addVoxel(ox + x, oy + y, oz + z, color);
+      }
+    }
+  }
+}
+
+/** 2点間を剥き出しのトラスで繋ぐ。主材+平行材2本で、遠目でも「梁」と分かる太さにする。 */
+function truss(a, b, thickness = 2) {
+  const dist = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+  const steps = Math.max(4, Math.round(dist));
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = a[0] + (b[0] - a[0]) * t;
+    const y = a[1] + (b[1] - a[1]) * t;
+    const z = a[2] + (b[2] - a[2]) * t;
+    addVoxel(Math.round(x), Math.round(y), Math.round(z), "#565c68");
+    addVoxel(Math.round(x), Math.round(y) + 1, Math.round(z), "#484e58");
+    if (thickness > 2) {
+      const jitter = i % 2 === 0 ? 1 : -1;
+      addVoxel(Math.round(x), Math.round(y) + jitter, Math.round(z) + jitter, "#484e58");
+    }
+  }
+}
+
+/**
+ * ①全体のシルエット担当：ひとつの塊として読める「コアハル」。
+ * eisei系を参考に、細長い船体＋前後に張り出す構造物、というまとまりのある輪郭にする。
+ */
+function buildCoreHull() {
+  hollowBox(26, 7, 9, 0, 0, 0);       // 主船体
+  hollowBox(10, 11, 7, 2, 6, 1);      // 艦橋(ブリッジ)にあたる張り出し
+  hollowBox(8, 5, 6, 16, 6, 1.5);     // 後部の張り出し
+  // 主船体を貫く背骨のようなトラス（eisei2 のスパイン照明を意識）
+  truss([2, 3.5, -1], [24, 3.5, -1], 1);
+}
+
+/**
+ * ②肌理担当：コアハルへ行き当たりばったりに継ぎ足されたモジュール群。
+ * 位置・回転・サイズをずらし、正対しない角度で「後から接続した」感を出す。
+ */
+const MODULES = [
+  { w: 6, h: 6, d: 5, pos: [-16, 16, 10], rot: 0.3 },
+  { w: 5, h: 8, d: 4, pos: [44, 6, -10], rot: -0.5 },
+  { w: 7, h: 4, d: 6, pos: [16, -18, 14], rot: 0.15 },
+  { w: 4, h: 4, d: 4, pos: [34, 24, 12], rot: -0.2 },
+  { w: 5, h: 5, d: 5, pos: [-12, -14, -16], rot: 0.6 },
+];
+
+function buildModules() {
+  MODULES.forEach((m, i) => {
+    const group = new THREE.Group();
+    const inner = new THREE.Group();
+    // hollowBox はワールド座標に直接積むので、モジュールごとに一旦別シーンで作ってから
+    // group に転写する代わりに、回転はモジュール中心を軸に voxel 座標側で近似する。
+    const localVoxels = [];
+    const before = world.children.length;
+    hollowBox(m.w, m.h, m.d, 0, 0, 0);
+    const added = world.children.slice(before);
+    added.forEach((mesh) => world.remove(mesh));
+
+    added.forEach((mesh) => {
+      mesh.position.sub(new THREE.Vector3(m.w / 2, m.h / 2, m.d / 2));
+      inner.add(mesh);
+    });
+    group.add(inner);
+    group.rotation.y = m.rot;
+    group.position.set(...m.pos);
+    world.add(group);
+
+    // コアハル表面の最寄り点へトラスを1本渡す(雑な近似: コア中心方向へ)
+    const coreAnchor = [12, 3.5, 4];
+    truss(coreAnchor, [m.pos[0], m.pos[1], m.pos[2]], i % 2 === 0 ? 2 : 1);
+  });
+}
+
+/** ネオン(信号灯・看板の仮置き)。2系統(寒色/暖色)をクラスタで数か所に。 */
+function scatterSignage() {
+    const spots = [
+    [2, 7, 4, "cyan"], [3, 7, 4, "cyan"], [2, 8, 4, "amber"],
+    [17, 8, 2, "amber"], [18, 8, 2, "amber"],
+    [-5, 10, 5, "cyan"],
+    [29, 5, -2, "amber"], [30, 6, -2, "cyan"],
+    [10, -5, 8, "cyan"], [11, -5, 8, "cyan"],
+    [21, 15, 6, "amber"],
+  ];
+  spots.forEach(([x, y, z, key]) => addNeonVoxel(x, y, z, key));
+}
+
+buildCoreHull();
+buildModules();
+scatterSignage();
+scene.add(world);
+
+// 星
+{
+  const starGeom = new THREE.BufferGeometry();
+  const starCount = 900;
+  const positions = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    const r = 300 + Math.random() * 200;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = r * Math.cos(phi);
+    positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+  }
+  starGeom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  scene.add(new THREE.Points(starGeom, new THREE.PointsMaterial({ color: 0xffffff, size: 0.7 })));
+}
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.9, 0.5, 0.15);
+composer.addPass(bloomPass);
+composer.addPass(new OutputPass());
+
+function bindRange(id, onInput) {
+  const el = document.getElementById(id);
+  const out = el.parentElement.querySelector("output");
+  const update = () => { const v = parseFloat(el.value); if (out) out.textContent = v.toFixed(2); onInput(v); };
+  el.addEventListener("input", update);
+  update();
+}
+bindRange("bloomStrength", (v) => (bloomPass.strength = v));
+bindRange("ambient", (v) => { ambientLight.intensity = v; hemiLight.intensity = v * 1.4; });
+document.getElementById("autoRotate").addEventListener("change", (e) => (controls.autoRotate = e.target.checked));
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+});
+
+renderer.setAnimationLoop(() => {
+  controls.update();
+  composer.render();
+});
+</script>
+</body>
+</html>

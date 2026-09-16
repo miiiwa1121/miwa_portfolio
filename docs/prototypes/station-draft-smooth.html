@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>station-draft-smooth: 衛星の構造ラフ（ボクセル無し版）</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #070a14; overflow: hidden; font-family: -apple-system, "Hiragino Kaku Gothic ProN", sans-serif; }
+  canvas { display: block; }
+  #panel {
+    position: fixed; top: 12px; left: 12px; width: 320px;
+    padding: 14px 16px; background: rgba(10, 12, 20, 0.72);
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
+    color: #e8ecf4; font-size: 12px; line-height: 1.6; backdrop-filter: blur(6px);
+  }
+  #panel h1 { font-size: 13px; margin: 0 0 8px; font-weight: 600; }
+  #panel p.note { opacity: 0.65; margin: 0 0 10px; }
+  #panel .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  #panel .row label { flex: 0 0 108px; opacity: 0.85; }
+  #panel .row input[type="range"] { flex: 1; }
+  #panel .row output { flex: 0 0 40px; text-align: right; opacity: 0.7; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <h1>station-draft-smooth — ボクセル無し版</h1>
+  <p class="note">
+    <a href="station-draft.html" style="color:#7bf3ff;">station-draft.html</a> と全く同じ配置
+    （コアハルの寸法・モジュールの位置・トラスの繋ぎ方・ネオンの位置）を、立方体の集合ではなく
+    1枚のなめらかなパネルで作り直した比較用。表面のパネルライン（縁のエッジ線）だけで質感を出している。
+  </p>
+  <div class="row"><label>Bloom strength</label><input id="bloomStrength" type="range" min="0" max="3" step="0.05" value="0.9"><output></output></div>
+  <div class="row"><label>Ambient</label><input id="ambient" type="range" min="0" max="1" step="0.02" value="0.26"><output></output></div>
+  <div class="row"><label>Metalness</label><input id="metalness" type="range" min="0" max="1" step="0.05" value="0.55"><output></output></div>
+  <div class="row"><label>Roughness</label><input id="roughness" type="range" min="0" max="1" step="0.05" value="0.5"><output></output></div>
+  <div class="row"><label>自動回転</label><input id="autoRotate" type="checkbox" checked></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+const STRUCTURE_COLORS = [0x2b2e36, 0x33363f, 0x3a3d46];
+const NEON = {
+  cyan: [0x2fe8ff, 0x7bf3ff],
+  amber: [0xffb020, 0xffd27a],
+};
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.5, 1000);
+camera.position.set(85, 48, 79);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(15, 3, -1);
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.8;
+
+const ambientLight = new THREE.AmbientLight(0x2b3654, 0.26);
+const hemiLight = new THREE.HemisphereLight(0x8fa8ff, 0x2b3654, 0.36);
+const sun = new THREE.DirectionalLight(0xfff3e0, 1.15);
+sun.position.set(40, 60, 30);
+const rim = new THREE.DirectionalLight(0x4a6cff, 0.35);
+rim.position.set(-60, -20, -50);
+scene.add(ambientLight, hemiLight, sun, rim);
+
+const world = new THREE.Group();
+const panelMaterials = [];
+const neonMaterials = [];
+let seedCounter = 0;
+function hash(seed) {
+  const h = Math.abs(Math.sin(seed * 12.9898) * 43758.5453);
+  return h - Math.floor(h);
+}
+
+/** 1枚のなめらかなパネル(軽くベベルした箱)。station-draft.html の hollowBox に相当。 */
+function addPanel(w, h, d, center, rotY = 0) {
+  seedCounter++;
+  const color = STRUCTURE_COLORS[Math.floor(hash(seedCounter) * STRUCTURE_COLORS.length)];
+  const geom = new RoundedBoxGeometry(w, h, d, 3, Math.min(0.4, Math.min(w, h, d) * 0.06));
+  const mat = new THREE.MeshStandardMaterial({ color, metalness: 0.55, roughness: 0.5 });
+  panelMaterials.push(mat);
+  const mesh = new THREE.Mesh(geom, mat);
+  mesh.position.set(...center);
+  mesh.rotation.y = rotY;
+  world.add(mesh);
+
+  // パネルの縁線(継ぎ目の演出)
+  const edges = new THREE.EdgesGeometry(geom, 20);
+  const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x0a0c12, transparent: true, opacity: 0.55 }));
+  line.position.copy(mesh.position);
+  line.rotation.copy(mesh.rotation);
+  world.add(line);
+  return mesh;
+}
+
+/** 2点間を剥き出しのトラス(円柱2本)で繋ぐ。station-draft.html の truss に相当。 */
+function truss(a, b, radius = 0.35) {
+  const start = new THREE.Vector3(...a);
+  const end = new THREE.Vector3(...b);
+  const mid = start.clone().lerp(end, 0.5);
+  const length = start.distanceTo(end);
+  const dir = end.clone().sub(start).normalize();
+  const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x565c68, metalness: 0.7, roughness: 0.4 });
+
+  [-0.6, 0.6].forEach((offset) => {
+    const geom = new THREE.CylinderGeometry(radius, radius, length, 8);
+    const mesh = new THREE.Mesh(geom, mat);
+    const side = new THREE.Vector3(1, 0, 0).cross(dir).normalize();
+    if (side.lengthSq() < 1e-6) side.set(0, 0, 1);
+    mesh.position.copy(mid).addScaledVector(side, offset);
+    mesh.quaternion.copy(quat);
+    world.add(mesh);
+  });
+  // 遠目に格子と分かる横材を数本
+  const rungs = Math.max(2, Math.round(length / 6));
+  for (let i = 1; i < rungs; i++) {
+    const t = i / rungs;
+    const p = start.clone().lerp(end, t);
+    const side = new THREE.Vector3(1, 0, 0).cross(dir).normalize();
+    if (side.lengthSq() < 1e-6) side.set(0, 0, 1);
+    const rungGeom = new THREE.CylinderGeometry(radius * 0.7, radius * 0.7, 1.2, 6);
+    const rungMesh = new THREE.Mesh(rungGeom, mat);
+    rungMesh.position.copy(p);
+    rungMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), side);
+    world.add(rungMesh);
+  }
+}
+
+function addNeon(pos, key, size = 0.9) {
+  const [base, glow] = NEON[key];
+  const mat = new THREE.MeshStandardMaterial({ color: base, emissive: glow, emissiveIntensity: 2.4, metalness: 0.2, roughness: 0.3 });
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(size, size, size * 0.3), mat);
+  mesh.position.set(...pos);
+  world.add(mesh);
+  neonMaterials.push(mat);
+}
+
+// ---- ①コアハル：station-draft.html の hollowBox(26,7,9,0,0,0) 等と同じ範囲を中心指定に変換 ----
+addPanel(26, 7, 9, [13, 3.5, 4.5]);   // 主船体
+addPanel(10, 11, 7, [7, 11.5, 4.5]);  // ブリッジ
+addPanel(8, 5, 6, [20, 8.5, 4.5]);    // 後部
+truss([2, 3.5, -1], [24, 3.5, -1], 0.3); // 背骨のトラス
+
+// ---- ②継ぎ足しモジュール：station-draft.html の MODULES と同じ位置・サイズ・回転 ----
+const MODULES = [
+  { w: 6, h: 6, d: 5, pos: [-16, 16, 10], rot: 0.3 },
+  { w: 5, h: 8, d: 4, pos: [44, 6, -10], rot: -0.5 },
+  { w: 7, h: 4, d: 6, pos: [16, -18, 14], rot: 0.15 },
+  { w: 4, h: 4, d: 4, pos: [34, 24, 12], rot: -0.2 },
+  { w: 5, h: 5, d: 5, pos: [-12, -14, -16], rot: 0.6 },
+];
+const coreAnchor = [12, 3.5, 4];
+MODULES.forEach((m, i) => {
+  addPanel(m.w, m.h, m.d, m.pos, m.rot);
+  truss(coreAnchor, m.pos, i % 2 === 0 ? 0.45 : 0.3);
+});
+
+// ---- ネオン: 各パーツの面付近に配置(station-draft.html の scatterSignage に相当) ----
+addNeon([6, 5, 9.6], "cyan");
+addNeon([18, 5, 9.6], "amber");
+addNeon([7, 13.5, 8.1], "amber");
+addNeon([20, 10.2, 7.6], "cyan");
+MODULES.forEach((m, i) => {
+  addNeon([m.pos[0], m.pos[1] + m.h * 0.3, m.pos[2] + m.d / 2 + 0.5], i % 2 === 0 ? "amber" : "cyan", 0.8);
+});
+
+scene.add(world);
+
+// 星
+{
+  const starGeom = new THREE.BufferGeometry();
+  const starCount = 900;
+  const positions = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    const r = 300 + Math.random() * 200;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = r * Math.cos(phi);
+    positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+  }
+  starGeom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  scene.add(new THREE.Points(starGeom, new THREE.PointsMaterial({ color: 0xffffff, size: 0.7 })));
+}
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.9, 0.5, 0.15);
+composer.addPass(bloomPass);
+composer.addPass(new OutputPass());
+
+function bindRange(id, onInput) {
+  const el = document.getElementById(id);
+  const out = el.parentElement.querySelector("output");
+  const update = () => { const v = parseFloat(el.value); if (out) out.textContent = v.toFixed(2); onInput(v); };
+  el.addEventListener("input", update);
+  update();
+}
+bindRange("bloomStrength", (v) => (bloomPass.strength = v));
+bindRange("ambient", (v) => { ambientLight.intensity = v; hemiLight.intensity = v * 1.4; });
+bindRange("metalness", (v) => panelMaterials.forEach((m) => (m.metalness = v)));
+bindRange("roughness", (v) => panelMaterials.forEach((m) => (m.roughness = v)));
+document.getElementById("autoRotate").addEventListener("change", (e) => (controls.autoRotate = e.target.checked));
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+});
+
+renderer.setAnimationLoop(() => {
+  controls.update();
+  composer.render();
+});
+</script>
+</body>
+</html>

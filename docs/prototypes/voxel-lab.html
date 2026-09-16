@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>voxel-lab: ネオン発光×ブルームの当たり見</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #070a14; overflow: hidden; font-family: -apple-system, "Hiragino Kaku Gothic ProN", sans-serif; }
+  canvas { display: block; }
+
+  #panel {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    width: 300px;
+    padding: 14px 16px;
+    background: rgba(10, 12, 20, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: #e8ecf4;
+    font-size: 12px;
+    line-height: 1.5;
+    backdrop-filter: blur(6px);
+  }
+  #panel h1 { font-size: 13px; margin: 0 0 8px; font-weight: 600; }
+  #panel p.note { opacity: 0.65; margin: 0 0 12px; }
+  #panel .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  #panel .row label { flex: 0 0 108px; opacity: 0.85; }
+  #panel .row input[type="range"] { flex: 1; }
+  #panel .row output { flex: 0 0 40px; text-align: right; opacity: 0.7; font-variant-numeric: tabular-nums; }
+  #panel .row select { flex: 1; background: #1a1e2a; color: #e8ecf4; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 2px 4px; }
+  #panel hr { border: none; border-top: 1px solid rgba(255,255,255,0.12); margin: 10px 0; }
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <h1>voxel-lab — ネオン発光 × ブルーム</h1>
+  <p class="note">
+    docs/prototypes/ 配下の隔離環境。Next.js のビルド対象外・本番には一切含まれない。
+    「乱雑なモジュール構造にネオンの発光を足したとき、フラットシェーディングのボクセルでどこまで説得力が出るか」の当たりを取るための単体HTML。
+  </p>
+
+  <div class="row"><label>Bloom strength</label><input id="bloomStrength" type="range" min="0" max="3" step="0.05" value="0.8"><output></output></div>
+  <div class="row"><label>Bloom radius</label><input id="bloomRadius" type="range" min="0" max="1.5" step="0.05" value="0.5"><output></output></div>
+  <div class="row"><label>Bloom threshold</label><input id="bloomThreshold" type="range" min="0" max="1" step="0.05" value="0.15"><output></output></div>
+  <hr>
+  <div class="row"><label>Emissive intensity</label><input id="emissiveIntensity" type="range" min="0" max="6" step="0.1" value="2.2"><output></output></div>
+  <div class="row"><label>Neon color</label>
+    <select id="neonPreset">
+      <option value="mixed" selected>3系統ミックス（マゼンタ/シアン/琥珀）</option>
+      <option value="magenta">マゼンタのみ（Cyberpunk系）</option>
+      <option value="cyan">シアンのみ（攻殻機動隊系）</option>
+      <option value="amber">琥珀のみ（eisei系）</option>
+    </select>
+  </div>
+  <hr>
+  <div class="row"><label>Ambient (夜側の底)</label><input id="ambient" type="range" min="0" max="1" step="0.02" value="0.28"><output></output></div>
+  <div class="row"><label>自動回転</label><input id="autoRotate" type="checkbox" checked></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+// ---- このプロジェクト本体の VoxelModel.tsx / palette.ts に寄せた最小限の再実装 ----
+// (docs/prototypes/ は Next.js のバンドル対象外なので、本体の src/ を import できない。
+//  ここでは検証に要る分だけを軽量に複製している。良い値が出たら本体側へ移植する。)
+
+const VOXEL_SIZE = 1;
+const GAP = 0.04; // VoxelModel.tsx のデフォルトと同じ比率
+
+const STRUCTURE_COLORS = ["#2b2e36", "#33363f", "#3a3d46", "#23262e"]; // くすんだ暗いベース
+const RUST_ACCENT = ["#4a3226", "#5a3a28"]; // 錆・汚れ寄りのアクセント
+const TEAL_ACCENT = ["#1f3a3a", "#254545"]; // saiba-panku3 の錆びたティール外壁
+
+const NEON = {
+  magenta: ["#ff2fb0", "#ff5fd0"],
+  cyan: ["#2fe8ff", "#7bf3ff"],
+  amber: ["#ffb020", "#ffd27a"],
+};
+
+function pick(arr, seed) {
+  const h = Math.abs(Math.sin(seed * 12.9898) * 43758.5453);
+  return arr[Math.floor((h - Math.floor(h)) * arr.length)];
+}
+
+// ---- シーン基本 ----
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 500);
+camera.position.set(26, 16, 30);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(0, 6, 0);
+controls.autoRotate = true;
+controls.autoRotateSpeed = 1.4;
+
+// ---- ライト: このプロジェクトの ambient/hemisphere + 太陽方向を簡易再現 ----
+const ambientLight = new THREE.AmbientLight(0x2b3654, 0.28);
+const hemiLight = new THREE.HemisphereLight(0x8fa8ff, 0x2b3654, 0.4);
+const sun = new THREE.DirectionalLight(0xfff3e0, 1.1);
+sun.position.set(18, 34, 14);
+scene.add(ambientLight, hemiLight, sun);
+
+// ---- ボクセル生成ヘルパー ----
+const boxGeom = new THREE.BoxGeometry(VOXEL_SIZE - GAP * VOXEL_SIZE, VOXEL_SIZE - GAP * VOXEL_SIZE, VOXEL_SIZE - GAP * VOXEL_SIZE);
+const structureGroup = new THREE.Group();
+const neonMaterials = [];
+
+function addVoxel(x, y, z, color) {
+  const mat = new THREE.MeshLambertMaterial({ color });
+  const mesh = new THREE.Mesh(boxGeom, mat);
+  mesh.position.set(x, y, z);
+  structureGroup.add(mesh);
+  return mesh;
+}
+
+function addNeonVoxel(x, y, z, colorPair) {
+  const mat = new THREE.MeshLambertMaterial({
+    color: colorPair[0],
+    emissive: new THREE.Color(colorPair[1]),
+    emissiveIntensity: 2.2,
+  });
+  const mesh = new THREE.Mesh(boxGeom, mat);
+  mesh.position.set(x, y, z);
+  structureGroup.add(mesh);
+  neonMaterials.push(mat);
+  return mesh;
+}
+
+// ---- 「行き当たりばったりに継ぎ足したモジュール」を粗く模した配置 ----
+// 正確なステーション設計ではなく、あくまで発光の当たりを見るための仮の塊。
+function buildChaoticCluster() {
+  // 母体になる不揃いな箱の塊（3つの直方体クラスタをずらして重ねる）
+  const blocks = [
+    { w: 8, h: 6, d: 6, ox: 0, oy: 0, oz: 0 },
+    { w: 5, h: 9, d: 5, ox: 6, oy: 2, oz: -1 },
+    { w: 6, h: 4, d: 8, ox: -3, oy: 5, oz: 3 },
+    { w: 4, h: 5, d: 4, ox: 9, oy: 7, oz: 2 },
+  ];
+
+  let seed = 0;
+  for (const b of blocks) {
+    for (let x = 0; x < b.w; x++) {
+      for (let y = 0; y < b.h; y++) {
+        for (let z = 0; z < b.d; z++) {
+          // 表面のボクセルだけ（内部は描かない、VoxelModel と同じ考え方）
+          const isShell = x === 0 || x === b.w - 1 || y === 0 || y === b.h - 1 || z === 0 || z === b.d - 1;
+          if (!isShell) continue;
+          seed++;
+          const base = Math.random() < 0.12
+            ? pick(RUST_ACCENT, seed)
+            : Math.random() < 0.2
+              ? pick(TEAL_ACCENT, seed)
+              : pick(STRUCTURE_COLORS, seed);
+          addVoxel(b.ox + x, b.oy + y, b.oz + z, base);
+        }
+      }
+    }
+  }
+
+  // 剥き出しのトラス（母体同士を繋ぐ、乱雑さの装置）
+  const trussPoints = [
+    [[8, 3, 3], [11, 5, 1]],
+    [[2, 6, 4], [-1, 7, 5]],
+    [[10, 9, 3], [9, 11, 3]],
+  ];
+  for (const [a, b] of trussPoints) {
+    const steps = 6;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = Math.round(a[0] + (b[0] - a[0]) * t);
+      const y = Math.round(a[1] + (b[1] - a[1]) * t);
+      const z = Math.round(a[2] + (b[2] - a[2]) * t);
+      addVoxel(x, y, z, "#1c1e24");
+    }
+  }
+
+  // ネオン看板（3系統: マゼンタ/シアン/琥珀）— 母体の縁に貼り付く形で点在
+  const neonSpots = [
+    { x: 0, y: 3, z: 3, k: "magenta" },
+    { x: 8, y: 4, z: 3, k: "cyan" },
+    { x: 11, y: 6, z: 1, k: "amber" },
+    { x: -3, y: 7, z: 6, k: "cyan" },
+    { x: 6, y: 9, z: -1, k: "magenta" },
+    { x: 9, y: 10, z: 2, k: "amber" },
+    { x: 3, y: 1, z: 5, k: "magenta" },
+  ];
+  const spotMeshes = neonSpots.map((s) => ({ mesh: addNeonVoxel(s.x, s.y, s.z, NEON[s.k]), key: s.k }));
+  return spotMeshes;
+}
+
+const neonSpotMeshes = buildChaoticCluster();
+scene.add(structureGroup);
+
+// 地に足がついている感を出すための床（惑星ではなく宇宙空間の想定なので、暗い反射板だけ）
+const floorMat = new THREE.MeshStandardMaterial({ color: "#05060a", roughness: 0.4, metalness: 0.1 });
+const floor = new THREE.Mesh(new THREE.CircleGeometry(60, 48), floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -8;
+scene.add(floor);
+
+// 背景の星（雰囲気だけ、CLAUDE.md の宇宙紺 #070a14 に寄せる）
+{
+  const starGeom = new THREE.BufferGeometry();
+  const starCount = 800;
+  const positions = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    const r = 200 + Math.random() * 150;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = Math.abs(r * Math.cos(phi));
+    positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+  }
+  starGeom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.6, sizeAttenuation: true });
+  scene.add(new THREE.Points(starGeom, starMat));
+}
+
+// ---- ポストプロセス: ブルーム ----
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.8, 0.5, 0.15);
+composer.addPass(bloomPass);
+composer.addPass(new OutputPass());
+
+// ---- UIバインド ----
+function bindRange(id, onInput, format = (v) => v.toFixed(2)) {
+  const el = document.getElementById(id);
+  const out = el.parentElement.querySelector("output");
+  const update = () => {
+    const v = parseFloat(el.value);
+    if (out) out.textContent = format(v);
+    onInput(v);
+  };
+  el.addEventListener("input", update);
+  update();
+}
+
+bindRange("bloomStrength", (v) => (bloomPass.strength = v));
+bindRange("bloomRadius", (v) => (bloomPass.radius = v));
+bindRange("bloomThreshold", (v) => (bloomPass.threshold = v));
+bindRange("emissiveIntensity", (v) => neonMaterials.forEach((m) => (m.emissiveIntensity = v)));
+bindRange("ambient", (v) => {
+  ambientLight.intensity = v;
+  hemiLight.intensity = v * 1.4;
+});
+
+document.getElementById("neonPreset").addEventListener("change", (e) => {
+  const mode = e.target.value;
+  neonSpotMeshes.forEach(({ mesh, key }) => {
+    const useKey = mode === "mixed" ? key : mode;
+    const [base, glow] = NEON[useKey];
+    mesh.material.color.set(base);
+    mesh.material.emissive.set(glow);
+  });
+});
+
+document.getElementById("autoRotate").addEventListener("change", (e) => {
+  controls.autoRotate = e.target.checked;
+});
+
+// ---- リサイズ・レンダーループ ----
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+});
+
+renderer.setAnimationLoop(() => {
+  controls.update();
+  composer.render();
+});
+</script>
+</body>
+</html>
