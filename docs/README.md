@@ -20,7 +20,8 @@ miwa_portfolio のドキュメント一覧。作業のルールそのものは [
 | [review.md](review.md) | 未修正の指摘の台帳（2026-08-02 の全体レビュー）。問題点＋解決策＋再現手順 | 直したら該当項目を消す。**新しい設計をここに書かない** |
 | [devlog/](devlog/) | 日々の作業記録と判断の理由 | **毎回追記する。** あとから本文を書き換えない |
 | [planet-migration.md](planet-migration.md) | 平面の浮遊島 → 球体の惑星への移行の記録（**完了済み**） | 通常は更新しない。現在の構造は `tech.md` と `scene-invariants.md` が正 |
-| [prototypes/](prototypes/) | 本番に載せない試作物 | `public/` に置くと配信されてしまうものの退避先 |
+
+**動く試作物は `docs/` にはない。** 単体で開ける HTML の実験はルート直下の [sandbox/](../sandbox/) にある（2026-09-16 に `docs/prototypes/` から移した。理由は [structure.md](structure.md)）。ここに置くのは書かれた記録だけ。
 
 ## 書き分けの指針
 

@@ -36,7 +36,7 @@
 <div id="panel">
   <h1>voxel-lab — ネオン発光 × ブルーム</h1>
   <p class="note">
-    docs/prototypes/ 配下の隔離環境。Next.js のビルド対象外・本番には一切含まれない。
+    sandbox/ 配下の隔離環境。Next.js のビルド対象外・本番には一切含まれない。
     「乱雑なモジュール構造にネオンの発光を足したとき、フラットシェーディングのボクセルでどこまで説得力が出るか」の当たりを取るための単体HTML。
   </p>
 
@@ -76,7 +76,7 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
 // ---- このプロジェクト本体の VoxelModel.tsx / palette.ts に寄せた最小限の再実装 ----
-// (docs/prototypes/ は Next.js のバンドル対象外なので、本体の src/ を import できない。
+// (sandbox/ は Next.js のバンドル対象外なので、本体の src/ を import できない。
 //  ここでは検証に要る分だけを軽量に複製している。良い値が出たら本体側へ移植する。)
 
 const VOXEL_SIZE = 1;

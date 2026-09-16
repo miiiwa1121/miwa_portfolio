@@ -18,11 +18,12 @@
 - **`SectionType` は `@/types` からだけ読む。** `AppStateContext` の再エクスポート経由という第2の経路は撤去済み。`OrbitZoom` も同じく `@/scene/camera/cameraLayout` が唯一の定義元
 - **1ファイル1コンポーネントなら default export。** 複数を束ねるモジュール（`objects/Decorations.tsx` / `objects/ProceduralObjects.tsx`）だけが named
 - **コンポーネント（PascalCase `.tsx`）とロジック（camelCase `.ts`）で、大文字小文字だけ違う名前を付けない。** macOS のファイルシステムは大文字小文字を区別しないので、`CardRail.tsx` と `cardRail.ts` を並べると TypeScript が `TS1149`（「すでに読み込んだファイルと大文字小文字しか違わない」）で止まる。ロジック側に別の名前を与える（`CardRail.tsx` ↔ `railLayout.ts`。既存の `SectionCard.tsx` ↔ `cardWheel.ts` も同じ形）
-- **`public/` には「公開したいもの」しか置かない。** `output: 'export'` なので中身はそのまま配信される。git に残したいだけの制作物（`.bbmodel`／`.glb`）は `assets/` へ、試作 HTML は `docs/prototypes/` へ
+- **`public/` には「公開したいもの」しか置かない。** `output: 'export'` なので中身はそのまま配信される。git に残したいだけの制作物（`.bbmodel`／`.glb`）は `assets/` へ、試作 HTML は `sandbox/` へ
+- **`sandbox/` は動く試作物、`docs/` は書かれた記録。** 2026-09-16 に `docs/prototypes/` から移した——`docs/` は「判断の理由・実測値・経緯」を持つ場所で、単体で動く HTML はその種類ではない。ルート直下の `assets/`（`.bbmodel`／`.glb`）・`reference/`（ムード参考、gitignore）と同じ「公開しないが git に残す成果物」の並びに置いている。**`test/` や `tests/` という名前は避けた**——`src/**/*.test.ts` の Vitest 一式と紛らわしく、新しく入った人がまずそこを探すため
 
 ## `public/archive/` — 過去バージョンの保存庫
 
-制作実績で「ポートフォリオ自身の沿革」を見せるために、**過去バージョンの静的書き出しを丸ごと** `public/archive/vN/` に置く。訪問者が当時の動く画面をそのまま触れるようにするためで、スクリーンショットではなくビルド成果物そのもの。**`public/` 直下の例外ではなく、上の規約どおり「公開したいもの」に該当する**（試作物の退避先である `docs/prototypes/` とは目的が違う）。
+制作実績で「ポートフォリオ自身の沿革」を見せるために、**過去バージョンの静的書き出しを丸ごと** `public/archive/vN/` に置く。訪問者が当時の動く画面をそのまま触れるようにするためで、スクリーンショットではなくビルド成果物そのもの。**`public/` 直下の例外ではなく、上の規約どおり「公開したいもの」に該当する**（試作物の退避先である `sandbox/` とは目的が違う）。
 
 | パス | 中身 | タグ |
 | --- | --- | --- |
