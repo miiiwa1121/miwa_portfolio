@@ -79,6 +79,39 @@ export const PROJECTS: ProjectSource[] = [
     demoUrl: "https://synesthesium.miiiwa.com",
   },
   {
+    slug: "portfolio-v1",
+    title: { ja: "Miiiwa Portfolio v1", en: "Miiiwa Portfolio v1" },
+    description: {
+      ja: "このサイトの2代目。宇宙に浮かぶボクセルの惑星と、その上の5つのランドマークや街並みを、すべてコードで手続き的に生成した3Dポートフォリオ。世界観を作り直すにあたり、当時のビルドをそのまま触れる形で保存しています。",
+      en: "The second version of this very site. A 3D portfolio whose voxel planet floating in space, five landmarks and city are all generated procedurally in code. With the world being rebuilt, the original build is preserved here, still fully playable.",
+    },
+    image: "/images/portfolio_v1.webp",
+    tags: ["Three.js", "React Three Fiber", "Next.js", "TypeScript"],
+    category: "WEB",
+    status: "Public",
+    // The build itself lives in this repo under public/archive/v1/ — see
+    // docs/structure.md. No trailing slash: that is the form Vercel serves
+    // directly, and it 308s "/archive/v1/" to it.
+    githubUrl: "https://github.com/miiiwa1121/miwa_portfolio/tree/v1-voxel-planet",
+    demoUrl: "/archive/v1",
+  },
+  {
+    slug: "portfolio-v0",
+    title: { ja: "Miiiwa Portfolio v0", en: "Miiiwa Portfolio v0" },
+    description: {
+      ja: "このサイトの初代。黒地にネオンのグラデーションを重ね、カーソルから逃げ、長押しで吸い寄せられるパーティクルを敷いた、1ページ縦スクロールの HTML ポートフォリオ。3Dの惑星（v1）に置き換わるまで公開していたビルドを、そのまま触れる形で保存しています。",
+      en: "The first version of this very site. A single-page, scrolling HTML portfolio: neon gradients on black over a field of particles that flee the cursor and gather under a long press. The build that was live until the 3D planet (v1) replaced it is preserved here, still fully playable.",
+    },
+    image: "/images/portfolio_v0.webp",
+    tags: ["Next.js", "React", "Tailwind CSS", "Framer Motion"],
+    category: "WEB",
+    status: "Public",
+    // Built from the last commit main had before v1 was merged; see
+    // docs/structure.md.
+    githubUrl: "https://github.com/miiiwa1121/miwa_portfolio/tree/v0-dark-neon",
+    demoUrl: "/archive/v0",
+  },
+  {
     slug: "reallog",
     title: { ja: "Reallog", en: "Reallog" },
     description: {

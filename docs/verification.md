@@ -43,7 +43,9 @@
 
 **Next.js の開発インジケーターがヘッダーのボタンを覆う。** 390px 幅で `#devtools-indicator` は [334,20,36,36] に出て、ヘッダー右端のボタン [318,28,44,44] に重なる——`document.elementFromPoint` がボタンではなく `NEXTJS-PORTAL` を返し、**実際に押せなくなる**。`devIndicators: { position: ... }` では動かせなかった（スキーマは4つの位置を受け付け既定値も 'bottom-left' なのに、描画は右上のまま。Next 16.2.10）。`next.config.ts` で `devIndicators: false` にしてある。本番ビルドには存在しないので、**この不具合を「サイトの不具合」と誤診しない**。
 
-**`next.config.ts` の変更は HMR では効かない。** dev サーバーを落として起動し直す必要がある。さらに `pkill -f "next dev"` では死に残ることがあり、ポート3000を掴んだままの旧プロセスに新しいプロセスが接続して「設定を変えたのに変わらない」状態になる。`lsof -ti:3000 | xargs kill -9` で確実に落としてから起動する。
+**`next.config.ts` の変更は HMR では効かない。** dev サーバーを落として起動し直す必要がある。さらに `pkill -f "next dev"` では死に残ることがあり、ポート3000を掴んだままの旧プロセスに新しいプロセスが接続して「設定を変えたのに変わらない」状態になる。`lsof -ti:3000 -sTCP:LISTEN | xargs kill -9` で確実に落としてから起動する。
+
+**`-sTCP:LISTEN` を省かない。** `lsof -ti:3000` は待ち受けているサーバーだけでなく、**ポート3000へ接続している側**も返す。localhost:3000 のタブを開いたままのブラウザがあると、その **Chrome のネットワークプロセス**（`Google Chrome Helper --utility-sub-type=network.mojom.NetworkService`）まで `kill -9` の対象になる（2026-09-18 に実際に巻き込んだ。Chrome は自動で立て直すが、開いていたタブの通信は切れる）。自分で起動したサーバーを止めるだけなら、起動時の PID を控えて `kill <PID>` するのが一番確実。
 
 **`page.setViewport` で `isMobile`/`hasTouch` を切り替えるとページが再読み込みされる。** アプリの状態（`activeSection` など）が全部リセットされるので、「PC 幅で状態を作ってスマホ幅で確認する」という手は使えない。状態を作る操作はスマホ幅のまま行う。
 

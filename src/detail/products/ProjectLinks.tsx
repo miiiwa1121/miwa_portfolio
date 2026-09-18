@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { GithubIcon } from "@/ui/icons";
 import type { Project } from "@/data";
@@ -23,6 +22,10 @@ type Props = {
  * The Code / Play pair. Shared by the card and the modal so the
  * placeholder-URL interception can only be written once — the two used to
  * carry their own near-identical copies of it.
+ *
+ * Plain <a>, not next/link: no project links to a route of this app. Most are
+ * other domains, and a local one (/archive/v1) is a separate static build —
+ * <Link> would prefetch it in production as if it were one of our routes.
  */
 export default function ProjectLinks({
   project,
@@ -45,22 +48,22 @@ export default function ProjectLinks({
 
   return (
     <>
-      <Link
+      <a
         href={project.githubUrl}
         onClick={guard(project.githubUrl, "code")}
         target={isPlaceholderUrl(project.githubUrl) ? undefined : "_blank"}
         className={codeClassName}
       >
         <GithubIcon size={iconSize} /> <span>{codeLabel}</span>
-      </Link>
-      <Link
+      </a>
+      <a
         href={project.demoUrl}
         onClick={guard(project.demoUrl, "demo")}
         target={isPlaceholderUrl(project.demoUrl) ? undefined : "_blank"}
         className={demoClassName}
       >
         <ExternalLink size={iconSize} /> <span>{demoLabel}</span>
-      </Link>
+      </a>
     </>
   );
 }

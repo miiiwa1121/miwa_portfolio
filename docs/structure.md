@@ -23,21 +23,52 @@
 
 ## `public/archive/` — 過去バージョンの保存庫
 
-制作実績で「ポートフォリオ自身の沿革」を見せるために、**過去バージョンの静的書き出しを丸ごと** `public/archive/vN/` に置く。訪問者が当時の動く画面をそのまま触れるようにするためで、スクリーンショットではなくビルド成果物そのもの。**`public/` 直下の例外ではなく、上の規約どおり「公開したいもの」に該当する**（試作物の退避先である `sandbox/` とは目的が違う）。
+制作実績で「ポートフォリオ自身の沿革」を見せるために、**過去バージョンの静的書き出しをそのまま** `public/archive/vN/` に置く（手を入れるのは、下の手順6〜8の「画像のパス」「検索よけ」「どこからも参照されないファイルの削除」だけ）。訪問者が当時の動く画面をそのまま触れるようにするためで、スクリーンショットではなくビルド成果物そのもの。**`public/` 直下の例外ではなく、上の規約どおり「公開したいもの」に該当する**（試作物の退避先である `sandbox/` とは目的が違う）。
 
-| パス | 中身 | タグ |
-| --- | --- | --- |
-| `public/archive/v1/` | ボクセルの惑星。平面の浮遊島から球体へ移行し、5ランドマーク・雑居ビル・プラザ装飾すべてをボクセルで構築していた時代 | `v1-voxel-planet` |
+| パス | 中身 | タグ（元のコミット） | 公開していた期間 |
+| --- | --- | --- | --- |
+| `public/archive/v0/` | ダーク／ネオンの1ページ HTML サイト。黒地にネオンのグラデーション、カーソルから逃げて長押しで集まるパーティクル、縦スクロールで Hero → About → Products → Skills → Experience → Contact | `v0-dark-neon`（`ed4e3cb`） | 2026-07-13 〜 09-09 |
+| `public/archive/v1/` | ボクセルの惑星。平面の浮遊島から球体へ移行し、5ランドマーク・雑居ビル・プラザ装飾すべてをボクセルで構築していた時代 | `v1-voxel-planet`（`4009a65`） | 2026-09-09 〜 |
+
+**「バージョン」は main で公開されていたものだけを数える。** v0 と v1 のあいだには平面の浮遊島（7/18〜7/31）の時代があるが、`feature/` ブランチの上だけで作られ、main には一度も入っていない（`git log --first-parent main` で、7/18 の `827fbd8` の次は 9/9 の AdSense 追加 `ed4e3cb`、その次が惑星のマージ `d9e816f`）。訪問者が見たことのないものは沿革に数えない。v0 のタグを `827fbd8`（最後の内容変更）ではなく `ed4e3cb` に打ったのも、**置き換わる直前に実際に配信されていた状態**を残すため。
+
+**制作実績のカードから開く。** `src/data/projects.ts` の `portfolio-vN` が `demoUrl: "/archive/vN"`（Play）と、タグの時点のソースツリー（Code）を指している。サムネイルは各版のトップをヘッドレスで撮った `public/images/portfolio_vN.webp`（1600×840 で撮って 1200×630 へ縮小、WebP q85）。
+
+- **`demoUrl` は末尾スラッシュ無しで書く。** 本番は Vercel で、`/archive/v1` を直接 200 で返し、`/archive/v1/` は 308 でスラッシュ無しへ飛ばす。`/archive/v1/index.html` は **404**（2026-09-18 に miiiwa.com で実測）。`python3 -m http.server` は逆にスラッシュ無しを 301 でスラッシュ付きへ飛ばすが、どちらでも開ける
+- **`npm run dev` ではカードからは開けない。** dev サーバーは `public/` のディレクトリに `index.html` を補わないので、`/archive/v1` は 404。`http://localhost:3000/archive/v1/index.html` を直接開けば動く（中の Privacy Policy へのリンクだけ 404）。**通しの確認は `npm run build` 後の `out/` を配信して行う**（`python3 -m http.server -d out` で足りる）
+- `ProjectLinks` が `next/link` ではなく素の `<a>` なのはこのため（理由と実測は [tech.md](tech.md) の「その他」）
+- **アーカイブは検索に載せない（`noindex`）。** 書き出しには公開当時のメタデータがそのまま焼き込まれている——v1 は `index, follow`（と canonical → 本番トップ）、v0 は robots の指定そのものが無い。放っておくと、古いプロフィールと実績一覧を載せた「Miiiwa | Portfolio」が本番と並んで検索に出る。canonical を本番トップへ向ける案は採らなかった（内容の違うページへの canonical は本来の用途から外れ、検索エンジンに無視されうる。v1 の canonical も、本番が新しい世界観に替われば同じ理由で効かなくなる）。`robots.txt` で `/archive/` を塞ぐ案も採らなかった（クロールを止めるだけで URL は結果に出うるうえ、`noindex` を読ませられなくなる）。リンクから開けば普通に動く
 
 ### 次のバージョンを保存する手順
 
-**節目のコードが動くうちにビルドすること。** 何ヶ月も経ってから古いコミットを掘り起こすと、依存パッケージが今の Node/npm では素直に入らなくなっている可能性がある。v1 を保存したのも、ボクセル表現を撤退する決定の直後——まだ確実にビルドが通るうちに、という判断だった。
+**節目のコードが動くうちにビルドすること。** 何ヶ月も経ってから古いコミットを掘り起こすと、依存パッケージが今の Node/npm では素直に入らなくなっている可能性がある。v1 を保存したのも、ボクセル表現を撤退する決定の直後——まだ確実にビルドが通るうちに、という判断だった（v0 は中身が7月のままのコミットだったが、今と同じ Next 16.2.10 だったので `npm install` 8秒・ビルド一発で通った）。
 
-1. 節目のコミットにタグを打つ（`git tag -a vN-<名前> <commit> -m "..."`）
-2. そのタグを `git worktree add` で別ディレクトリへ取り出す（作業中のツリーを汚さないため）
+1. 節目のコミットにタグを打ち、push する（`git tag -a vN-<名前> <commit> -m "..."`。Code のリンクがタグの `tree/` URL なので、push するまで 404）
+2. そのコミットを `git worktree add --detach <dir> <commit>` で別ディレクトリへ取り出す（作業中のツリーを汚さないため）
 3. 取り出した先の `next.config.ts` に **`basePath: '/archive/vN'` と `assetPrefix: '/archive/vN'` を足す**。これが無いと、書き出された HTML が `/_next/...` を**サイトのルート基準**で参照してしまい、**現行サイトのチャンクを読みに行って壊れる**（絶対パスはファイルの置かれたディレクトリではなくドメイン直下に解決されるため、iframe に入れても同じ）。この変更はコミットしない
 4. `npm install && npm run build` して `out/` を得る
-5. `out/` の中身を `public/archive/vN/` へコピーし、`.DS_Store` を除いてコミット
-6. worktree を削除する（`git worktree remove`）
+5. `out/` の中身を `public/archive/vN/` へコピーする（`rsync -a --exclude .DS_Store out/ public/archive/vN/`）
+6. **画像のパスに `/archive/vN` を前置する。** `basePath` は `next/image` に文字列で渡した `src` には効かない（同梱ドキュメント `05-config/01-next-config-js/basePath.md` の「Images」）。放っておくと `"/images/x.png"` が**現行サイトの同名ファイルを黙って借りる**——v1 の制作実績の画像が、保存から2日間そうなっていた。テキストファイルの中の、引用符か `(` の直後の `/images/` だけを置き換える:
+   ```bash
+   cd public/archive/vN
+   grep -rlE --include='*.html' --include='*.txt' --include='*.js' --include='*.css' "[\"'\`(]/images/" . \
+     | while IFS= read -r f; do perl -pi -e 's#(["\x27`(])/images/#$1/archive/vN/images/#g' "$f"; done
+   ```
+   `/images/` 以外のディレクトリ（`/models/` など）を `public/` に持つ版なら、同じ置換を足す。どれが要るかは手順10のテストが名指しで教える
+7. **検索よけ（`noindex`）を入れる。** 各 `.html` の robots を `noindex` にする。当時の値（`index, follow`）が入っている版は置き換え、無い版は `<meta charSet="utf-8"/>` の直後に足す。**HTML の `<meta>` だけでなく RSC ペイロードの中の同じ値も置き換える**——Next はページ間を移動するとき、`<head>` をペイロードから組み直す（v1 のトップ → Privacy Policy がそう）。`googlebot` の `<meta>` を持つ版（v1）はそれも `noindex` にそろえる:
+   ```bash
+   grep -rlE --include='*.html' --include='*.txt' --include='*.js' '(robots|googlebot).{0,30}index, follow' . \
+     | while IFS= read -r f; do perl -pi -e 's/((?:robots|googlebot)(?:\\?"\s*,\s*\\?"content\\?":\\?"|" content="))index, follow/${1}noindex/g' "$f"; done
+   find . -name '*.html' | while IFS= read -r f; do grep -q '<meta name="robots"' "$f" \
+     || perl -pi -e 's#<meta charSet="utf-8"/>#<meta charSet="utf-8"/><meta name="robots" content="noindex"/>#' "$f"; done
+   ```
+   足しただけの `<meta>`（v0）は、ペイロード側に対応する要素が無いので React の hydration で消されないかが心配だったが、ヘッドレスで開いて hydration 後の DOM に残ること・エラーが出ないことを確かめた（v0・v1 のトップ、v1 の Privacy Policy）。404 ページには Next が最初から `noindex` を出している
+8. **どこからも参照されないファイルを消す。** `export` は `public/` を丸写しするので、当時すでに使っていなかった画像や create-next-app の SVG まで入ってくる。`_next/` 以外の各ファイルについて、名前（と URL エンコードした名前）がアーカイブ内の HTML・`.txt`・JS・CSS のどこにも出てこないことを確かめ、**さらに元のソースを `git grep` して、名前を組み立てて参照していないことも確かめてから**消す。消したあとヘッドレスで全ページを開き、画像が全部読めて 404 が無いことを見る。`robots.txt`・`sitemap.xml` は参照されなくても残す（v0 で `me0.png`・`me2.mp4`・SVG 5つ、v1 で未使用の実績画像5枚を消した。どれも git の履歴から取り戻せる）
+9. worktree を削除する（`git worktree remove --force <dir>`。`next.config.ts` の変更と `node_modules` が残っているので `--force` が要る）
+10. 制作実績に載せる。`src/data/projects.ts` に1件足し（`demoUrl: "/archive/vN"`、`githubUrl` はタグの `tree/` URL）、サムネイルを `public/images/` に 1200×630 で置いて、`npm test`
 
-`basePath` が効いたかは、書き出した `index.html` の `src=`／`href=` が全部 `/archive/vN/` で始まっているかで確認できる（外部ドメインへのリンクは当然そのまま）。**`node_modules` をシンボリックリンクで共有しようとすると Turbopack が `Symlink ... points out of the filesystem root` で落ちる**ので、worktree 側で素直に `npm install` する。
+**手順10の `npm test` が、手順3・6・7が効いたかを検査する**——`data/projectModel.test.ts` が、同じサイトを指す `demoUrl` それぞれについて、(1) `index.html` が実在する、(2) その `src=`／`href=` の絶対パスが全部 `demoUrl` の内側、(3) HTML・RSC ペイロード・JS・CSS に出てくる画像とモデルのパスが全部 `demoUrl` の内側で、しかも実在する、(4) すべての `.html` に `noindex` があり、ペイロードも含めて robots・googlebot の指定がすべて `noindex`、を確かめる。(3) が要るのは、v1 の制作実績のように**クライアントでしか描かれない画像は HTML に出てこない**から。
+
+- **`node_modules` をシンボリックリンクで共有しようとすると Turbopack が `Symlink ... points out of the filesystem root` で落ちる**ので、worktree 側で素直に `npm install` する
+- **手順6を zsh で `for f in $files` と書かない。** zsh は変数を空白で分割しないので、対象が2ファイル以上あると改行でつながった1つの名前として渡り、1つも置換されない（v1 は対象が1ファイルだったので気づかず、v0 で踏んだ）。**macOS の `grep -Z` も NUL 区切りの意味ではない**（BSD の grep では圧縮ファイルを読むオプション）。上の `while read` の形なら両方を避けられる
+- **置換するのは書き出し後のテキストで、ビルドの設定ではない。** `images.loader: 'custom'` で前置するローダーを当てる方法も試した。HTML は正しくなるが、JS とデータには生の `"/images/..."` が残る（描画時にローダーが足すため）。そうなると「アーカイブ外を指す文字列が1つも無い」をテストで静的に断言できず、ローダーを当て忘れた版と区別できない。v1・v0 とも `integrity` 属性（SRI）は使っておらず、チャンクの中身を書き換えても読み込みは壊れない
