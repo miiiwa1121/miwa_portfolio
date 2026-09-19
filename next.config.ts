@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import createMDX from "@next/mdx";
 
 const nextConfig: NextConfig = {
   output: 'export',
@@ -19,4 +20,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// 制作実績の個別ページと note の本文は `src/content/` の MDX。ページとして
+// ではなく `import()` で読むので `pageExtensions` は足していない（ルートは
+// 従来どおり .tsx だけ）。プラグインを関数ではなく**名前の文字列**で渡すのは
+// Turbopack の制約——関数は Rust 側へ渡せない（同梱ドキュメント
+// `01-app/02-guides/mdx.md` の「Using Plugins with Turbopack」）。
+// remark-gfm は表（実測値の比較）と取り消し線のため。
+const withMDX = createMDX({
+  options: {
+    remarkPlugins: ["remark-gfm"],
+  },
+});
+
+export default withMDX(nextConfig);

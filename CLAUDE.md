@@ -23,6 +23,8 @@ docs は実装の副産物ではなく、実装と同格の成果物として扱
 
 **このリポジトリ以外は参照しない。** `~/Desktop/dev/` 配下の他プロジェクトは miwa_portfolio とは無関係なサービスであり、設計や docs の根拠に使わないこと。
 
+**例外（2026-09-19 ユーザー許可）**: 制作実績の個別ページ（`src/content/products/<slug>.mdx`）の本文に書く**事実を取るためだけに**、そのサービスのリポジトリを読んでよい。設計や docs の根拠には使わない。未公開のサービスの事業計画・料金のような内部の話は書かない。
+
 ## この Next.js は既知のものと違う
 
 Next.js 16 には破壊的変更が入っている。API・規約・ファイル構成が学習データと食い違っている可能性がある。**Next.js に関わるコードを書く前に、必ず `node_modules/next/dist/docs/` の該当ガイドを読むこと。** バージョンに一致したドキュメントが同梱されており、そちらが正。非推奨の警告も無視しない。
@@ -36,7 +38,7 @@ Next.js 16（App Router / `output: 'export'`）・React・TypeScript・Tailwind�
 ```bash
 npm run dev          # 開発サーバー (:3000)
 npm run build        # 静的書き出し → out/
-npm test             # Vitest 一回実行（487件で1秒未満）
+npm test             # Vitest 一回実行（539件で2秒未満）
 npm run test:watch
 npm run lint
 npx tsc --noEmit     # 型のみ検査（テストは .tsx を1つも通らないので必須）
@@ -55,6 +57,7 @@ npx tsc --noEmit     # 型のみ検査（テストは .tsx を1つも通らな�
 | 見た目の確認・ピクセル計測 | [docs/verification.md](docs/verification.md) |
 | ボクセルアセットの制作 | [docs/voxel-object-creation.md](docs/voxel-object-creation.md) |
 | 未修正の不具合の確認 | [docs/review.md](docs/review.md) |
+| 読み物のページ（制作実績の個別ページ・ノート）の追加や本文の執筆 | [docs/tech.md](docs/tech.md) の「読み物のページ」 |
 
 docs 全体の地図は [docs/README.md](docs/README.md)。
 

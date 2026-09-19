@@ -6,6 +6,7 @@
 - **Next.js 16** (App Router) - Reactフレームワーク。本プロジェクトの基盤。`output: 'export'` による静的サイトとして書き出す構成のため、サーバー機能は使用していない。
 - **React 19** - ユーザーインターフェース構築ライブラリ。
 - **TypeScript** - 静的型付け言語。安全で堅牢なコードベースの維持に使用。
+- **MDX**（`@next/mdx` + `remark-gfm`） - 制作実績の個別ページとノートの本文を書く形式。`src/content/` の `.mdx` を、ページから `import()` で読んでビルド時に HTML へ焼く（下の「読み物のページ」）。
 
 ## 3D表現・WebGL
 - **Three.js** - ブラウザ上で3Dグラフィックスを描画するためのコアライブラリ。
@@ -226,16 +227,50 @@
 - **`facing` の読み手は3種類に分かれる**: `SectionCard` は `useSyncExternalStore` で購読（表示するので再レンダーが要る）、`SectionMarkers` は `useFrame` の中で `facingNow()` を読む（描くだけなので再レンダー不要）、`Hub` はハンドラが発火した時点で読む（`cardSection()`）。`AppStateContext` に置いていた頃は1ラップに5回、シーン全体の再調停を起こしていた。
 - `AppStateContext` の value は `useMemo` で包んである。
 
+### 読み物のページ（制作実績の個別ページとノート）（2026-09-19）
+
+AdSense の審査で「有用性の低いコンテンツ」として不合格になったことへの対応として足した、**普通にスクロールして読む HTML のページ群**。トップの 3D は文字のほとんどが WebGL の中か操作の奥にあり、配信 HTML の本文の96%が `sr-only`（画面に出ない）だった（経緯と実測は devlog 202609 の 2026-09-19）。検索エンジンや審査に読ませたいものは全部こちらに置く。
+
+| URL | ファイル | 中身 |
+| --- | --- | --- |
+| `/products` | `app/(reading)/products/page.tsx` | 制作実績の一覧 |
+| `/products/[slug]` | `app/(reading)/products/[slug]/page.tsx` ＋ `content/products/<slug>.mdx` | 制作実績ごとの紹介。先頭と末尾に Play Now（ポップアップと同じボタン） |
+| `/notes` | `app/(reading)/notes/page.tsx` | ノートの一覧 |
+| `/notes/[slug]` | `app/(reading)/notes/[slug]/page.tsx` ＋ `content/notes/<slug>.mdx` | 技術日記 |
+
+- **ルートグループ `(reading)` で共通のヘッダー・フッターを持つ**（`app/(reading)/layout.tsx`、`reading/ReadingHeader.tsx`／`ReadingFooter.tsx`）。URL にグループ名は出ない。フッターの文字は `gray-500`——ハブの `gray-400` は暗い空向けで、クリーム地ではコントラスト比が約2.5:1になる
+- **見た目はハブの詳細シートに揃える**（2026-09-19 ユーザーの指定。最初は編集的な長文として別の意匠を立てていたが、「プライバシーポリシーに似た、ほかの画面と違う見た目」として差し戻された）。**ハブの部品をコピーせず、そのものを使う**: ロゴ（`ui/Wordmark.tsx`）、白い丸のナビ（`hub/NavPills.tsx`）、全画面メニュー（`hub/MobileMenu.tsx`）、オレンジの縦棒の見出し（`detail/SectionHeading.tsx`）、公開状態・カテゴリのバッジ（`detail/products/Badges.tsx`）。一覧はハブのカード（制作実績は `ProjectCard` の形で3列、ノートは経歴のカードの語彙で2列）、紹介ページは**ポップアップを1ページに開いた形**（画像・題・Overview / Tech Stack・Play Now / View Code）
+  - **ヘッダーはその場固定＋背景透明（`fixed top-0 inset-x-0 z-40 bg-transparent`）。** トップ画面と同じ四隅の家具（左上: Miiiwa. タイトルロゴ、右上: 言語切り替え・閉じるボタン・NavPills/Menu）をピクセル単位で揃え、長文コンテンツは固定家具の下を滑らかに通過するレイアウトとした（2026-09-19 ユーザー指定）。左下にはハブと同じ PC アイコンドック（`ReadingDock.tsx`）を配置。
+  - **本文はカードに入れず、シートの上に直接置く。** 375px でカードの余白を足すと1行が約20字から約17字に減る。PC では `md:px-10` で、上のカードの内側の文字と左端を揃える
+- **読み物のページからハブ（`/` と `/#…`）へのリンクは素の `<a>`**（`hub/nav.ts` の `leadsToHub()`。ナビ・メニュー・ロゴ・MDX の本文のリンクが従う）。理由は2つ、どちらも本番ビルドで実測:
+  - `AppStateProvider` はルートの `layout.tsx` にあってページをまたいで生き残り、**ハッシュを読むのは最初のマウントのときだけ**。`<Link href="/#experience">` で移ると、URL は `#experience` なのにシートが開かなかった
+  - `next/link` は画面に入ったリンク先を先読みする。ロゴが `<Link href="/">` だった間、**読み物のページを開くたびに three.js を含むハブの3チャンク（約1.27MB）を取得していた**。`<a>` にして0件
+  - 逆向き（ハブ → 読み物のページ）は `next/link` のままでよい。ブラウザの戻るは `popstate` でハブが URL を読み直す
+- **`output: 'export'` のまま動的ルートを書き出す。** `generateStaticParams` がデータ（`PROJECTS`／`NOTES`）から slug を列挙し、`dynamicParams = false` で列挙外を 404 にする（同梱ドキュメント `01-app/02-guides/static-exports.md` の「Unsupported Features」——`dynamicParams: true` と `generateStaticParams` 無しは書き出せない）。本文は `` await import(`@/content/products/${slug}.mdx`) ``（同 `mdx.md` の「Using dynamic imports」）
+- **メタデータは `reading/pageMeta.ts` の `readingMetadata()` だけで作る。canonical を必ず自分の URL にする。** ルートの `layout.tsx` が `alternates.canonical: "https://miiiwa.com"` を宣言しており、子が何も書かないと継承される——全ページが「私はトップの複製です」と名乗り、**検索から黙って落ちる**。`openGraph` は丸ごと組み直す（Next のメタデータのマージは1段の深さで、子の `openGraph` は親のものを置き換えるので、`siteName`／`locale` が消える）。`pageMeta.test.ts` が両方を押さえている
+- **記事の事実（題・日付・要約・タグ・関連する制作実績）は `data/notes.ts`、本文は MDX。** 題を MDX に `#` で書かない（ページの `h1` と二重になる）。制作実績の事実は既存の `data/projects.ts` をそのまま使う。**日本語だけ**——言語トグルはクライアントの状態で、静的に書き出したページを2言語ぶん出し分けられないため
+- **本文の型は `src/mdx-components.tsx` の1か所**（`@next/mdx` が App Router で要求する置き場所）。和文の長文向けに 17px・行送り1.95、段の幅はページ側で約40字（`max-w-[44rem]`）。サイト内リンクは `next/link`、`/archive/*` と外部は素の `<a>`（`ProjectLinks` と同じ理由）
+- **本文には最低文字数がある（`content/contentFiles.testutil.ts` の `MIN_PROSE_CHARS` = 2,000字）。** 見出しと2行だけのページはまさに「有用性の低いコンテンツ」なので、下書きのまま公開できないようにテストで止める。制作実績は**全件に本文が要る**（ポップアップの Read More を全件に出すため。無い slug はビルドが落ちる）
+- **ノートは「技術日記」**（ユーザーの指定）。解説書ではなく、作りながら考えたこと・つまずいたことを一人称（僕・です／ます）で書く。**devlog は「ユーザーの指示」と「Claude の実装・勘違い」を書き分けているので、ノートに起こすときに一人称へ混ぜない**（2026-09-19 に一度混ぜかけた）。根拠の無い感想を本人の言葉として書かない
+- **制作実績の本文の事実は、各サービスのリポジトリから取る**（2026-09-19 のユーザーの許可。`CLAUDE.md` の「参照範囲」の例外）。未公開のサービス（gashaan・Umoja・Reallog・thanks-log）は、事業計画や料金のような内部の話を書かない
+- **ポップアップの「Read More」**（`detail/products/ProjectModal.tsx`）は `next/link`。Code／Play と違い、このアプリのルートだから。塗りつぶしのボタンは Play の1つのままにしてある（最優先の行動は「サービスで遊ぶ」——ユーザーの指定）
+- **ヘッダーの「ノート」はセクションではない**（`hub/nav.ts` の `NAV` で `page` だけを持つ項目）。建物もマーカーもカードも持たず、押すとジオラマを出て `/notes` へ行く。建物ごと足す案もあったが、UI の刷新が近いのでナビのリンクだけにした（ユーザー判断）。`SectionType` には足していない
+  - **ただし並びの上では区別しない。** 技術スタックと経歴・活動のあいだに置き、区切り線も付けない（2026-09-19 ユーザーの指定。最初は5エリアの後ろに `|` で区切って置いていた）。スマホのメニューも 01〜06 の通し番号。ナビは `NAV` の1本だけで、各項目が `section`（惑星のエリア）と `page`（自分のページ）の片方か両方を持つ。制作実績は両方を持ち、ハブでは飛行、読み物のページからは `/products` へ行く
+- **PC の横並びナビは `xl`（1280px）以上。** 6項目は、ロゴと右の丸ボタン3つの隣に約1,250px を要する。「ノート」を足した状態で測ると、1200px で2行、1024px で3行に折り返していた（5項目のときも約1,150px 未満では2行に折り返していた）。1280px 未満はメニューボタン（スマホと同じ全画面パネル）が受け持つ。ラベルは `whitespace-nowrap`
+- **`public/ads.txt`** は AdSense の発行者 ID（`data/site.ts` の `ADSENSE_CLIENT`）と同じ番号を持つ。静的ファイルなので import できず、`site.test.ts` が2つを突き合わせる。サイトの URL も `data/site.ts` の `SITE_URL` 1か所にまとめた（`layout.tsx`・`sitemap.ts`・`robots.ts`・プライバシーポリシーに別々に書かれていた）
+- **`hub/SemanticSEO.tsx`（画面に出ない代替テキスト）に文章を積み増して審査に効かせようとしない。** 画面に出ない文章は審査で価値として数えられず、目的によっては Google のスパムポリシーの「隠しテキスト」に当たる。ここから読み物のページへのリンクだけを張っている
+
 ### その他
 
 - **省電力**: 詳細ページがキャンバスを覆っている間は `frameloop="demand"` に切り替え、毎秒1回だけ描画する。**切り替えはレンダラの時計をリセットする**ので、`sceneClock` 側の補正とセット（「ジオラマの時計」参照）。
 - **`scene/planet/` の基底を three.js の姿勢に変えるのは `scene/planetPlacement.ts` 一箇所。** `quaternionOf` は一度きりの配置（5棟・木・街灯）用にタプルを返し、`orientTo`／`standOn` は毎フレーム動くもの（雲・住人・トラム）用にモジュールスコープの scratch へ書いて `Object3D` を直接更新する。後者を素直に書くと `Matrix4` + `Vector3`×3 + `Quaternion` が毎フレーム10体ぶん生まれ、毎秒6千オブジェクトのGC圧になる——それが遷移の最中に回収されると1フレーム落ちる。
 - **URL**: 開いているセクションをハッシュ（`#products` 等）に反映し、戻るボタンとリンク共有に対応。ただしセクションの中身はクライアント描画のため、プリレンダーされた HTML には含まれない。
+- **経歴から制作実績へ（`detail/Sheet.tsx`）。** 経歴のうち `project`（実績の slug）を持つ項目はカード全体がボタンになり、押すと制作実績に切り替わって、その実績のモーダルが最初から開く。切り替えはヘッダーのナビがシートを開いたまま行うのと同じ `setActiveSection("products")` で、URL も `#products` に進むので、ブラウザの戻るで経歴に帰れる。**「どの実績を開くか」は `AppStateContext` ではなく `Sheet` の state に持つ**——Context に置くと、変わるたびに three.js のツリー全体が再調停される（「毎フレームの値は React state に載せない」）うえ、シーンには関係の無い値だから。`Products` はそれを `useState` の初期値として**マウント時に一度だけ**読み、以後モーダルは読み手のもの（閉じたら戻ってこない）。**依頼は制作実績以外のセクションへ移った瞬間に捨てる**。effect ではなく、前回の `activeSection` を state に持ってレンダー中に比べる形（React の「前回のレンダーの情報を保存する」）——effect で消すと、このプロジェクトの lint（`react-hooks/set-state-in-effect`）に掛かり、描画も1回余分に走る。捨てないと、経歴で押した直後（`Products` がマウントされる前、シートの切り替えアニメーションの0.3秒）に別のセクションへ移ったとき、あとで普通に制作実績を開いた瞬間に関係の無いモーダルが開く
 - **制作実績の Code／Play は `next/link` ではなく素の `<a>`（`detail/products/ProjectLinks.tsx`）。** 実績のリンク先は、他ドメインか、同じサイトに同居させた過去バージョン（`/archive/v0`・`/archive/v1`、[structure.md](structure.md) の「`public/archive/`」）のどちらかで、**このアプリのルートは1つも無い**。`<Link>` は本番でビューポートに入ったリンクを自分のルートとして先読みするので、`/archive/v1` を指すと**実績を開いただけで v1 のルートツリー・CSS・フォントの計6件を取りに行く**（本番ビルドで実測。`<a>` にして0件）。`target="_blank"` なのでクリック時のクライアント遷移は元々起きず、`<Link>` を使う利点が無い。
 
 ## テスト
 - **Vitest**（node環境）。React も three.js も含まない純粋ロジックのみを対象にしているため、DOMもレンダラも不要で全体が1秒未満で走る（件数は `CLAUDE.md` の「コマンド」にだけ書く）。最も重いのは惑星の球殻の生成と水密性の検査。**ループの中で `expect` を数千回呼ばない** — 数万個のブロックを1個ずつ検証すると、惑星を生成するより検証の方が高くつく。集計してから1回だけ検証する。
-- 対象: カメラの姿勢計算と飛行の補間（`scene/camera/cameraLayout.ts`）、飛行そのものと着地の引き継ぎ（`scene/camera/cameraFlight.ts`）、太陽の向き・ドラッグ・影の内包関係（`scene/sunLight.ts`）、球面の幾何・接空間の基底（`scene/planet/geometry.ts`）、各セクションの経緯度（`scene/planet/sections.ts`）、ツアー経路（`scene/planet/tour.ts`）、惑星の球殻と地形（`scene/planet/shell.ts`）、雑居ビルの散布（`scene/planet/city.ts`）、プラザと装飾の配置（`scene/planet/decor.ts`）、ジオラマの時計（`scene/sceneClock.ts`）、決定論的ハッシュ（`scene/voxel/rng.ts`）、制作実績のフィルタ（`detail/products/catalog.ts`）、プロジェクトデータの言語解決と、実績が指す画像・過去バージョンが配信物に実在し、過去バージョンが自分のディレクトリの外を指さず、検索よけ（`noindex`）が入っているか（`data/projectModel.ts`。これだけは `public/` を読む）、URL の解釈（`state/sectionUrl.ts`）、詳細ページの退場方向（`detail/detailSheet.ts`）、カードのホイール送り（`hub/card/cardWheel.ts`）、自己紹介の読了判定とスクロール連動の帰還（`hub/about/aboutScroll.ts`）。
+- 対象: カメラの姿勢計算と飛行の補間（`scene/camera/cameraLayout.ts`）、飛行そのものと着地の引き継ぎ（`scene/camera/cameraFlight.ts`）、太陽の向き・ドラッグ・影の内包関係（`scene/sunLight.ts`）、球面の幾何・接空間の基底（`scene/planet/geometry.ts`）、各セクションの経緯度（`scene/planet/sections.ts`）、ツアー経路（`scene/planet/tour.ts`）、惑星の球殻と地形（`scene/planet/shell.ts`）、雑居ビルの散布（`scene/planet/city.ts`）、プラザと装飾の配置（`scene/planet/decor.ts`）、ジオラマの時計（`scene/sceneClock.ts`）、決定論的ハッシュ（`scene/voxel/rng.ts`）、制作実績のフィルタ（`detail/products/catalog.ts`）、経歴の並び順とリンク先の実在（`data/experience.ts`）、プロジェクトデータの言語解決と、実績が指す画像・過去バージョンが配信物に実在し、過去バージョンが自分のディレクトリの外を指さず、検索よけ（`noindex`）が入っているか（`data/projectModel.ts`。これだけは `public/` を読む）、URL の解釈（`state/sectionUrl.ts`）、ナビの並びと、読み物のページからの行き先（`hub/nav.ts`）、詳細ページの退場方向（`detail/detailSheet.ts`）、カードのホイール送り（`hub/card/cardWheel.ts`）、自己紹介の読了判定とスクロール連動の帰還（`hub/about/aboutScroll.ts`）、ノートの並び順と日付の書式（`data/noteModel.ts`）、読み物のページのメタデータ（`reading/pageMeta.ts`）、サイトマップ（`app/sitemap.ts`）、`ads.txt` と発行者 ID の一致（`data/site.ts`）、読み物の本文の実在・最低文字数・サイト内リンクの実在（`content/`。`src/content/` を読む）。
 - 新しいテストは**変異テストで検証する運用**にしている。意図的なバグを仕込んで落ちることを確認しないと、緑であることに意味がないため。
 
 ```bash

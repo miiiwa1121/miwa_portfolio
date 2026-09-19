@@ -48,3 +48,12 @@ export function localizeProjects(
 ): Project[] {
   return projects.map((p) => localizeProject(p, language));
 }
+
+/**
+ * Where a project's own page is served — the long-form write-up the modal's
+ * "Read More" opens. Every project has one: `projectModel.test.ts` checks
+ * that `src/content/products/<slug>.mdx` exists for each.
+ */
+export function productPath(slug: string): string {
+  return `/products/${slug}`;
+}

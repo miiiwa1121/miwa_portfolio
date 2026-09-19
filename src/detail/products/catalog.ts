@@ -25,6 +25,12 @@ export function filterProjects(
   );
 }
 
+/**
+ * How many tags a project's card shows before collapsing the rest into "+N" —
+ * the hub's card and the reading pages' alike.
+ */
+export const CARD_TAG_COUNT = 3;
+
 const STATUS_LABELS_JA: Record<StatusFilter, string> = {
   All: "すべて",
   Public: "公開中",

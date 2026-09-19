@@ -35,7 +35,6 @@ import {
   SECTION_TILT,
   ABOUT_POLAR,
   ABOUT_ORBIT_RADIUS,
-  ABOUT_CARD_SHARE,
   aboutCardShare,
   aboutOffsetY,
   type Pose,

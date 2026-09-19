@@ -1,0 +1,20 @@
+[
+  {
+    "date": "2026-09-19",
+    "macrostructure": "hub detail-sheet (inherited: Bento card grid for indexes, expanded modal for write-ups)",
+    "theme": "site tokens (preserved)",
+    "enrichment": "none",
+    "nav": "hub header (NavPills + MobileMenu, shared)",
+    "footer": "hub dock (round links + copyright)",
+    "brief": "redesign of the reading pages to match the hub's own UI — user rejected the separate editorial look as 'like the privacy policy'; consistency across pages, not variety"
+  },
+  {
+    "date": "2026-09-19",
+    "macrostructure": "Long Document",
+    "theme": "site tokens (preserved)",
+    "enrichment": "none",
+    "nav": "N1a",
+    "footer": "Ft2",
+    "brief": "miiiwa.com reading pages: per-product write-ups (/products/[slug]) and a dev-diary (/notes), Japanese long-form, primary action = play the service"
+  }
+]

@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { ReactNode } from "react";
+import SectionHeading from "./SectionHeading";
 
 interface DetailSectionProps {
   id: string;
@@ -20,12 +21,7 @@ export default function DetailSection({ id, title, children, className = "" }: D
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.5 }}
         >
-          <div className="flex items-center gap-3 mb-10 md:mb-14">
-            <span className="w-2.5 h-8 sm:h-9 bg-orange-600 rounded-full inline-block" />
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-gray-950">
-              {title}
-            </h2>
-          </div>
+          <SectionHeading className="mb-10 md:mb-14">{title}</SectionHeading>
           {children}
         </motion.div>
       </div>

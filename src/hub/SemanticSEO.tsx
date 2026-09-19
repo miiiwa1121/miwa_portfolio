@@ -1,14 +1,16 @@
-import { PROJECTS } from "@/data/projects";
+import { NOTES, PROJECTS, notePath, productPath, sortNotesNewestFirst } from "@/data";
 import Link from "next/link";
 
 /**
  * SemanticSEO:
- * Webアクセシビリティ（スクリーンリーダー）および検索エンジンクローラー（Google AdSense審査ボット含む）向けの
- * セマンティックなHTMLコンテンツです。
- * 
- * 3D CanvasメインのUIでは、Canvas内の描画テキストをクローラーが認識できず「有用性の低いコンテンツ / コンテンツ不足」と
- * 判定されてしまうリスクがあるため、ページの主要コンテンツ（自己紹介・制作物・経歴・スキル・免責・リンク）を
- * 標準的なHTMLセマンティックタグ（h1〜h3, article, section, p, ul, a）としてDOMに提供します。
+ * 3D Canvas の中に描かれている内容（自己紹介・制作物・経歴・スキル・連絡先）の、スクリーンリーダー向けの
+ * テキスト代替。Canvas 内の文字は支援技術にも検索エンジンにも読めないため、同じ内容を
+ * セマンティックな HTML（h1〜h3, article, section, p, ul, a）として DOM に置いている。
+ *
+ * **ここに文章を積み増して検索や広告審査に効かせようとしない。** 画面に出ない文章は審査で「サイトの価値」として
+ * 数えられず、目的によっては Google のスパムポリシーの「隠しテキスト」に当たる。2026-09 の AdSense の不合格
+ * （「有用性の低いコンテンツ」）への答えは、目に見える読み物のページ（`/products/*` と `/notes/*`）の側で出している
+ * （docs/devlog/202609.md）。ここからはそれらへのリンクだけを張る。
  */
 export default function SemanticSEO() {
   return (
@@ -44,6 +46,9 @@ export default function SemanticSEO() {
               <p>{project.description.ja}</p>
               <p>使用技術・タグ: {project.tags.join(", ")}</p>
               <p>ステータス: {project.status}</p>
+              <p>
+                <Link href={productPath(project.slug)}>{project.title.ja} の紹介ページ</Link>
+              </p>
               {project.demoUrl && project.demoUrl !== "#" && (
                 <p>
                   公開URL:{" "}
@@ -85,8 +90,24 @@ export default function SemanticSEO() {
           <li>2025年8月: リアルタイム位置共有Webアプリ「imadoko」リリース</li>
           <li>2025年11月: エンジニアインターンシップ開始</li>
           <li>2025年12月: P2Pスペースシェア「Sukima Park」アーキテクチャ設計</li>
-          <li>2026年4月: 視線計測エンタメアプリ「Michaw（見ちゃう）」開発・リリース</li>
+          <li>2026年4月: 視線推定Webアプリ「mesen」開発・リリース</li>
+          <li>2026年7月: ポートフォリオサイト（v0）公開</li>
+          <li>2026年7月: 感覚を研ぎ澄ます神経衰弱ゲーム集「Synesthesium」公開</li>
           <li>2026年7月: オンラインGD評価プラットフォーム「Umoja」開発中</li>
+          <li>2026年8月: 「mesen」を視線計測エンタメアプリ「Michaw（見ちゃう）」へリニューアル</li>
+          <li>2026年9月: ポートフォリオサイトを3Dのボクセル惑星へ刷新（v1）</li>
+        </ul>
+      </section>
+
+      {/* Notes */}
+      <section aria-labelledby="seo-notes-heading">
+        <h2 id="seo-notes-heading">ノート (Notes)</h2>
+        <ul>
+          {sortNotesNewestFirst(NOTES).map((note) => (
+            <li key={note.slug}>
+              <Link href={notePath(note.slug)}>{note.title}</Link>
+            </li>
+          ))}
         </ul>
       </section>
 
