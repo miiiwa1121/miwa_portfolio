@@ -3,10 +3,10 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { motion, type Variants } from "framer-motion";
-import { BookOpen, Terminal, X } from "lucide-react";
+import { Terminal, X } from "lucide-react";
 import { GithubIcon, XIcon } from "@/ui/icons";
 import type { SectionType } from "@/types";
-import { NAV, leadsToHub, navKey, offPlanetHref, type NavItem } from "./nav";
+import { NAV, PAGE_LINKS, leadsToHub, navKey, offPlanetHref, type NavEntry } from "./nav";
 
 /**
  * The handheld navigation, as a panel over the whole screen.
@@ -32,7 +32,7 @@ import { NAV, leadsToHub, navKey, offPlanetHref, type NavItem } from "./nav";
 type Props = {
   isJa: boolean;
   /** The row drawn lit. */
-  current: NavItem | undefined;
+  current: NavEntry | undefined;
   /** On the hub: an area's row flies the camera instead of linking. */
   onNavClick?: (id: NonNullable<SectionType>) => void;
   onClose: () => void;
@@ -56,6 +56,51 @@ const ROW_VARIANTS: Variants = {
   // underneath that fade only makes the close feel slower than the tap was.
   exit: { opacity: 0 },
 };
+
+/*
+ * Six rows and the rule need about 740px of screen at full size, and an
+ * iPhone SE's Safari leaves 548–603px: with the sixth row (the notes) the
+ * list ran into the round links below it (19px at 375×667) and off the top
+ * (6px at 320×568). So short screens get tighter rows (from 760px down, about
+ * 615px needed) and then lose the small second-language line (from 640px
+ * down, about 520px needed). The thresholds are the measured need plus some
+ * room; see devlog 2026-09-20. The variants are spelt out in full at each
+ * use: Tailwind finds classes by reading the source, so a class name built
+ * from a template string would never be generated.
+ */
+
+const rowClass = (lit: boolean) =>
+  `group flex items-baseline gap-4 px-2 py-3 [@media(max-height:760px)]:py-1.5 rounded-2xl text-left transition-colors active:bg-white/10 ${
+    lit ? "text-orange-400" : "text-white"
+  }`;
+
+/**
+ * One row's face: a small marker in the left column (the area's number, or
+ * "↗" for a page that leaves the diorama), the label, and the label in the
+ * other language beneath it.
+ */
+function RowFace({ lit, marker, label, other }: { lit: boolean; marker: string; label: string; other: string }) {
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        className={`font-mono text-xs tabular-nums shrink-0 ${lit ? "text-orange-400" : "text-white/35"}`}
+      >
+        {marker}
+      </span>
+      <span className="flex flex-col">
+        <span className="text-3xl [@media(max-height:760px)]:text-2xl font-black tracking-tight leading-tight">{label}</span>
+        <span
+          className={`text-[11px] [@media(max-height:640px)]:hidden font-bold uppercase tracking-[0.2em] ${
+            lit ? "text-orange-400/70" : "text-white/40"
+          }`}
+        >
+          {other}
+        </span>
+      </span>
+    </>
+  );
+}
 
 export default function MobileMenu({
   isJa,
@@ -110,41 +155,23 @@ export default function MobileMenu({
           </button>
         </div>
 
-        {/* The areas and the pages off the planet, in one numbered list.
-            Sized to be read at arm's length, not to fit as many as possible:
-            six rows is the whole list, so there is no scroll to budget for. */}
+        {/* The five areas, numbered; a rule — the header's "｜" — then the
+            pages off the planet. Sized to be read at arm's length, not to fit
+            as many as possible: six rows is the whole list, so there is no
+            scroll to budget for. */}
         <nav className="flex-1 flex flex-col justify-center gap-1 min-h-0">
           {NAV.map((item, i) => {
             const lit = item === current;
-            const rowClass = `group flex items-baseline gap-4 px-2 py-3 rounded-2xl text-left transition-colors active:bg-white/10 ${
-              lit ? "text-orange-400" : "text-white"
-            }`;
             const content = (
-              <>
-                <span
-                  aria-hidden="true"
-                  className={`font-mono text-xs tabular-nums shrink-0 ${
-                    lit ? "text-orange-400" : "text-white/35"
-                  }`}
-                >
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span className="flex flex-col">
-                  <span className="text-3xl font-black tracking-tight leading-tight">
-                    {isJa ? item.ja : item.en}
-                  </span>
-                  <span
-                    className={`text-[11px] font-bold uppercase tracking-[0.2em] ${
-                      lit ? "text-orange-400/70" : "text-white/40"
-                    }`}
-                  >
-                    {isJa ? item.en : item.ja}
-                  </span>
-                </span>
-              </>
+              <RowFace
+                lit={lit}
+                marker={String(i + 1).padStart(2, "0")}
+                label={isJa ? item.ja : item.en}
+                other={isJa ? item.en : item.ja}
+              />
             );
 
-            if (item.section !== undefined && onNavClick) {
+            if (onNavClick) {
               const id = item.section;
               return (
                 <motion.button
@@ -155,7 +182,7 @@ export default function MobileMenu({
                     onClose();
                   }}
                   aria-current={lit ? "page" : undefined}
-                  className={rowClass}
+                  className={rowClass(lit)}
                 >
                   {content}
                 </motion.button>
@@ -166,11 +193,34 @@ export default function MobileMenu({
               href,
               onClick: onClose,
               "aria-current": lit ? ("page" as const) : undefined,
-              className: rowClass,
+              className: rowClass(lit),
             };
             return (
               <motion.div key={navKey(item)} variants={ROW_VARIANTS}>
                 {leadsToHub(href) ? <a {...linkProps}>{content}</a> : <Link {...linkProps}>{content}</Link>}
+              </motion.div>
+            );
+          })}
+
+          <motion.div variants={ROW_VARIANTS} aria-hidden="true" className="h-px mx-2 my-2 [@media(max-height:760px)]:my-1 bg-white/25" />
+
+          {PAGE_LINKS.map((link) => {
+            const lit = link === current;
+            return (
+              <motion.div key={navKey(link)} variants={ROW_VARIANTS}>
+                <Link
+                  href={link.page}
+                  onClick={onClose}
+                  aria-current={lit ? "page" : undefined}
+                  className={rowClass(lit)}
+                >
+                  <RowFace
+                    lit={lit}
+                    marker="↗"
+                    label={isJa ? link.ja : link.en}
+                    other={isJa ? link.en : link.ja}
+                  />
+                </Link>
               </motion.div>
             );
           })}
@@ -179,17 +229,9 @@ export default function MobileMenu({
         {/* The links that used to hide behind the monitor button in the
             bottom-left corner. That corner is the card rail's now, so they
             are parked here — visible rather than behind a hover, which a
-            phone does not have anyway. */}
+            phone does not have anyway. (The notes' book icon is not among
+            them: the notes have a labelled row in the list above.) */}
         <motion.div variants={ROW_VARIANTS} className="flex items-center gap-3 shrink-0 pt-6">
-          <Link
-            href="/notes"
-            onClick={onClose}
-            title={isJa ? "ノート" : "Notes"}
-            aria-label={isJa ? "ノート" : "Notes"}
-            className="w-12 h-12 rounded-full flex items-center justify-center bg-white/10 text-orange-400 border border-white/10 active:scale-95 transition-transform"
-          >
-            <BookOpen size={20} />
-          </Link>
           <a
             href="https://github.com/miiiwa1121"
             target="_blank"

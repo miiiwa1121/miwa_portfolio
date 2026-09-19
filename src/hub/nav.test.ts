@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import sitemap from "@/app/sitemap";
+import { siteUrl } from "@/data/site";
 import { sectionFromHash } from "@/state/sectionUrl";
-import { NAV, leadsToHub, navItemForPath, navItemForSection, navKey, offPlanetHref } from "./nav";
+import { NAV, PAGE_LINKS, leadsToHub, navItemForSection, navKey, offPlanetHref, pageLinkForPath } from "./nav";
 
 const byLabel = (ja: string) => {
   const item = NAV.find((i) => i.ja === ja);
@@ -24,9 +26,26 @@ describe("NAV", () => {
     expect([...sections].sort()).toEqual(["about", "contact", "experience", "products", "skills"]);
   });
 
-  it("gives every entry its own key", () => {
-    const keys = NAV.map(navKey);
+  it("gives every entry its own key, the page links included", () => {
+    const keys = [...NAV, ...PAGE_LINKS].map(navKey);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe("PAGE_LINKS", () => {
+  // In words on the header, not only as the monitor button's icon: the notes
+  // are what the AdSense review has to find (devlog 2026-09-20).
+  it("puts the notes after the areas", () => {
+    expect(PAGE_LINKS.map((l) => [l.ja, l.page])).toEqual([["ノート", "/notes"]]);
+  });
+
+  it("leads only to pages the build writes and lists", () => {
+    const urls = sitemap().map((entry) => entry.url);
+    for (const { page } of PAGE_LINKS) expect(urls).toContain(siteUrl(page));
+  });
+
+  it("leaves the hub by next/link, not by a full load", () => {
+    for (const { page } of PAGE_LINKS) expect(leadsToHub(page)).toBe(false);
   });
 });
 
@@ -48,13 +67,21 @@ describe("offPlanetHref", () => {
   });
 });
 
-describe("navItemForPath", () => {
-  it("lights nothing on pages that are not in the list", () => {
-    expect(navItemForPath("/")).toBeUndefined();
-    expect(navItemForPath("/products")).toBeUndefined();
-    expect(navItemForPath("/notes")).toBeUndefined();
-    expect(navItemForPath("/notes/drag-the-sun")).toBeUndefined();
-    expect(navItemForPath("/privacy")).toBeUndefined();
+describe("pageLinkForPath", () => {
+  const notes = PAGE_LINKS.find((l) => l.page === "/notes");
+
+  it("lights the notes on their index and on every note", () => {
+    expect(notes).toBeDefined();
+    expect(pageLinkForPath("/notes")).toBe(notes);
+    expect(pageLinkForPath("/notes/drag-the-sun")).toBe(notes);
+  });
+
+  it("lights nothing on the other pages", () => {
+    expect(pageLinkForPath("/")).toBeUndefined();
+    expect(pageLinkForPath("/products")).toBeUndefined();
+    expect(pageLinkForPath("/products/imadoko")).toBeUndefined();
+    expect(pageLinkForPath("/privacy")).toBeUndefined();
+    expect(pageLinkForPath("/notes-archive")).toBeUndefined();
   });
 });
 
