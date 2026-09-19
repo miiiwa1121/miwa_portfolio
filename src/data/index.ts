@@ -7,3 +7,5 @@ export type {
   ProjectStatus,
   Localized,
 } from "./projectModel";
+export { EXPERIENCE } from "./experience";
+export type { ExperienceSource } from "./experience";

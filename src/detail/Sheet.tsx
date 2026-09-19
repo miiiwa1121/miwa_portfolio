@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 
-import { RefObject } from "react";
+import { RefObject, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { SectionType } from "@/types";
+import { useAppState } from "@/state/AppStateContext";
 import { SHEET_VARIANTS, type ExitDirection } from "./detailSheet";
 import Products from "./Products";
 import Skills from "./Skills";
@@ -30,6 +31,35 @@ export default function Sheet({
   scrollerRef,
   onScroll,
 }: Props) {
+  const { setActiveSection } = useAppState();
+
+  /**
+   * The project an Experience milestone asked Products to open with.
+   *
+   * Held here rather than in `AppStateContext`: every change to that context
+   * re-renders the whole three.js tree (see `facingChannel`), and this is
+   * nothing the scene needs to know about.
+   */
+  const [requestedProject, setRequestedProject] = useState<string | null>(null);
+
+  // Dropped the moment the reader is anywhere but Products — on the way out,
+  // not on arrival, so coming back to Products later by any other route opens
+  // it plain. Adjusted during render (React's "storing information from
+  // previous renders") rather than in an effect, which would cost a second
+  // render and is what react-hooks/set-state-in-effect forbids here.
+  const [previousSection, setPreviousSection] = useState(activeSection);
+  if (activeSection !== previousSection) {
+    setPreviousSection(activeSection);
+    if (activeSection !== "products") setRequestedProject(null);
+  }
+
+  // The same switch the header's nav makes while the page is open: the sheet
+  // stays up, its content changes, and the camera flies behind it.
+  const openProject = (slug: string) => {
+    setRequestedProject(slug);
+    setActiveSection("products");
+  };
+
   return (
     <AnimatePresence custom={exitDirection}>
       {pageOpen && activeSection && activeSection !== "about" && (
@@ -57,9 +87,9 @@ export default function Sheet({
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.3 }}
                 >
-                  {activeSection === "products" && <Products />}
+                  {activeSection === "products" && <Products initialProject={requestedProject} />}
                   {activeSection === "skills" && <Skills />}
-                  {activeSection === "experience" && <Experience />}
+                  {activeSection === "experience" && <Experience onOpenProject={openProject} />}
                   {activeSection === "contact" && <Contact />}
                 </motion.div>
               </AnimatePresence>

@@ -18,11 +18,22 @@ import Toast from "./products/Toast";
 import { useToast } from "./products/useToast";
 import type { BlockedLink } from "./products/ProjectLinks";
 
-export default function Products() {
+type Props = {
+  /** Open with this project's modal already up (by slug) — how Experience links here. */
+  initialProject?: string | null;
+};
+
+export default function Products({ initialProject = null }: Props) {
   const { language } = useLanguage();
   const [category, setCategory] = useState<CategoryFilter>("All");
   const [status, setStatus] = useState<StatusFilter>("All");
-  const [selected, setSelected] = useState<Project | null>(null);
+  // Read once, on mount: the modal belongs to the reader from then on, and
+  // closing it must not bring it back.
+  const [selected, setSelected] = useState<Project | null>(() =>
+    initialProject
+      ? localizeProjects(PROJECTS, language).find((p) => p.slug === initialProject) ?? null
+      : null
+  );
   const toast = useToast();
 
   // createPortal needs a real container, and the page is statically
