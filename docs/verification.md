@@ -53,7 +53,7 @@
 
 ## 読み物のページを確かめるとき（2026-09-19）
 
-**`out/` の配信は `.html` を補うサーバーで行う。** 本番（Vercel）は `/products/imadoko` に `products/imadoko.html` を返すが、`python3 -m http.server` はそれをしない（404）。スクラッチパッドに「パスが無ければ `.html` を足して探す」だけの `SimpleHTTPRequestHandler` を書いて配信した。
+**`out/` の配信は `.html` を補うサーバーで行う。** 本番（Vercel）は `/products/imadoko` に `products/imadoko.html` を返すが、`python3 -m http.server` はそれをしない（404）。スクラッチパッドに「パスが無ければ `.html` を足して探す」だけの `SimpleHTTPRequestHandler` を書いて配信した。**同名のディレクトリがあるときも `.html` を優先する。** `out/` には `notes.html` と `notes/`（個別ページの置き場）が並ぶので、「パスが無ければ」の条件だと `/notes` はディレクトリとして見つかり、`/notes/` への 301 になる（2026-09-20）。末尾が `/` でないパスは、`.html` があればそちらを返す
 
 **トップを開くときは広告の通信を遮断する。** `layout.tsx` の AdSense のスクリプトが外部へ通信し続けるので、`waitUntil: "networkidle2"` が30秒でタイムアウトした。`page.setRequestInterception(true)` で `googlesyndication` への要求を `abort()` し、`waitUntil: "domcontentloaded"` ＋固定の待ちにした。遮断した要求はコンソールに `net::ERR_FAILED` として1件出るが、アプリのエラーではない。読み物のページ（WebGL 無し）は `networkidle0` で問題なく開ける。
 
@@ -65,4 +65,6 @@
 
 **読み物のページからハブへの遷移を確かめるときは、着いた先のシートが開いたかまで見る。** URL が `/#experience` になったことだけでは足りない——`next/link` で移ったときは URL が変わってもシートは開いていなかった（`AppStateProvider` がページをまたいで生き残るため。[tech.md](tech.md) の「読み物のページ」）。素の `<a>` なら普通の遷移なので、`page.waitForNavigation()` と一緒にクリックし、WebGL の初期化を待ってから（数秒）シートの見出しを読む
 
-**`npm run build` が `ENOTEMPTY: directory not empty, rmdir '.next/server'` で落ちることがある。** 2026-09-19 に1回。直後の `.next/server` は空で、`lsof` で掴んでいるプロセスも無く、そのまま再実行して通った。`.next` ごと消して直そうとしない——ユーザーの `next dev` が `.next/dev` を使って動いていることがある（2026-09-19 の devlog の「踏んだ罠」）
+**`npm run build` が `ENOTEMPTY: directory not empty, rmdir '.next/server'` で落ちることがある。** 2026-09-19 に1回。直後の `.next/server` は空で、`lsof` で掴んでいるプロセスも無く、そのまま再実行して通った。`.next` ごと消して直そうとしない——ユーザーの `next dev` が `.next/dev` を使って動いていることがある（2026-09-19 の devlog の「踏んだ罠」）。2026-09-20 にも1回。**直後の `.next/server` には `.DS_Store`（Finder が作るファイル）が1つだけ残っていた**——削除の途中で Finder が作り直した可能性がある（未検証）。このときも再実行で通った
+
+**「画面に見える文字」を `document.body.innerText` で数えない。** `sr-only` は `clip` で見えなくしているだけで `display: none` ではないので、`innerText` に入る。2026-09-20 に本番トップを測ったら3,407字と出たが、約3,300字は `hub/SemanticSEO.tsx` の画面に出ない文章だった。見えるリンクや文字を数えるときは、要素ごとに `el.closest(".sr-only")` で除き、`getBoundingClientRect()` の幅と高さが0でないものだけを取る（この方法で、トップの初期表示に見えるリンクは PC で `/privacy` の1本、スマホで0本と出た）

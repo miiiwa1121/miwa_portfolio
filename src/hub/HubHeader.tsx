@@ -74,11 +74,13 @@ export default function HubHeader({
       <div className="flex items-center gap-2 sm:gap-3 md:gap-4 relative">
         {!handheld && (
           <>
-            {/* Desktop navigation — from xl (1280px) up, not lg. Six items
-                need about 1,250px of window beside the logo and the three
-                round buttons; measured with the Note link added, the labels
-                wrapped to two lines up to 1200px and to three at 1024px
-                (the five sections alone already wrapped below ~1150px).
+            {/* Desktop navigation — from xl (1280px) up, not lg. The five
+                areas, "｜" and Note need about 1,190px of window beside the
+                logo and the three round buttons (at 1280px, 97px is left
+                between the logo and the pill; measured 2026-09-20). With
+                the Note link, the labels wrapped to two lines up to 1200px
+                and to three at 1024px (the five sections alone already
+                wrapped below ~1150px).
                 Below xl the menu button below takes over, as it already did
                 for narrow windows. `whitespace-nowrap` so a label can never
                 break mid-word if the widths shift again. */}

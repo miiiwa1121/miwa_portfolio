@@ -7,7 +7,7 @@ import { Globe, Menu, X } from "lucide-react";
 import Wordmark from "@/ui/Wordmark";
 import NavPills from "@/hub/NavPills";
 import MobileMenu from "@/hub/MobileMenu";
-import { navItemForPath } from "@/hub/nav";
+import { pageLinkForPath } from "@/hub/nav";
 import { useLanguage } from "@/state/LanguageContext";
 import { useHandheld } from "@/state/useHandheld";
 
@@ -20,12 +20,14 @@ import { useHandheld } from "@/state/useHandheld";
  * Drawn to match the hub's header furniture pixel-for-pixel so that moving
  * between a hub section and a reading page creates no visual discrepancy.
  *
- * Sticky at the top of the viewport with backdrop blur, so the title
- * (Miiiwa.) and header controls remain fixed while reading.
+ * Fixed at the top of the viewport and transparent, like the hub's, so the
+ * title (Miiiwa.) and header controls stay put while reading. The text runs
+ * underneath it; the user keeps it that way (devlog 2026-09-20).
  */
 export default function ReadingHeader() {
   const pathname = usePathname();
-  const current = navItemForPath(pathname);
+  // Lights "ノート" on the notes; no area is ever lit off the planet.
+  const current = pageLinkForPath(pathname);
   const { language, toggleLanguage } = useLanguage();
   const isJa = language === "ja";
   const handheld = useHandheld();

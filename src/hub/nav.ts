@@ -4,21 +4,28 @@ import { hashForSection } from "@/state/sectionUrl";
 type Label = { ja: string; en: string };
 
 /**
- * One entry of the site navigation.
- *
- * Most entries are an area on the planet (`section`): on the hub, choosing one
- * flies the camera there. An entry may also — or instead — have a page of its
- * own off the planet (`page`). "Note" has only that: no building, no marker,
- * no card, no place on the tour. The union makes an entry with neither
- * unwritable.
+ * One area on the planet, as the navigation names it: on the hub, choosing
+ * one flies the camera there; off the planet, it leads to the hub with that
+ * area's sheet open.
  */
 export type NavItem = Label & {
   section: NonNullable<SectionType>;
-  page?: string;
 };
 
 /**
- * The navigation, in the order it is drawn — the same list on the hub, in the
+ * A page of its own off the planet, drawn after the areas past a divider
+ * ("｜" on the header, a rule in the full-screen menu). It has no building, no
+ * marker, no card and no place on the tour — choosing it leaves the diorama.
+ */
+export type PageLink = Label & {
+  page: string;
+};
+
+/** Whatever a navigation drawing may light: an area or a page. */
+export type NavEntry = NavItem | PageLink;
+
+/**
+ * The areas, in the order they are drawn — the same list on the hub, in the
  * full-screen menu and on the reading pages.
  */
 export const NAV: readonly NavItem[] = [
@@ -29,18 +36,25 @@ export const NAV: readonly NavItem[] = [
   { section: "contact", ja: "お問い合わせ", en: "Contact" },
 ];
 
+/**
+ * The pages off the planet, drawn after `NAV`. The notes are here in words,
+ * not only behind the monitor button's unlabelled book icon: they are the
+ * site's answer to the AdSense "low value content" rejection, and a reviewer
+ * who reads only the labelled navigation — five areas, all one page — sees
+ * the two-page site that was rejected (devlog 2026-09-20).
+ */
+export const PAGE_LINKS: readonly PageLink[] = [{ page: "/notes", ja: "ノート", en: "Note" }];
+
 /** A stable identity for an entry — React keys. */
-export function navKey(item: NavItem): string {
-  return item.section;
+export function navKey(item: NavEntry): string {
+  return "section" in item ? item.section : item.page;
 }
 
 /**
- * Where an entry leads from a page off the planet: its own page if it has one,
- * otherwise its area on the hub, opened through the hash the hub reads on
- * arrival (`sectionUrl`).
+ * Where an area leads from a page off the planet: the hub, opened on that
+ * area through the hash the hub reads on arrival (`sectionUrl`).
  */
 export function offPlanetHref(item: NavItem): string {
-  if (item.page !== undefined) return item.page;
   return `/${hashForSection(item.section)}`;
 }
 
@@ -67,7 +81,7 @@ export function navItemForSection(section: SectionType): NavItem | undefined {
   return section ? NAV.find((item) => item.section === section) : undefined;
 }
 
-/** The entry lit on a page off the planet: the one whose page contains it. */
-export function navItemForPath(pathname: string): NavItem | undefined {
-  return NAV.find(({ page }) => page !== undefined && (pathname === page || pathname.startsWith(`${page}/`)));
+/** The entry lit on a page off the planet: the page link whose page contains it. */
+export function pageLinkForPath(pathname: string): PageLink | undefined {
+  return PAGE_LINKS.find(({ page }) => pathname === page || pathname.startsWith(`${page}/`));
 }

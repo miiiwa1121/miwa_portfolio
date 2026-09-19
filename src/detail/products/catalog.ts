@@ -44,7 +44,8 @@ export function statusLabel(status: string, language: Language): string {
 }
 
 /**
- * Projects that aren't public yet carry "#" as their URL. Treat those as
+ * A project carries "#" for a URL it has no public address for — a product
+ * not released yet, or a repository kept private. Treat those as
  * placeholders so the UI can intercept the click instead of navigating
  * to the top of the page.
  */

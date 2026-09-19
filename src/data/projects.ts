@@ -47,7 +47,10 @@ export const PROJECTS: ProjectSource[] = [
     tags: ["Next.js", "Supabase", "Tailwind CSS", "Leaflet"],
     category: "WEB",
     status: "Public",
-    githubUrl: "https://github.com/miiiwa1121/imadoko",
+    // The repository is private: a link to it is GitHub's 404 for everyone
+    // but the owner. "#" makes the hub answer with its "secret" toast and
+    // the product page leave View Code out (devlog 2026-09-20).
+    githubUrl: "#",
     demoUrl: "https://imadoko.miiiwa.com",
   },
   {
@@ -61,7 +64,10 @@ export const PROJECTS: ProjectSource[] = [
     tags: ["Next.js", "MediaPipe", "Cloudflare Workers", "D1"],
     category: "WEB",
     status: "Public",
-    githubUrl: "https://github.com/miiiwa1121/michaw",
+    // The repository is private: a link to it is GitHub's 404 for everyone
+    // but the owner. "#" makes the hub answer with its "secret" toast and
+    // the product page leave View Code out (devlog 2026-09-20).
+    githubUrl: "#",
     demoUrl: "https://michaw.miiiwa.com",
   },
   {
