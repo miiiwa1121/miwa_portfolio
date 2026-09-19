@@ -90,7 +90,9 @@ export default function CardRail({
   // The active section currently displayed in slot 0 on the rail.
   const [activeSection, setActiveSection] = useState(section);
   const activeSectionRef = useRef(activeSection);
-  activeSectionRef.current = activeSection;
+  useEffect(() => {
+    activeSectionRef.current = activeSection;
+  }, [activeSection]);
 
   // True while a release or external step animation is in flight.
   const isAnimating = useRef(false);
@@ -120,6 +122,7 @@ export default function CardRail({
     if (section === activeSectionRef.current) return;
 
     if (focused || cardWidth === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveSection(section);
       dragX.set(0);
       setSlideStep(0);

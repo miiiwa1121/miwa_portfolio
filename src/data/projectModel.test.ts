@@ -159,7 +159,9 @@ describe("the catalogue itself", () => {
   });
 
   // An archived build exported without its basePath still renders its HTML,
-  // then asks for /_next/... — the live site's chunks, not its own.
+  // then asks for /_next/... — the live site's chunks, not its own. Root-relative
+  // links must stay inside an archive (itself or another archived demo listed in
+  // Products), never pointing at un-prefixed live site routes or assets.
   it("serves an archived build its own assets, not the live site's", () => {
     for (const p of LOCAL_DEMOS) {
       const html = readFileSync(publicFile(p.demoUrl), "utf8");
@@ -167,7 +169,8 @@ describe("the catalogue itself", () => {
       const paths = [...html.matchAll(/\b(?:src|href)="(\/(?!\/)[^"]*)"/g)].map((m) => m[1]);
       expect(paths.length, p.slug).toBeGreaterThan(0);
       for (const path of paths) {
-        expect(isInside(path, p.demoUrl), `${p.slug}: ${path}`).toBe(true);
+        const isArchived = LOCAL_DEMOS.some((d) => isInside(path, d.demoUrl));
+        expect(isArchived, `${p.slug}: ${path}`).toBe(true);
       }
     }
   });
