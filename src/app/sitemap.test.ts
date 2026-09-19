@@ -20,11 +20,12 @@ describe("sitemap", () => {
     for (const url of urls) expect(url === SITE_URL || url.startsWith(`${SITE_URL}/`), url).toBe(true);
   });
 
-  it("dates a note by the day it was written, not the day of the build", () => {
-    const [first] = NOTES;
-    const entry = sitemap().find((e) => e.url === `${SITE_URL}/notes/${first.slug}`);
-    // Compared to the millisecond: the notes are all dated today, so a
-    // day-level comparison could not tell the note's date from the build's.
-    expect(new Date(entry!.lastModified!).getTime()).toBe(new Date(first.date).getTime());
+  it("dates each note by its own date, not the day of the build", () => {
+    // Compared to the millisecond: a note can be dated the day of the build,
+    // and a day-level comparison could not tell the two apart.
+    for (const note of NOTES) {
+      const entry = sitemap().find((e) => e.url === `${SITE_URL}/notes/${note.slug}`);
+      expect(new Date(entry!.lastModified!).getTime(), note.slug).toBe(new Date(note.date).getTime());
+    }
   });
 });

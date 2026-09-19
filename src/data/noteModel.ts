@@ -16,7 +16,11 @@ export type NoteSource = {
   title: string;
   /** One or two sentences: the summary on the index and the meta description. */
   description: string;
-  /** Publication date, `YYYY-MM-DD`. */
+  /**
+   * The day the work the note tells of was done, `YYYY-MM-DD` — not the day
+   * the note went online (the user's call, devlog 2026-09-20). The pages show
+   * it, and the sitemap gives it as the note's `lastModified`.
+   */
   date: string;
   tags: string[];
   /**
