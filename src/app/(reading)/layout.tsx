@@ -1,5 +1,6 @@
 import ReadingHeader from "@/reading/ReadingHeader";
 import ReadingFooter from "@/reading/ReadingFooter";
+import ReadingDock from "@/reading/ReadingDock";
 
 /**
  * The shell of every reading page — the products' write-ups, the notes, and
@@ -20,8 +21,9 @@ export default function ReadingLayout({ children }: { children: React.ReactNode 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground safe-inset">
       <ReadingHeader />
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 pt-24 sm:pt-28 md:pt-32">{children}</main>
       <ReadingFooter />
+      <ReadingDock />
     </div>
   );
 }

@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Monitor, Terminal } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, Monitor, Terminal } from "lucide-react";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { GithubIcon, XIcon } from "@/ui/icons";
 import Footer from "./Footer";
+
+const MotionLink = motion.create(Link);
 
 type Props = {
   isJa: boolean;
@@ -94,6 +97,18 @@ export default function HubDock({ isJa, openTerminal, pageOpen }: Props) {
               exit="hidden"
               className="flex items-center gap-2 ml-2.5"
             >
+              <MotionLink
+                variants={itemVariants}
+                whileHover={{ scale: 1.15, y: -2 }}
+                whileTap={{ scale: 0.92 }}
+                href="/notes"
+                title={isJa ? "ノート" : "Notes"}
+                aria-label={isJa ? "ノート" : "Notes"}
+                className="w-11 h-11 bg-white rounded-full flex items-center justify-center text-orange-600 hover:text-orange-700 hover:bg-white transition-colors border border-black/5 shadow-sm hover:shadow-md shrink-0"
+              >
+                <BookOpen size={19} />
+              </MotionLink>
+
               <motion.a
                 variants={itemVariants}
                 whileHover={{ scale: 1.15, y: -2 }}

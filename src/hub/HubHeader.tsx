@@ -113,39 +113,39 @@ export default function HubHeader({
           <span className="text-xs sm:text-sm font-black w-5 sm:w-6">{isJa ? "JP" : "EN"}</span>
         </button>
 
-        {!handheld && (
-          <>
-            {/* Freeze the town */}
+        {!handheld &&
+          (onLightBackground ? (
             <button
-              onClick={togglePaused}
-              title={paused ? (isJa ? "動きを再生" : "Resume motion") : (isJa ? "動きを停止" : "Pause motion")}
-              aria-label={paused ? (isJa ? "動きを再生" : "Resume motion") : (isJa ? "動きを停止" : "Pause motion")}
-              aria-pressed={paused}
-              className={`w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 border border-black/5 shadow-sm pointer-events-auto ${paused ? "bg-orange-600 text-white" : "bg-white text-gray-800"
-                }`}
+              onClick={onClose}
+              title={isJa ? "閉じる" : "Close"}
+              aria-label={isJa ? "閉じる" : "Close"}
+              className="w-[96px] sm:w-[108px] md:w-[128px] h-11 sm:h-12 md:h-14 rounded-full flex items-center justify-center gap-1.5 sm:gap-2 bg-[#ea580c] hover:bg-[#c2410c] text-white font-bold text-xs sm:text-sm shadow-md transition-all hover:scale-105 active:scale-95 pointer-events-auto cursor-pointer"
             >
-              {paused ? (
-                <Play className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" />
-              ) : (
-                <Pause className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" />
-              )}
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span>{isJa ? "閉じる" : "Close"}</span>
             </button>
-
-            {onLightBackground ? (
+          ) : (
+            <>
+              {/* Freeze the town */}
               <button
-                onClick={onClose}
-                title={isJa ? "閉じる" : "Close"}
-                aria-label={isJa ? "閉じる" : "Close"}
-                className="h-11 px-3.5 sm:h-12 sm:px-4 md:h-14 md:px-5 rounded-full flex items-center gap-1.5 sm:gap-2 bg-[#ea580c] hover:bg-[#c2410c] text-white font-bold text-xs sm:text-sm shadow-md transition-all hover:scale-105 active:scale-95 pointer-events-auto cursor-pointer"
+                onClick={togglePaused}
+                title={paused ? (isJa ? "動きを再生" : "Resume motion") : (isJa ? "動きを停止" : "Pause motion")}
+                aria-label={paused ? (isJa ? "動きを再生" : "Resume motion") : (isJa ? "動きを停止" : "Pause motion")}
+                aria-pressed={paused}
+                className={`w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 border border-black/5 shadow-sm pointer-events-auto ${
+                  paused ? "bg-orange-600 text-white" : "bg-white text-gray-800"
+                }`}
               >
-                <X size={18} />
-                <span className="hidden sm:inline">{isJa ? "閉じる" : "Close"}</span>
+                {paused ? (
+                  <Play className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" />
+                ) : (
+                  <Pause className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" />
+                )}
               </button>
-            ) : (
+
               <ZoomControl isJa={isJa} stage={zoomStage} onSelect={onZoomSelect} />
-            )}
-          </>
-        )}
+            </>
+          ))}
 
         {/*
          * The phone's last slot, shared by two buttons that swap places.

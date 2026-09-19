@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { motion, type Variants } from "framer-motion";
-import { Terminal, X } from "lucide-react";
+import { BookOpen, Terminal, X } from "lucide-react";
 import { GithubIcon, XIcon } from "@/ui/icons";
 import type { SectionType } from "@/types";
 import { NAV, leadsToHub, navKey, offPlanetHref, type NavItem } from "./nav";
@@ -181,6 +181,15 @@ export default function MobileMenu({
             are parked here — visible rather than behind a hover, which a
             phone does not have anyway. */}
         <motion.div variants={ROW_VARIANTS} className="flex items-center gap-3 shrink-0 pt-6">
+          <Link
+            href="/notes"
+            onClick={onClose}
+            title={isJa ? "ノート" : "Notes"}
+            aria-label={isJa ? "ノート" : "Notes"}
+            className="w-12 h-12 rounded-full flex items-center justify-center bg-white/10 text-orange-400 border border-white/10 active:scale-95 transition-transform"
+          >
+            <BookOpen size={20} />
+          </Link>
           <a
             href="https://github.com/miiiwa1121"
             target="_blank"

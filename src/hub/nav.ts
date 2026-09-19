@@ -12,29 +12,26 @@ type Label = { ja: string; en: string };
  * no card, no place on the tour. The union makes an entry with neither
  * unwritable.
  */
-export type NavItem = Label &
-  (
-    | { section: NonNullable<SectionType>; page?: string }
-    | { section?: undefined; page: string }
-  );
+export type NavItem = Label & {
+  section: NonNullable<SectionType>;
+  page?: string;
+};
 
 /**
  * The navigation, in the order it is drawn — the same list on the hub, in the
- * full-screen menu and on the reading pages. The pages off the planet sit in
- * it like any other entry rather than after a divider (the user's call).
+ * full-screen menu and on the reading pages.
  */
 export const NAV: readonly NavItem[] = [
   { section: "about", ja: "自己紹介", en: "About" },
-  { section: "products", page: "/products", ja: "制作実績", en: "Products" },
+  { section: "products", ja: "制作実績", en: "Products" },
   { section: "skills", ja: "技術スタック", en: "Skills" },
   { section: "experience", ja: "経歴・活動", en: "Experience" },
-  { page: "/notes", ja: "ノート", en: "Note" },
   { section: "contact", ja: "お問い合わせ", en: "Contact" },
 ];
 
 /** A stable identity for an entry — React keys. */
 export function navKey(item: NavItem): string {
-  return item.section ?? item.page;
+  return item.section;
 }
 
 /**
@@ -43,8 +40,8 @@ export function navKey(item: NavItem): string {
  * arrival (`sectionUrl`).
  */
 export function offPlanetHref(item: NavItem): string {
-  if (item.section === undefined) return item.page;
-  return item.page ?? `/${hashForSection(item.section)}`;
+  if (item.page !== undefined) return item.page;
+  return `/${hashForSection(item.section)}`;
 }
 
 /**

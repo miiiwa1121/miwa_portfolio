@@ -9,13 +9,12 @@ const byLabel = (ja: string) => {
 };
 
 describe("NAV", () => {
-  it("puts Note among the areas, right after Experience (the user's order)", () => {
+  it("lists the five planet areas", () => {
     expect(NAV.map((i) => i.ja)).toEqual([
       "自己紹介",
       "制作実績",
       "技術スタック",
       "経歴・活動",
-      "ノート",
       "お問い合わせ",
     ]);
   });
@@ -32,13 +31,9 @@ describe("NAV", () => {
 });
 
 describe("offPlanetHref", () => {
-  it("leads to an entry's own page when it has one", () => {
-    expect(offPlanetHref(byLabel("制作実績"))).toBe("/products");
-    expect(offPlanetHref(byLabel("ノート"))).toBe("/notes");
-  });
-
-  it("leads to the hub at the area otherwise", () => {
+  it("leads to the hub at the area", () => {
     expect(offPlanetHref(byLabel("自己紹介"))).toBe("/#about");
+    expect(offPlanetHref(byLabel("制作実績"))).toBe("/#products");
     expect(offPlanetHref(byLabel("技術スタック"))).toBe("/#skills");
     expect(offPlanetHref(byLabel("経歴・活動"))).toBe("/#experience");
     expect(offPlanetHref(byLabel("お問い合わせ"))).toBe("/#contact");
@@ -46,9 +41,6 @@ describe("offPlanetHref", () => {
 
   it("uses a hash the hub opens on arrival", () => {
     for (const item of NAV) {
-      if (item.section === undefined || item.page !== undefined) continue;
-      // Resolved from where the link is drawn: a relative "#about" would
-      // stay on the reading page.
       const url = new URL(offPlanetHref(item), "https://miiiwa.com/notes/drag-the-sun");
       expect(url.pathname).toBe("/");
       expect(sectionFromHash(url.hash)).toBe(item.section);
@@ -57,18 +49,12 @@ describe("offPlanetHref", () => {
 });
 
 describe("navItemForPath", () => {
-  it("lights the index and everything under it", () => {
-    expect(navItemForPath("/notes")).toBe(byLabel("ノート"));
-    expect(navItemForPath("/notes/drag-the-sun")).toBe(byLabel("ノート"));
-    expect(navItemForPath("/products")).toBe(byLabel("制作実績"));
-    expect(navItemForPath("/products/imadoko")).toBe(byLabel("制作実績"));
-  });
-
   it("lights nothing on pages that are not in the list", () => {
     expect(navItemForPath("/")).toBeUndefined();
+    expect(navItemForPath("/products")).toBeUndefined();
+    expect(navItemForPath("/notes")).toBeUndefined();
+    expect(navItemForPath("/notes/drag-the-sun")).toBeUndefined();
     expect(navItemForPath("/privacy")).toBeUndefined();
-    // A shared prefix is not containment.
-    expect(navItemForPath("/notes-archive")).toBeUndefined();
   });
 });
 
@@ -84,17 +70,18 @@ describe("leadsToHub", () => {
   it("is true for the hub, bare or at an area", () => {
     expect(leadsToHub("/")).toBe(true);
     expect(leadsToHub("/#about")).toBe(true);
+    expect(leadsToHub("/#products")).toBe(true);
   });
 
   it("is false for the other pages of the site", () => {
+    expect(leadsToHub("/products")).toBe(false);
     expect(leadsToHub("/notes")).toBe(false);
-    expect(leadsToHub("/products/imadoko")).toBe(false);
     expect(leadsToHub("/privacy")).toBe(false);
   });
 
-  it("covers every entry that leads to an area rather than a page", () => {
+  it("covers every entry in NAV", () => {
     for (const item of NAV) {
-      expect(leadsToHub(offPlanetHref(item))).toBe(item.page === undefined);
+      expect(leadsToHub(offPlanetHref(item))).toBe(true);
     }
   });
 });

@@ -28,7 +28,7 @@
 | 置き場 | 何が入るか |
 | --- | --- |
 | `app/(reading)/` | ルートグループ。`layout.tsx`（共通のヘッダー・フッター）と `products/`・`notes/` の一覧と個別ページ。**グループ名は URL に出ない** |
-| `reading/` | 読み物のページだけが使う部品（`ReadingHeader`／`ReadingFooter`／`BackLink`／`ProductActions`／`ProductList`／`NoteList`）と、メタデータの組み立て（`pageMeta.ts`） |
+| `reading/` | 読み物のページだけが使う部品（`ReadingHeader`／`ReadingFooter`／`ReadingDock`／`BackLink`／`ProductActions`／`ProductList`／`NoteList`）と、メタデータの組み立て（`pageMeta.ts`） |
 | `content/products/<slug>.mdx` | 制作実績の本文。**`data/projects.ts` の全 slug に1つずつ**（テストが両方向の過不足を見る） |
 | `content/notes/<slug>.mdx` | ノートの本文。事実（題・日付・要約）は `data/notes.ts` 側に書き、MDX には `#` の見出しを書かない |
 | `mdx-components.tsx` | MDX の本文の型。`@next/mdx` が `app/` と同じ階層を要求するので `src/` 直下に置く（ここだけ `src/` 直下のファイル） |
