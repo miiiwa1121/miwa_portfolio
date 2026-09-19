@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { localizeProject, localizeProjects } from "./projectModel";
+import { localizeProject, localizeProjects, productPath } from "./projectModel";
+import { MIN_PROSE_CHARS, contentSlugs, proseLength, readContent } from "@/content/contentFiles.testutil";
 import { PROJECTS } from "./projects";
 import type { ProjectSource } from "./projectModel";
 
@@ -206,5 +207,32 @@ describe("the catalogue itself", () => {
         }
       }
     }
+  });
+});
+
+describe("each project's own page", () => {
+  it("has a body on disk for every project, and no body without a project", () => {
+    // The modal's "Read More" is shown for every project, so a project
+    // without a body would be a button into a 404 — the build fails first,
+    // since the page imports it. An orphaned body is never served at all.
+    expect(contentSlugs("products").sort()).toEqual(PROJECTS.map((p) => p.slug).sort());
+  });
+
+  it("uses slugs that are safe as a URL segment", () => {
+    for (const { slug } of PROJECTS) expect(slug).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+  });
+
+  it("is served under /products", () => {
+    expect(productPath("imadoko")).toBe("/products/imadoko");
+  });
+
+  it("ships no page shorter than a real write-up", () => {
+    for (const { slug } of PROJECTS) {
+      expect(proseLength(readContent("products", slug)), slug).toBeGreaterThanOrEqual(MIN_PROSE_CHARS);
+    }
+  });
+
+  it("does not repeat the title inside the body", () => {
+    for (const { slug } of PROJECTS) expect(readContent("products", slug), slug).not.toMatch(/^# /m);
   });
 });

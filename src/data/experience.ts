@@ -108,7 +108,7 @@ export const EXPERIENCE: ExperienceSource[] = [
       en: "Developed and released a new personal product \"mesen\". Leveraging previous learnings, focused on User Experience (UX) and modern tech stacks.",
     },
     // Renamed Michaw in 2026.08 (below); the slug kept the original name.
-    project: "mesen",
+    project: "michaw",
   },
   {
     period: "2026.07",
@@ -143,7 +143,7 @@ export const EXPERIENCE: ExperienceSource[] = [
       ja: "「mesen」を「Michaw（見ちゃう）」として作り直す。視線推定の結果をGIF・MP4に書き出すツールから、画像の中の「つい見てしまう場所」を見てしまうまでの時間を計測するゲームへと遊び方を変え、Cloudflare D1を加えて独自ドメイン（michaw.miiiwa.com）へ移す。",
       en: "Rebuilt \"mesen\" as \"Michaw\". It changed from a tool that exports gaze-estimation results as GIF/MP4 into a game that measures how long it takes before you look at the irresistible spot in an image, gaining Cloudflare D1 and moving to its own domain (michaw.miiiwa.com).",
     },
-    project: "mesen",
+    project: "michaw",
   },
   {
     period: "2026.09",

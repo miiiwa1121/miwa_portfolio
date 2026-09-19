@@ -3,10 +3,12 @@
 import { useEffect } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { X } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, X } from "lucide-react";
 import { useLanguage } from "@/state/LanguageContext";
-import type { Project } from "@/data";
+import { productPath, type Project } from "@/data";
 import { statusLabel } from "./catalog";
+import { CategoryBadge, StatusBadge } from "./Badges";
 import ProjectLinks, { type BlockedLink } from "./ProjectLinks";
 
 type Props = {
@@ -64,20 +66,7 @@ export default function ProjectModal({ project, onClose, onBlockedLink }: Props)
           />
           <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent"></div>
           <div className="absolute top-6 left-6 z-20">
-            <span
-              className={`flex items-center gap-2 text-xs sm:text-sm font-bold px-3.5 py-1.5 rounded-full border backdrop-blur-md shadow-sm ${project.status === "Public"
-                  ? "bg-emerald-50/90 text-emerald-700 border-emerald-300/40"
-                  : "bg-orange-50/90 text-orange-700 border-orange-300/40"
-                }`}
-            >
-              <span
-                className={`w-2 h-2 rounded-full ${project.status === "Public"
-                    ? "bg-emerald-500 shadow-[0_0_8px_#22c55e]"
-                    : "bg-orange-500 shadow-[0_0_8px_#f97316]"
-                  }`}
-              />
-              <span>{statusLabel(project.status, language)}</span>
-            </span>
+            <StatusBadge size="lg" status={project.status} label={statusLabel(project.status, language)} />
           </div>
         </div>
 
@@ -86,14 +75,7 @@ export default function ProjectModal({ project, onClose, onBlockedLink }: Props)
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-950 tracking-tight">
               {project.title}
             </h2>
-            <span
-              className={`px-3 py-1 rounded-full text-xs font-bold border ${project.category === "WEB"
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200/50"
-                  : "bg-purple-50 text-purple-700 border-purple-200/50"
-                }`}
-            >
-              {project.category}
-            </span>
+            <CategoryBadge size="lg" category={project.category} />
           </div>
 
           <div className="space-y-6">
@@ -131,6 +113,17 @@ export default function ProjectModal({ project, onClose, onBlockedLink }: Props)
               codeClassName="flex-1 py-3.5 sm:py-4 flex items-center justify-center gap-2 rounded-2xl bg-white hover:bg-gray-50 border border-black/10 text-gray-800 font-bold transition-all hover:scale-[1.01] active:scale-95 text-sm sm:text-base cursor-pointer"
               demoClassName="flex-1 py-3.5 sm:py-4 flex items-center justify-center gap-2 rounded-2xl bg-[#ea580c] hover:bg-[#c2410c] text-white font-bold transition-all shadow-[0_4px_0_#9a3412] hover:shadow-[0_2px_0_#9a3412] hover:translate-y-[2px] active:shadow-none active:translate-y-1 text-sm sm:text-base cursor-pointer"
             />
+            {/* The project's own page — the long write-up this modal only
+                summarises. A route of this app, unlike Code/Play, so it is a
+                next/link; the hub unmounts on the way, and the back button
+                returns to #products. Same outline style as Code: Play stays
+                the one filled button. */}
+            <Link
+              href={productPath(project.slug)}
+              className="flex-1 py-3.5 sm:py-4 flex items-center justify-center gap-2 rounded-2xl bg-white hover:bg-gray-50 border border-black/10 text-gray-800 font-bold transition-all hover:scale-[1.01] active:scale-95 text-sm sm:text-base cursor-pointer whitespace-nowrap"
+            >
+              <BookOpen size={18} /> <span>Read More</span>
+            </Link>
           </div>
         </div>
       </motion.div>

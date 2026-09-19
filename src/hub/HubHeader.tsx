@@ -2,7 +2,9 @@
 
 import { Globe, Pause, Play, Menu, X } from "lucide-react";
 import type { SectionType } from "@/types";
-import { NAV } from "./nav";
+import Wordmark from "@/ui/Wordmark";
+import { navItemForSection } from "./nav";
+import NavPills from "./NavPills";
 import ZoomControl, { type ZoomStage } from "./ZoomControl";
 
 type Props = {
@@ -55,50 +57,7 @@ export default function HubHeader({
           onLightBackground ? "text-gray-900" : "text-white"
         }`}
       >
-        <span>M</span>
-        <span
-          className={`bg-clip-text text-transparent ${
-            onLightBackground
-              ? "stem-split-light-1 anim-light-d1"
-              : "stem-split-dark-1 anim-dark-d1"
-          }`}
-          style={{
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}
-        >
-          i
-        </span>
-        <span
-          className={`bg-clip-text text-transparent ${
-            onLightBackground
-              ? "stem-split-light-2 anim-light-d2"
-              : "stem-split-dark-2 anim-dark-d2"
-          }`}
-          style={{
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}
-        >
-          i
-        </span>
-        <span
-          className={`bg-clip-text text-transparent ${
-            onLightBackground
-              ? "stem-split-light-3 anim-light-d3"
-              : "stem-split-dark-3 anim-dark-d3"
-          }`}
-          style={{
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}
-        >
-          i
-        </span>
-        <span>wa</span>
-        <span className={onLightBackground ? "anim-light-d4" : "anim-dark-d4"}>
-          .
-        </span>
+        <Wordmark onLight={onLightBackground} />
       </button>
 
       {/*
@@ -115,21 +74,20 @@ export default function HubHeader({
       <div className="flex items-center gap-2 sm:gap-3 md:gap-4 relative">
         {!handheld && (
           <>
-            {/* Desktop navigation */}
-            <nav className="hidden lg:flex gap-1.5 pointer-events-auto bg-white px-2 py-2 rounded-full border border-black/5 shadow-sm">
-              {NAV.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => onNavClick(item.id)}
-                  className={`px-4 py-2 rounded-full text-base font-bold transition-all duration-200 ${activeSection === item.id
-                      ? "bg-orange-600 text-white shadow-sm"
-                      : "text-gray-700 hover:text-orange-600 hover:bg-orange-50/80"
-                    }`}
-                >
-                  {isJa ? item.ja : item.en}
-                </button>
-              ))}
-            </nav>
+            {/* Desktop navigation — from xl (1280px) up, not lg. Six items
+                need about 1,250px of window beside the logo and the three
+                round buttons; measured with the Note link added, the labels
+                wrapped to two lines up to 1200px and to three at 1024px
+                (the five sections alone already wrapped below ~1150px).
+                Below xl the menu button below takes over, as it already did
+                for narrow windows. `whitespace-nowrap` so a label can never
+                break mid-word if the widths shift again. */}
+            <NavPills
+              isJa={isJa}
+              current={navItemForSection(activeSection)}
+              onSectionClick={onNavClick}
+              className="hidden xl:flex"
+            />
 
             {/* Narrow window, mouse: the same panel a phone gets, since the
                 navigation above has nowhere to sit. */}
@@ -138,7 +96,7 @@ export default function HubHeader({
               title={isJa ? "セクション一覧" : "Menu"}
               aria-haspopup="dialog"
               aria-label={isJa ? "セクション一覧" : "Menu"}
-              className="lg:hidden w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 border border-black/5 pointer-events-auto shadow-sm bg-white text-gray-800"
+              className="xl:hidden w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 border border-black/5 pointer-events-auto shadow-sm bg-white text-gray-800"
             >
               <Menu size={18} />
             </button>

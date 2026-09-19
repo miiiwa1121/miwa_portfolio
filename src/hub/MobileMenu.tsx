@@ -6,7 +6,7 @@ import { motion, type Variants } from "framer-motion";
 import { Terminal, X } from "lucide-react";
 import { GithubIcon, XIcon } from "@/ui/icons";
 import type { SectionType } from "@/types";
-import { NAV } from "./nav";
+import { NAV, leadsToHub, navKey, offPlanetHref, type NavItem } from "./nav";
 
 /**
  * The handheld navigation, as a panel over the whole screen.
@@ -22,14 +22,22 @@ import { NAV } from "./nav";
  * Everything here is one tap from the same thumb position the hamburger was
  * under, and the close button lands exactly where that hamburger was, so the
  * button reads as having opened into the panel rather than been replaced.
+ *
+ * The reading pages open the same panel. There an area is not a camera
+ * flight but a link to the hub (`offPlanetHref`; a plain <a>, see
+ * `leadsToHub`), and there is no terminal to open, so both of those props are
+ * optional.
  */
 
 type Props = {
   isJa: boolean;
-  activeSection: SectionType;
-  onNavClick: (id: NonNullable<SectionType>) => void;
+  /** The row drawn lit. */
+  current: NavItem | undefined;
+  /** On the hub: an area's row flies the camera instead of linking. */
+  onNavClick?: (id: NonNullable<SectionType>) => void;
   onClose: () => void;
-  openTerminal: () => void;
+  /** On the hub only — the terminal overlay lives there. */
+  openTerminal?: () => void;
 };
 
 const PANEL_VARIANTS: Variants = {
@@ -51,7 +59,7 @@ const ROW_VARIANTS: Variants = {
 
 export default function MobileMenu({
   isJa,
-  activeSection,
+  current,
   onNavClick,
   onClose,
   openTerminal,
@@ -65,6 +73,17 @@ export default function MobileMenu({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // A reading page scrolls the document itself, and a swipe on the panel —
+  // which has nothing of its own to scroll — would scroll it unseen behind.
+  // (The hub's document never scrolls, so there this changes nothing.)
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
 
   return (
     <motion.div
@@ -91,29 +110,21 @@ export default function MobileMenu({
           </button>
         </div>
 
-        {/* The five areas. Sized to be read at arm's length, not to fit as
-            many as possible: five is the whole list, so there is no scroll to
-            budget for. */}
+        {/* The areas and the pages off the planet, in one numbered list.
+            Sized to be read at arm's length, not to fit as many as possible:
+            six rows is the whole list, so there is no scroll to budget for. */}
         <nav className="flex-1 flex flex-col justify-center gap-1 min-h-0">
           {NAV.map((item, i) => {
-            const current = activeSection === item.id;
-            return (
-              <motion.button
-                key={item.id}
-                variants={ROW_VARIANTS}
-                onClick={() => {
-                  onNavClick(item.id);
-                  onClose();
-                }}
-                aria-current={current ? "page" : undefined}
-                className={`group flex items-baseline gap-4 px-2 py-3 rounded-2xl text-left transition-colors active:bg-white/10 ${
-                  current ? "text-orange-400" : "text-white"
-                }`}
-              >
+            const lit = item === current;
+            const rowClass = `group flex items-baseline gap-4 px-2 py-3 rounded-2xl text-left transition-colors active:bg-white/10 ${
+              lit ? "text-orange-400" : "text-white"
+            }`;
+            const content = (
+              <>
                 <span
                   aria-hidden="true"
                   className={`font-mono text-xs tabular-nums shrink-0 ${
-                    current ? "text-orange-400" : "text-white/35"
+                    lit ? "text-orange-400" : "text-white/35"
                   }`}
                 >
                   {String(i + 1).padStart(2, "0")}
@@ -124,13 +135,43 @@ export default function MobileMenu({
                   </span>
                   <span
                     className={`text-[11px] font-bold uppercase tracking-[0.2em] ${
-                      current ? "text-orange-400/70" : "text-white/40"
+                      lit ? "text-orange-400/70" : "text-white/40"
                     }`}
                   >
                     {isJa ? item.en : item.ja}
                   </span>
                 </span>
-              </motion.button>
+              </>
+            );
+
+            if (item.section !== undefined && onNavClick) {
+              const id = item.section;
+              return (
+                <motion.button
+                  key={navKey(item)}
+                  variants={ROW_VARIANTS}
+                  onClick={() => {
+                    onNavClick(id);
+                    onClose();
+                  }}
+                  aria-current={lit ? "page" : undefined}
+                  className={rowClass}
+                >
+                  {content}
+                </motion.button>
+              );
+            }
+            const href = offPlanetHref(item);
+            const linkProps = {
+              href,
+              onClick: onClose,
+              "aria-current": lit ? ("page" as const) : undefined,
+              className: rowClass,
+            };
+            return (
+              <motion.div key={navKey(item)} variants={ROW_VARIANTS}>
+                {leadsToHub(href) ? <a {...linkProps}>{content}</a> : <Link {...linkProps}>{content}</Link>}
+              </motion.div>
             );
           })}
         </nav>
@@ -158,16 +199,18 @@ export default function MobileMenu({
           >
             <XIcon size={18} />
           </a>
-          <button
-            onClick={() => {
-              openTerminal();
-              onClose();
-            }}
-            aria-label="Terminal mode"
-            className="w-12 h-12 rounded-full flex items-center justify-center bg-white/10 text-emerald-400 border border-white/10 active:scale-95 transition-transform"
-          >
-            <Terminal size={20} />
-          </button>
+          {openTerminal && (
+            <button
+              onClick={() => {
+                openTerminal();
+                onClose();
+              }}
+              aria-label="Terminal mode"
+              className="w-12 h-12 rounded-full flex items-center justify-center bg-white/10 text-emerald-400 border border-white/10 active:scale-95 transition-transform"
+            >
+              <Terminal size={20} />
+            </button>
+          )}
         </motion.div>
 
         {/* The copyright and the privacy link. They used to be pinned to the

@@ -21,6 +21,23 @@
 - **`public/` には「公開したいもの」しか置かない。** `output: 'export'` なので中身はそのまま配信される。git に残したいだけの制作物（`.bbmodel`／`.glb`）は `assets/` へ、試作 HTML は `sandbox/` へ
 - **`sandbox/` は動く試作物、`docs/` は書かれた記録。** 2026-09-16 に `docs/prototypes/` から移した——`docs/` は「判断の理由・実測値・経緯」を持つ場所で、単体で動く HTML はその種類ではない。ルート直下の `assets/`（`.bbmodel`／`.glb`）・`reference/`（ムード参考、gitignore）と同じ「公開しないが git に残す成果物」の並びに置いている。**`test/` や `tests/` という名前は避けた**——`src/**/*.test.ts` の Vitest 一式と紛らわしく、新しく入った人がまずそこを探すため
 
+## 読み物のページ（2026-09-19）
+
+`scene/` の外、ジオラマを持たない普通の HTML のページ群の置き場。設計の理由は [tech.md](tech.md) の「読み物のページ」。
+
+| 置き場 | 何が入るか |
+| --- | --- |
+| `app/(reading)/` | ルートグループ。`layout.tsx`（共通のヘッダー・フッター）と `products/`・`notes/` の一覧と個別ページ。**グループ名は URL に出ない** |
+| `reading/` | 読み物のページだけが使う部品（`ReadingHeader`／`ReadingFooter`／`BackLink`／`ProductActions`／`ProductList`／`NoteList`）と、メタデータの組み立て（`pageMeta.ts`） |
+| `content/products/<slug>.mdx` | 制作実績の本文。**`data/projects.ts` の全 slug に1つずつ**（テストが両方向の過不足を見る） |
+| `content/notes/<slug>.mdx` | ノートの本文。事実（題・日付・要約）は `data/notes.ts` 側に書き、MDX には `#` の見出しを書かない |
+| `mdx-components.tsx` | MDX の本文の型。`@next/mdx` が `app/` と同じ階層を要求するので `src/` 直下に置く（ここだけ `src/` 直下のファイル） |
+| `data/site.ts` | サイトの URL と AdSense の発行者 ID。`https://miiiwa.com` を直書きしない |
+
+- **ハブと共有する部品は、ハブ側の置き場に置いたまま読み物から import する。** `reading/` にコピーを作らない（見た目をハブに揃えるのが目的で、コピーは片方だけ直る状態を作る）。ナビは `hub/nav.ts`・`hub/NavPills.tsx`・`hub/MobileMenu.tsx`、見出しは `detail/SectionHeading.tsx`、公開状態とカテゴリのバッジは `detail/products/Badges.tsx`。どちらの持ち物でもないロゴだけ `ui/Wordmark.tsx`。これらは `"use client"` もフックも持たないか（`NavPills`・`SectionHeading`・`Badges`・`Wordmark`）、持っていても読み物側がクライアント部品の中から使う（`MobileMenu` は `ReadingHeader` の中）
+- **テスト専用のヘルパーは `*.testutil.ts` と名付ける**（`content/contentFiles.testutil.ts`）。Vitest の `include` は `*.test.ts` なので実行されず、名前でアプリから import してはいけないことが分かる。ディスクを読むのでアプリ側に入れてはいけない
+- **ノートとプロダクトの slug は URL になる**ので、英小文字・数字・ハイフンだけ。Michaw の slug は旧名の `mesen` から `michaw` に改めた（個別ページの URL を公開する前に。経歴の2件の紐づけも追従）
+
 ## `public/archive/` — 過去バージョンの保存庫
 
 制作実績で「ポートフォリオ自身の沿革」を見せるために、**過去バージョンの静的書き出しをそのまま** `public/archive/vN/` に置く（手を入れるのは、下の手順6〜8の「画像のパス」「検索よけ」「どこからも参照されないファイルの削除」だけ）。訪問者が当時の動く画面をそのまま触れるようにするためで、スクリーンショットではなくビルド成果物そのもの。**`public/` 直下の例外ではなく、上の規約どおり「公開したいもの」に該当する**（試作物の退避先である `sandbox/` とは目的が違う）。

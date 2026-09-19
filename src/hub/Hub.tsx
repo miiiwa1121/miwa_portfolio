@@ -16,6 +16,7 @@ import CardRail from "./card/CardRail";
 import HubHeader from "./HubHeader";
 import HubDock from "./HubDock";
 import MobileMenu from "./MobileMenu";
+import { navItemForSection } from "./nav";
 import PauseFlash from "./PauseFlash";
 import HomeButton from "./HomeButton";
 import SemanticSEO from "./SemanticSEO";
@@ -418,7 +419,7 @@ export default function Hub() {
         {menuOpen && (
           <MobileMenu
             isJa={isJa}
-            activeSection={activeSection}
+            current={navItemForSection(activeSection)}
             onNavClick={handleNav}
             onClose={() => setMenuOpen(false)}
             openTerminal={openTerminal}

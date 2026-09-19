@@ -51,7 +51,7 @@ export const PROJECTS: ProjectSource[] = [
     demoUrl: "https://imadoko.miiiwa.com",
   },
   {
-    slug: "mesen",
+    slug: "michaw",
     title: { ja: "Michaw（見ちゃう）", en: "Michaw" },
     description: {
       ja: "視線推定・アイトラッキングを活用し、画像の中の「つい見てしまう場所」を見てしまうまでの時間を計測するブラウザゲーム・エンタメWebアプリです。",

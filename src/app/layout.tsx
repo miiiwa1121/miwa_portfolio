@@ -4,6 +4,7 @@ import "./globals.css";
 import { LanguageProvider } from "@/state/LanguageContext";
 import { AppStateProvider } from "@/state/AppStateContext";
 import { TerminalProvider } from "@/terminal/TerminalContext";
+import { ADSENSE_CLIENT, SITE_URL } from "@/data/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,22 +17,24 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://miiiwa.com"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Miiiwa | Portfolio - 面白いを最優先！",
     template: "%s | Miiiwa Portfolio",
   },
   description: "エンジニアMiiiwaのポートフォリオサイト。「面白いを最優先！」をモットーに、Webサービスやブラウザゲーム、3Dグラフィックスを開発しています。",
   keywords: ["Miiiwa", "ポートフォリオ", "エンジニア", "Web開発", "Next.js", "Three.js", "Michaw", "見ちゃう"],
-  authors: [{ name: "Miiiwa", url: "https://miiiwa.com" }],
+  authors: [{ name: "Miiiwa", url: SITE_URL }],
   creator: "Miiiwa",
+  // Inherited by every page that does not set its own — which is why each
+  // reading page must (see `readingMetadata` in src/reading/pageMeta.ts).
   alternates: {
-    canonical: "https://miiiwa.com",
+    canonical: SITE_URL,
   },
   openGraph: {
     type: "website",
     locale: "ja_JP",
-    url: "https://miiiwa.com",
+    url: SITE_URL,
     siteName: "Miiiwa Portfolio",
     title: "Miiiwa | Portfolio - 面白いを最優先！",
     description: "エンジニアMiiiwaのポートフォリオサイト。「面白いを最優先！」をモットーに、Webサービスやブラウザゲーム、3Dグラフィックスを開発しています。",
@@ -83,7 +86,7 @@ export default function RootLayout({
       <head>
         <script
           async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3824645900927410"
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
           crossOrigin="anonymous"
         />
       </head>

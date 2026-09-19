@@ -598,3 +598,10 @@ body {
   .stem-split-light-1 { background-image: linear-gradient(to bottom, var(--c1) 0%, var(--c1) 33%, #111827 33%, #111827 100%); }
   .stem-split-light-2 { background-image: linear-gradient(to bottom, var(--c2) 0%, var(--c2) 33%, #111827 33%, #111827 100%); }
   .stem-split-light-3 { background-image: linear-gradient(to bottom, var(--c3) 0%, var(--c3) 33%, #111827 33%, #111827 100%); }
+
+/* Hallmark · redesign 2026-09-19 · the reading pages (/products, /notes and their write-ups) wear the hub's own UI
+ * macrostructure: inherited from the hub's detail sheet — card grid for the indexes, the product popup opened out for a write-up
+ * theme: the site's own tokens, preserved (--background #fffdf7 · --foreground #1f2937 · --primary #f97316 · Geist + OS Japanese fallback)
+ * nav: the hub's header (Wordmark · NavPills · MobileMenu, shared components) · footer: the hub dock's round links + copyright
+ * Diversification deliberately off: across pages of one site the goal is consistency (the first, separate editorial look was rejected).
+ * Styling lives in Tailwind classes in src/app/(reading)/, src/reading/, the shared hub/detail components and src/mdx-components.tsx. */
