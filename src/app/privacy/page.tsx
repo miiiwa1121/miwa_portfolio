@@ -4,7 +4,9 @@ import { ArrowLeft, Shield, CheckCircle2 } from "lucide-react";
 import { siteUrl } from "@/data/site";
 
 export const metadata: Metadata = {
-  title: "プライバシーポリシー | Miiiwa Portfolio",
+  // Bare: the root layout's `title.template` adds " | Miiiwa Portfolio", and
+  // carrying the suffix here too made the tab read it twice.
+  title: "プライバシーポリシー",
   description: "Miiiwaのポートフォリオサイトにおける個人情報の取り扱い、Google AdSenseによる広告配信、Cookieの使用についてのポリシーです。",
   alternates: {
     canonical: siteUrl("/privacy"),
